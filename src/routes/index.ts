@@ -1,0 +1,30 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health.js";
+import authRouter from "./auth.js";
+import usersRouter from "./users.js";
+import subscriptionsRouter from "./subscriptions.js";
+import trainingRouter from "./training.js";
+import logsRouter from "./logs.js";
+import paymentsRouter from "./payments.js";
+import analyticsRouter from "./analytics.js";
+import exportsRouter from "./exports.js";
+import importsRouter from "./imports.js";
+import expensesRouter from "./expenses.js";
+import scheduleRouter from "./schedule.js";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(authRouter);
+router.use(usersRouter);
+router.use(subscriptionsRouter);
+router.use(trainingRouter);
+router.use(logsRouter);
+router.use(paymentsRouter);
+router.use(analyticsRouter);
+router.use(exportsRouter);
+router.use(importsRouter);
+router.use(expensesRouter);
+router.use(scheduleRouter);
+
+export default router;

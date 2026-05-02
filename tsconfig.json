@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "types": ["node"],
+    "paths": {
+      "@workspace/db": ["./src/db/index.ts"],
+      "@workspace/db/schema": ["./src/db/schema/index.ts"],
+      "@workspace/api-zod": ["./src/api-zod/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
