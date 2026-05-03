@@ -97,8 +97,13 @@ if (process.env.NODE_ENV === "production") {
   const frontendPath = path.resolve(__dirname, "..", "public");
 
   if (existsSync(frontendPath)) {
-    app.use(express.static(frontendPath, { maxAge: "7d" }));
+    // Cache JS/CSS/images for 7 days (they have hashed filenames)
+    app.use(express.static(frontendPath, { maxAge: "7d", immutable: true }));
+    // Never cache index.html — always serve fresh
     app.get(/.*/, (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(frontendPath, "index.html"));
     });
     logger.info({ frontendPath }, "Serving frontend static files");
