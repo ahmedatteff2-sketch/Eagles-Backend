@@ -4,21 +4,14 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 export default defineConfig({
-  base: "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@workspace/api-client-react": path.resolve(__dirname, "src/api-client"),
+      "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom"],
-  },
-  server: {
-    port: 5173,
-    host: "0.0.0.0",
   },
   build: {
-    outDir: "dist",
+    outDir: "../public",
     emptyOutDir: true,
   },
 });
