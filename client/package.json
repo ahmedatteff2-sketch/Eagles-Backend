@@ -10,8 +10,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "qrcode.react": "^4.2.0",
-    "zustand": "^5.0.12",
-    "jsqr": "^1.4.0"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
