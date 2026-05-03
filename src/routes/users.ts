@@ -12,6 +12,7 @@ const router = Router();
 const createUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()),
+  memberCode: z.string().max(50).optional(),
   password: z.string().min(6).max(128),
   role: z.enum(["admin", "trainer", "member"]).default("member"),
 });
@@ -19,6 +20,7 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
+  memberCode: z.string().max(50).optional(),
   role: z.enum(["admin", "trainer", "member"]).optional(),
 });
 
@@ -32,7 +34,14 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
     let query = db.select().from(usersTable).where(eq(usersTable.role, "member"));
     if (search) {
       query = db.select().from(usersTable).where(
-        and(eq(usersTable.role, "member"), or(ilike(usersTable.name, `%${search}%`), ilike(usersTable.phone, `%${search}%`)))
+        and(
+          eq(usersTable.role, "member"),
+          or(
+            ilike(usersTable.name, `%${search}%`),
+            ilike(usersTable.phone, `%${search}%`),
+            ilike(usersTable.memberCode, `%${search}%`)
+          )
+        )
       ) as typeof query;
     }
 
@@ -98,6 +107,13 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
       return;
     }
+    if (body.data.memberCode) {
+      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.memberCode, body.data.memberCode)).limit(1);
+      if (existingCode.length > 0) {
+        res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
+        return;
+      }
+    }
     const hashed = await bcrypt.hash(body.data.password, 10);
     const [user] = await db.insert(usersTable).values({ ...body.data, password: hashed }).returning();
     const { password: _, ...safe } = user;
@@ -162,6 +178,14 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
+    if (body.data.memberCode) {
+      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.memberCode, body.data.memberCode)).limit(1);
+      if (existingCode.length > 0 && existingCode[0].id !== userId) {
+        res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
+        return;
+      }
+    }
+
     const [user] = await db.update(usersTable).set(body.data).where(eq(usersTable.id, userId)).returning();
     if (!user) {
       res.status(404).json({ error: "Not found" });
