@@ -11,8 +11,7 @@
     "strict": true,
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./src/*"],
-      "@workspace/api-client-react": ["./src/api-client/index.ts"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
