@@ -29,11 +29,6 @@ app.use(
         baseUri: ["'self'"],
       },
     },
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    hsts: { maxAge: 31536000, includeSubDomains: true },
-    noSniff: true,
-    xssFilter: true,
-    hidePoweredBy: true,
   }),
 );
 
@@ -47,6 +42,8 @@ app.use(
   }),
 );
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -56,15 +53,12 @@ const globalLimiter = rateLimit({
   skip: (req) => req.method === "OPTIONS",
 });
 
-const isDev = process.env.NODE_ENV !== "production";
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 100 : 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many login attempts", message: "تم تجاوز الحد المسموح به. حاول بعد 15 دقيقة" },
-  skipSuccessfulRequests: false,
   skip: isDev
     ? (req) => {
         const ip = req.ip ?? "";
@@ -96,15 +90,21 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
 app.use("/api", router);
 
+// ─── Serve frontend in production ────────────────────────────────────────────
 if (process.env.NODE_ENV === "production") {
+  // dist/index.mjs runs from /project/dist — so public is one level up
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const frontendPath = path.resolve(__dirname, "public");
+  const frontendPath = path.resolve(__dirname, "..", "public");
 
   if (existsSync(frontendPath)) {
-    app.use(express.static(frontendPath));
+    app.use(express.static(frontendPath, { maxAge: "7d" }));
+    // SPA fallback — send index.html for any non-API route
     app.get(/.*/, (_req: Request, res: Response) => {
       res.sendFile(path.join(frontendPath, "index.html"));
     });
+    logger.info({ frontendPath }, "Serving frontend static files");
+  } else {
+    logger.warn({ frontendPath }, "Frontend public folder not found");
   }
 }
 
