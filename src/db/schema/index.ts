@@ -7,3 +7,4 @@ export * from "./payments";
 export * from "./refresh-tokens";
 export * from "./expenses";
 export * from "./schedule";
+export * from "./reminders";

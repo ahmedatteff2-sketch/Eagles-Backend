@@ -11,6 +11,7 @@ import exportsRouter from "./exports.js";
 import importsRouter from "./imports.js";
 import expensesRouter from "./expenses.js";
 import scheduleRouter from "./schedule.js";
+import remindersRouter from "./reminders.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(exportsRouter);
 router.use(importsRouter);
 router.use(expensesRouter);
 router.use(scheduleRouter);
+router.use(remindersRouter);
 
 export default router;
