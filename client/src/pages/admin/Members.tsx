@@ -206,6 +206,7 @@ export default function AdminMembers() {
         <div>
           <h1 className="text-xl font-bold text-foreground">الأعضاء</h1>
           <p className="text-muted-foreground text-sm mt-0.5">إجمالي {total} عضو</p>
+          <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{background:"hsl(40 65% 48% / 0.15)",color:"hsl(40 65% 58%)"}}>v2.1 ✓</span>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => refetch()} disabled={isFetching} title="تحديث" className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "hsl(0 0% 14%)", border: "1px solid hsl(0 0% 22%)" }}>
