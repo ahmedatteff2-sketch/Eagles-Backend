@@ -159,4 +159,29 @@ router.post("/auth/change-password", authenticate, async (req, res) => {
   res.json({ success: true, message: "تم تغيير كلمة المرور. يرجى تسجيل الدخول مجدداً" });
 });
 
+const updatePhoneSchema = z.object({
+  newPhone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح"),
+  password: z.string().min(1),
+});
+
+router.post("/auth/update-phone", authenticate, async (req, res) => {
+  const body = updatePhoneSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error", message: "بيانات غير صالحة" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+  if (!user) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const valid = await bcrypt.compare(body.data.password, user.password);
+  if (!valid) {
+    res.status(400).json({ error: "Bad request", message: "كلمة المرور غير صحيحة" });
+    return;
+  }
+  await db.update(usersTable).set({ phone: body.data.newPhone }).where(eq(usersTable.id, req.user!.userId));
+  res.json({ success: true, message: "تم تحديث رقم الهاتف بنجاح" });
+});
+
 export default router;
