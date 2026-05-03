@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   useListTrainingPrograms, useCreateTrainingProgram, useDeleteTrainingProgram,
   useListUsers, getListTrainingProgramsQueryKey, getListUsersQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";

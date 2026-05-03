@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuthStore } from "@/store/auth";
-import { useLogout } from "@workspace/api-client-react";
+import { useLogout } from "../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 
 const navItems = [

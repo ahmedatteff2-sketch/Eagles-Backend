@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useLogin } from "@workspace/api-client-react";
+import { useLogin } from "../api-client";
 import { useAuthStore } from "@/store/auth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";

@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   useListTrainingPrograms, useGetTrainingProgram,
   getListTrainingProgramsQueryKey, getGetTrainingProgramQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 
 function ExerciseRow({ ex, index }: { ex: any; index: number }) {
   return (

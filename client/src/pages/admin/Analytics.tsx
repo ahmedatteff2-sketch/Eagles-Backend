@@ -1,7 +1,7 @@
 import {
   useGetDashboardStats, useGetAttendanceAnalytics,
   getGetDashboardStatsQueryKey, getGetAttendanceAnalyticsQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, ComposedChart, Area,

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useListUsers, getListUsersQueryKey } from "@workspace/api-client-react";
+import { useListUsers, getListUsersQueryKey } from "../../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminQRScanner() {

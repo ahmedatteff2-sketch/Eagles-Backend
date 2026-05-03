@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/store/auth";
-import { useGetMemberCurrentSubscription, getGetMemberCurrentSubscriptionQueryKey } from "@workspace/api-client-react";
+import { useGetMemberCurrentSubscription, getGetMemberCurrentSubscriptionQueryKey } from "../../api-client";
 
 export default function MemberDashboard() {
   const { user } = useAuthStore();

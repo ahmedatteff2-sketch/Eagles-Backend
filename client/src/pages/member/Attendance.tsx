@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/store/auth";
-import { useListCheckins, getListCheckinsQueryKey } from "@workspace/api-client-react";
+import { useListCheckins, getListCheckinsQueryKey } from "../../api-client";
 
 export default function MemberAttendance() {
   const { user } = useAuthStore();

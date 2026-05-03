@@ -4,7 +4,7 @@ import {
   useLogExercise, useListExerciseLogs, useDeleteExerciseLog,
   getListTrainingProgramsQueryKey, getGetTrainingProgramQueryKey,
   getListExerciseLogsQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";

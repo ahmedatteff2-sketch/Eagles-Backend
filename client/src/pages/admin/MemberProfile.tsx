@@ -8,7 +8,7 @@ import {
   getGetMemberSubscriptionHistoryQueryKey, getListCheckinsQueryKey,
   getListBodyStatsQueryKey, getListSubscriptionsQueryKey,
   getListTrainingProgramsQueryKey, getListExerciseLogsQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";

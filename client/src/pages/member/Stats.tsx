@@ -2,7 +2,7 @@ import { useAuthStore } from "@/store/auth";
 import {
   useListBodyStats, useCreateBodyStat, useDeleteBodyStat,
   getListBodyStatsQueryKey,
-} from "@workspace/api-client-react";
+} from "../../api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
