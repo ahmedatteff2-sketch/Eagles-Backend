@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:client": "cd client && npm install && npm run build",
+    "build:client": "cd client && npm install --include=dev && npm run build",
     "build:server": "node ./build.mjs",
     "build": "npm run build:client && npm run build:server",
     "start": "node --enable-source-maps dist/index.mjs",
