@@ -3,17 +3,28 @@ import { db } from "@workspace/db";
 import {
   usersTable, memberSubscriptionsTable, subscriptionsTable, paymentsTable,
   trainingProgramsTable, trainingWeeksTable, exercisesTable, exerciseLogsTable,
-  bodyStatsTable, checkinsTable
+  bodyStatsTable, checkinsTable,
 } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { Parser } from "json2csv";
 
 const router = Router();
 
+// Simple native CSV generator — no external library needed
+function toCSV(fields: string[], rows: Record<string, unknown>[]): string {
+  const escape = (v: unknown): string => {
+    const s = v == null ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const header = fields.join(",");
+  const lines = rows.map((r) => fields.map((f) => escape(r[f])).join(","));
+  return [header, ...lines].join("\n");
+}
+
 router.get("/exports/members-csv", authenticate, requireAdmin, async (_req, res) => {
   try {
-    // Single JOIN query — no N+1
     const rows = await db
       .select({
         id: usersTable.id,
@@ -31,19 +42,24 @@ router.get("/exports/members-csv", authenticate, requireAdmin, async (_req, res)
       .where(eq(usersTable.role, "member"))
       .orderBy(desc(usersTable.createdAt));
 
-    // De-duplicate: keep latest subscription per user
     const seen = new Set<number>();
-    const unique = rows.filter(r => {
+    const unique = rows.filter((r) => {
       if (seen.has(r.id)) return false;
       seen.add(r.id);
       return true;
     });
 
-    const parser = new Parser({ fields: ["id", "name", "phone", "createdAt", "planName", "startDate", "endDate", "status"] });
-    const csv = parser.parse(unique);
-    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=members.csv" });
-    res.send(csv);
-  } catch {
+    const csv = toCSV(
+      ["id", "name", "phone", "createdAt", "planName", "startDate", "endDate", "status"],
+      unique as Record<string, unknown>[],
+    );
+
+    res.set({
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": "attachment; filename=members.csv",
+    });
+    res.send("\uFEFF" + csv); // BOM for Excel Arabic support
+  } catch (err) {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تصدير البيانات" });
   }
 });
@@ -63,18 +79,27 @@ router.get("/exports/payments-csv", authenticate, requireAdmin, async (_req, res
       .innerJoin(usersTable, eq(paymentsTable.userId, usersTable.id))
       .orderBy(desc(paymentsTable.date));
 
-    const parser = new Parser({ fields: ["id", "userName", "phone", "amount", "method", "date"] });
-    const csv = parser.parse(payments);
-    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=payments.csv" });
-    res.send(csv);
-  } catch {
+    const csv = toCSV(
+      ["id", "userName", "phone", "amount", "method", "date"],
+      payments as Record<string, unknown>[],
+    );
+
+    res.set({
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": "attachment; filename=payments.csv",
+    });
+    res.send("\uFEFF" + csv);
+  } catch (err) {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تصدير البيانات" });
   }
 });
 
 router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res) => {
   try {
-    const [users, subscriptionsList, memberSubs, programs, weeks, exerciseList, exerciseLogs, bodyStats, checkins, payments] = await Promise.all([
+    const [
+      users, subscriptionsList, memberSubs, programs,
+      weeks, exerciseList, exerciseLogs, bodyStats, checkins, payments,
+    ] = await Promise.all([
       db.select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone, role: usersTable.role, createdAt: usersTable.createdAt }).from(usersTable),
       db.select().from(subscriptionsTable),
       db.select().from(memberSubscriptionsTable),
@@ -101,12 +126,13 @@ router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res)
       checkins,
       payments,
     };
+
     res.set({
       "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename=gym-backup-${new Date().toISOString().split("T")[0]}.json`,
+      "Content-Disposition": `attachment; filename=eagle-gym-backup-${new Date().toISOString().split("T")[0]}.json`,
     });
     res.json(backup);
-  } catch {
+  } catch (err) {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تصدير النسخة الاحتياطية" });
   }
 });
