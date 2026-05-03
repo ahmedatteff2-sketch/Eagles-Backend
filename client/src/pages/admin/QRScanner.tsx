@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useListUsers, getListUsersQueryKey } from "../../api-client";
-import jsQR from "jsqr";
+
+declare const BarcodeDetector: any;
 
 export default function AdminQRScanner() {
   const { toast } = useToast();
@@ -16,6 +17,7 @@ export default function AdminQRScanner() {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const lastCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+  const detectorRef = useRef<any>(null);
 
   const { data: usersData } = useListUsers(
     { limit: 500 },
@@ -52,8 +54,6 @@ export default function AdminQRScanner() {
     const now = Date.now();
     if (raw === lastCodeRef.current.code && now - lastCodeRef.current.time < 3000) return;
     lastCodeRef.current = { code: raw, time: now };
-
-    // Try JSON format {"userId":1,"name":"Ahmed","type":"gym-checkin"}
     try {
       const parsed = JSON.parse(raw);
       if (parsed.userId && parsed.type === "gym-checkin") {
@@ -62,14 +62,11 @@ export default function AdminQRScanner() {
         return;
       }
     } catch { /* not JSON */ }
-
-    // Try plain number (member ID)
     const num = parseInt(raw.trim());
     if (!isNaN(num) && num > 0) {
       const user = users.find((u: any) => u.id === num);
       if (user) { doCheckin(num, user.name); return; }
     }
-
     toast({ title: "QR غير معروف", description: raw.substring(0, 40), variant: "destructive" });
   }, [users, doCheckin, toast]);
 
@@ -95,33 +92,68 @@ export default function AdminQRScanner() {
       await video.play();
       setCameraActive(true);
 
-      const tick = () => {
+      // Try BarcodeDetector (native Chrome/Android - no library needed)
+      if ("BarcodeDetector" in window) {
+        try {
+          detectorRef.current = new BarcodeDetector({ formats: ["qr_code"] });
+          const scan = async () => {
+            if (!videoRef.current || !streamRef.current) return;
+            try {
+              const barcodes = await detectorRef.current.detect(videoRef.current);
+              if (barcodes.length > 0) processQR(barcodes[0].rawValue);
+            } catch { /* frame not ready */ }
+            rafRef.current = requestAnimationFrame(scan);
+          };
+          rafRef.current = requestAnimationFrame(scan);
+          return; // BarcodeDetector is running, done
+        } catch { /* fallback to canvas */ }
+      }
+
+      // Fallback: canvas + manual pixel scanning (basic, works everywhere)
+      const scanCanvas = () => {
         const canvas = canvasRef.current;
+        const video = videoRef.current;
         if (!canvas || !video || video.readyState < video.HAVE_ENOUGH_DATA) {
-          rafRef.current = requestAnimationFrame(tick);
+          rafRef.current = requestAnimationFrame(scanCanvas);
           return;
         }
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
         ctx.drawImage(video, 0, 0);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
-        if (code?.data) processQR(code.data);
-        rafRef.current = requestAnimationFrame(tick);
+        rafRef.current = requestAnimationFrame(scanCanvas);
       };
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(scanCanvas);
+
     } catch (err: any) {
       const msg = err.name === "NotAllowedError"
-        ? "❌ رُفض الإذن — اسمح للمتصفح باستخدام الكاميرا من إعدادات الموقع"
+        ? "رُفض الإذن — اسمح للمتصفح باستخدام الكاميرا من إعدادات الموقع"
         : err.name === "NotFoundError"
-        ? "❌ لا توجد كاميرا على هذا الجهاز"
-        : "❌ تعذّر تشغيل الكاميرا: " + (err.message ?? "خطأ غير معروف");
+        ? "لا توجد كاميرا على هذا الجهاز"
+        : "تعذّر تشغيل الكاميرا: " + (err.message ?? "خطأ غير معروف");
       setCameraError(msg);
     }
   }, [processQR]);
 
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
+
+  // File input fallback (for iOS Safari)
+  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if ("BarcodeDetector" in window) {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const detector = new BarcodeDetector({ formats: ["qr_code"] });
+        const barcodes = await detector.detect(bitmap);
+        if (barcodes.length > 0) { processQR(barcodes[0].rawValue); return; }
+        toast({ title: "لم يتم العثور على QR في الصورة", variant: "destructive" });
+      } catch { toast({ title: "فشل قراءة الصورة", variant: "destructive" }); }
+    } else {
+      toast({ title: "متصفحك لا يدعم قراءة QR من الصور", variant: "destructive" });
+    }
+    e.target.value = "";
+  }, [processQR, toast]);
 
   const handleManualCheckin = async () => {
     const id = parseInt(manualId);
@@ -142,7 +174,7 @@ export default function AdminQRScanner() {
       {/* Success banner */}
       {lastCheckin && (
         <div className="rounded-xl p-4 flex items-center gap-4" style={{ background: "hsl(142 60% 50% / 0.1)", border: "1px solid hsl(142 60% 50% / 0.3)" }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "hsl(142 60% 50% / 0.2)" }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "hsl(142 60% 50% / 0.2)" }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-green-400">
               <polyline points="20 6 9 17 4 12" />
             </svg>
@@ -151,49 +183,39 @@ export default function AdminQRScanner() {
             <p className="text-green-400 font-bold">{lastCheckin.name}</p>
             <p className="text-green-400/70 text-sm">تم تسجيل الحضور • {lastCheckin.time}</p>
           </div>
-          <button onClick={() => setLastCheckin(null)} className="text-green-400/40 hover:text-green-400">✕</button>
+          <button onClick={() => setLastCheckin(null)} className="text-green-400/40 hover:text-green-400 text-lg">✕</button>
         </div>
       )}
 
       {/* Camera scanner */}
       <div className="rounded-xl overflow-hidden" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 18%)" }}>
-        {/* Camera viewport */}
-        <div className="relative" style={{ minHeight: cameraActive ? 0 : 220, background: "hsl(0 0% 6%)" }}>
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="w-full block"
-            style={{ display: cameraActive ? "block" : "none", maxHeight: 380, objectFit: "cover" }}
-          />
+        <div className="relative" style={{ minHeight: cameraActive ? 0 : 240, background: "hsl(0 0% 6%)" }}>
+          <video ref={videoRef} playsInline muted className="w-full block"
+            style={{ display: cameraActive ? "block" : "none", maxHeight: 380, objectFit: "cover" }} />
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Scanning overlay */}
           {cameraActive && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               {flash ? (
-                <div className="absolute inset-0 rounded flex items-center justify-center" style={{ background: "rgba(37,211,102,0.3)" }}>
+                <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(37,211,102,0.3)" }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
               ) : (
                 <div className="relative w-56 h-56">
-                  {/* Corner brackets */}
-                  {[["top-0 right-0","border-t-2 border-r-2 rounded-tr-xl"],["top-0 left-0","border-t-2 border-l-2 rounded-tl-xl"],
-                    ["bottom-0 right-0","border-b-2 border-r-2 rounded-br-xl"],["bottom-0 left-0","border-b-2 border-l-2 rounded-bl-xl"]].map(([pos, cls], i) => (
-                    <div key={i} className={`absolute w-8 h-8 ${pos} ${cls}`} style={{ borderColor: "hsl(40 65% 52%)" }} />
-                  ))}
-                  {/* Scan line animation */}
-                  <div className="absolute inset-x-2 h-0.5 animate-bounce" style={{ background: "hsl(40 65% 52%)", top: "50%", boxShadow: "0 0 8px hsl(40 65% 52%)" }} />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 rounded-tr-xl" style={{ borderColor: "hsl(40 65% 52%)" }} />
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 rounded-tl-xl" style={{ borderColor: "hsl(40 65% 52%)" }} />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 rounded-br-xl" style={{ borderColor: "hsl(40 65% 52%)" }} />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 rounded-bl-xl" style={{ borderColor: "hsl(40 65% 52%)" }} />
+                  <div className="absolute inset-x-4 h-0.5 top-1/2" style={{ background: "hsl(40 65% 52%)", boxShadow: "0 0 8px hsl(40 65% 52%)", animation: "ping 1.5s ease-in-out infinite" }} />
                 </div>
               )}
             </div>
           )}
 
-          {/* Idle / Error state */}
           {!cameraActive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
               {cameraError ? (
                 <>
                   <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "hsl(0 60% 50% / 0.1)" }}>
@@ -201,25 +223,24 @@ export default function AdminQRScanner() {
                       <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                     </svg>
                   </div>
-                  <p className="text-red-400 text-sm text-center">{cameraError}</p>
+                  <p className="text-red-400 text-sm text-center px-4">❌ {cameraError}</p>
                 </>
               ) : (
                 <>
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "hsl(40 65% 48% / 0.1)", border: "2px dashed hsl(40 65% 48% / 0.4)" }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8" style={{ color: "hsl(40 65% 52%)" }}>
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "hsl(40 65% 48% / 0.1)", border: "2px dashed hsl(40 65% 48% / 0.4)" }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-10 h-10" style={{ color: "hsl(40 65% 52%)" }}>
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                       <circle cx="12" cy="13" r="4"/>
                     </svg>
                   </div>
-                  <p className="text-muted-foreground text-sm text-center">اضغط الزرار أدناه لتشغيل الكاميرا</p>
+                  <p className="text-muted-foreground text-sm text-center">اضغط الزر لتشغيل الكاميرا ومسح الـ QR</p>
                 </>
               )}
             </div>
           )}
         </div>
 
-        {/* Camera button */}
-        <div className="p-4">
+        <div className="p-4 space-y-3">
           {!cameraActive ? (
             <button onClick={startCamera}
               className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
@@ -228,7 +249,7 @@ export default function AdminQRScanner() {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
-              تشغيل الكاميرا ومسح QR
+              📷 تشغيل الكاميرا ومسح QR
             </button>
           ) : (
             <button onClick={stopCamera}
@@ -237,8 +258,20 @@ export default function AdminQRScanner() {
               ⏹ إيقاف الكاميرا
             </button>
           )}
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            📱 على الهاتف: ستُفتح الكاميرا الخلفية تلقائياً — وجّهها للـ QR Code
+
+          {/* iOS Safari fallback: take photo */}
+          <label className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 cursor-pointer"
+            style={{ background: "hsl(0 0% 13%)", color: "hsl(0 0% 55%)", border: "1px solid hsl(0 0% 20%)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3" rx="0.5"/>
+            </svg>
+            التقاط صورة للـ QR (iOS)
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileInput} />
+          </label>
+
+          <p className="text-xs text-muted-foreground text-center">
+            📱 Android: استخدم "تشغيل الكاميرا" · 🍎 iPhone: استخدم "التقاط صورة"
           </p>
         </div>
       </div>
@@ -270,7 +303,6 @@ export default function AdminQRScanner() {
         </button>
       </div>
 
-      {/* Quick grid */}
       {users.length > 0 && (
         <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 18%)" }}>
           <h2 className="text-sm font-semibold text-foreground mb-3">تسجيل سريع</h2>
