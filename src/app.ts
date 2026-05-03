@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
+import { existsSync } from "fs";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 
@@ -93,19 +94,18 @@ app.use(
 
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
-
 app.use("/api", router);
 
-// Serve React frontend in production
 if (process.env.NODE_ENV === "production") {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const frontendPath = path.resolve(__dirname, "public");
 
-  app.use(express.static(frontendPath));
-
-  app.get("*", (_req: Request, res: Response) => {
-    res.sendFile(path.join(frontendPath, "index.html"));
-  });
+  if (existsSync(frontendPath)) {
+    app.use(express.static(frontendPath));
+    app.get(/.*/, (_req: Request, res: Response) => {
+      res.sendFile(path.join(frontendPath, "index.html"));
+    });
+  }
 }
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
