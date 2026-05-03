@@ -90,15 +90,14 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
 app.use("/api", router);
 
-// ─── Serve frontend in production ────────────────────────────────────────────
+// Serve frontend in production
 if (process.env.NODE_ENV === "production") {
-  // dist/index.mjs runs from /project/dist — so public is one level up
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  // dist/index.mjs is in dist/ — public is one level up at root
   const frontendPath = path.resolve(__dirname, "..", "public");
 
   if (existsSync(frontendPath)) {
     app.use(express.static(frontendPath, { maxAge: "7d" }));
-    // SPA fallback — send index.html for any non-API route
     app.get(/.*/, (_req: Request, res: Response) => {
       res.sendFile(path.join(frontendPath, "index.html"));
     });
