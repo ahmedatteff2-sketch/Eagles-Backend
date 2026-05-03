@@ -32,9 +32,23 @@ app.use(
   }),
 );
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3001",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed))) {
+        return callback(null, true);
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -88,6 +102,8 @@ app.use(
 
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
+app.use("/api/auth/change-password", authLimiter);
+app.use("/api/auth/update-phone", authLimiter);
 app.use("/api", router);
 
 // Serve frontend in production

@@ -4,6 +4,7 @@ import { usersTable, paymentsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.post("/imports/members", authenticate, requireAdmin, async (req, res) => 
     for (const row of rows) {
       const name = row["name"] || row["الاسم"] || row["الاسم كامل"] || "";
       const phone = row["phone"] || row["رقم الهاتف"] || row["الهاتف"] || "";
-      const password = row["password"] || row["كلمة المرور"] || "Gym@2024";
+      const password = row["password"] || row["كلمة المرور"] || randomBytes(8).toString("base64url");
       const rawRole = row["role"] || row["الدور"] || "member";
       const role = rawRole === "admin" ? "admin" : rawRole === "trainer" ? "trainer" : "member";
 

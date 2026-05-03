@@ -24,7 +24,9 @@ const updateUserSchema = z.object({
 
 router.get("/users", authenticate, requireAdmin, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
-  const search = typeof req.query.search === "string" ? req.query.search.slice(0, 100) : undefined;
+  const rawSearch = typeof req.query.search === "string" ? req.query.search.slice(0, 100) : undefined;
+  // Escape LIKE special characters to prevent wildcard injection
+  const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
 
   try {
     let query = db.select().from(usersTable).where(eq(usersTable.role, "member"));
