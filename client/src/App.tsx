@@ -1,6 +1,7 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useEffect } from "react";
 import AdminLayout from "@/layouts/AdminLayout";
+import MemberLayout from "@/layouts/MemberLayout";
 import { useAuthStore } from "@/store/auth";
 
 import Login from "@/pages/login";
@@ -18,15 +19,33 @@ import AdminExports from "@/pages/admin/Exports";
 import AdminImports from "@/pages/admin/Imports";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReminders from "@/pages/admin/Reminders";
+import MemberDashboard from "@/pages/member/Dashboard";
+import MemberWorkouts from "@/pages/member/Workouts";
+import MemberLog from "@/pages/member/Log";
+import MemberStats from "@/pages/member/Stats";
+import MemberAttendance from "@/pages/member/Attendance";
+import MemberSchedule from "@/pages/member/Schedule";
+import MemberQRCode from "@/pages/member/QRCode";
+import MemberSettings from "@/pages/member/Settings";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { accessToken, user, clearAuth } = useAuthStore();
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
-  if (user && user.role !== "admin") {
-    clearAuth();
-    return <Redirect to="/login" />;
-  }
+  if (user && user.role !== "admin") return <Redirect to="/member" />;
   return <AdminLayout>{children}</AdminLayout>;
+}
+
+function MemberRoute({ children }: { children: React.ReactNode }) {
+  const { accessToken, user } = useAuthStore();
+  if (!accessToken) return <Redirect to="/login" />;
+  if (user && user.role === "admin") return <Redirect to="/admin" />;
+  return <MemberLayout>{children}</MemberLayout>;
+}
+
+function RoleHomeRedirect() {
+  const { accessToken, user } = useAuthStore();
+  if (!accessToken) return <Redirect to="/login" />;
+  return <Redirect to={user?.role === "admin" ? "/admin" : "/member"} />;
 }
 
 function GlobalKeyboardShortcuts() {
@@ -67,28 +86,28 @@ export default function App() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin">
-          <ProtectedRoute><AdminDashboard /></ProtectedRoute>
+          <AdminRoute><AdminDashboard /></AdminRoute>
         </Route>
         <Route path="/admin/members">
-          <ProtectedRoute><AdminMembers /></ProtectedRoute>
+          <AdminRoute><AdminMembers /></AdminRoute>
         </Route>
         <Route path="/admin/members/:id">
-          {(params) => <ProtectedRoute><AdminMemberProfile /></ProtectedRoute>}
+          {(params) => <AdminRoute><AdminMemberProfile /></AdminRoute>}
         </Route>
         <Route path="/admin/subscriptions">
-          <ProtectedRoute><AdminSubscriptions /></ProtectedRoute>
+          <AdminRoute><AdminSubscriptions /></AdminRoute>
         </Route>
         <Route path="/admin/training">
-          <ProtectedRoute><AdminTraining /></ProtectedRoute>
+          <AdminRoute><AdminTraining /></AdminRoute>
         </Route>
         <Route path="/admin/payments">
-          <ProtectedRoute><AdminPayments /></ProtectedRoute>
+          <AdminRoute><AdminPayments /></AdminRoute>
         </Route>
         <Route path="/admin/expenses">
-          <ProtectedRoute><AdminExpenses /></ProtectedRoute>
+          <AdminRoute><AdminExpenses /></AdminRoute>
         </Route>
         <Route path="/admin/attendance">
-          <ProtectedRoute><AdminAttendance /></ProtectedRoute>
+          <AdminRoute><AdminAttendance /></AdminRoute>
         </Route>
         {/* Legacy redirects */}
         <Route path="/admin/checkins">
@@ -98,28 +117,53 @@ export default function App() {
           <Redirect to="/admin/attendance" />
         </Route>
         <Route path="/admin/schedule">
-          <ProtectedRoute><AdminSchedule /></ProtectedRoute>
+          <AdminRoute><AdminSchedule /></AdminRoute>
         </Route>
         <Route path="/admin/analytics">
-          <ProtectedRoute><AdminAnalytics /></ProtectedRoute>
+          <AdminRoute><AdminAnalytics /></AdminRoute>
         </Route>
         <Route path="/admin/exports">
-          <ProtectedRoute><AdminExports /></ProtectedRoute>
+          <AdminRoute><AdminExports /></AdminRoute>
         </Route>
         <Route path="/admin/imports">
-          <ProtectedRoute><AdminImports /></ProtectedRoute>
+          <AdminRoute><AdminImports /></AdminRoute>
         </Route>
         <Route path="/admin/settings">
-          <ProtectedRoute><AdminSettings /></ProtectedRoute>
+          <AdminRoute><AdminSettings /></AdminRoute>
         </Route>
         <Route path="/admin/reminders">
-          <ProtectedRoute><AdminReminders /></ProtectedRoute>
+          <AdminRoute><AdminReminders /></AdminRoute>
+        </Route>
+        {/* Member routes */}
+        <Route path="/member">
+          <MemberRoute><MemberDashboard /></MemberRoute>
+        </Route>
+        <Route path="/member/workouts">
+          <MemberRoute><MemberWorkouts /></MemberRoute>
+        </Route>
+        <Route path="/member/log">
+          <MemberRoute><MemberLog /></MemberRoute>
+        </Route>
+        <Route path="/member/stats">
+          <MemberRoute><MemberStats /></MemberRoute>
+        </Route>
+        <Route path="/member/attendance">
+          <MemberRoute><MemberAttendance /></MemberRoute>
+        </Route>
+        <Route path="/member/schedule">
+          <MemberRoute><MemberSchedule /></MemberRoute>
+        </Route>
+        <Route path="/member/qr">
+          <MemberRoute><MemberQRCode /></MemberRoute>
+        </Route>
+        <Route path="/member/settings">
+          <MemberRoute><MemberSettings /></MemberRoute>
         </Route>
         <Route path="/">
-          <Redirect to="/admin" />
+          <RoleHomeRedirect />
         </Route>
         <Route>
-          <Redirect to="/admin" />
+          <RoleHomeRedirect />
         </Route>
       </Switch>
     </>

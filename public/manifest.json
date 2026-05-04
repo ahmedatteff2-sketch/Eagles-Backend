@@ -1,0 +1,56 @@
+{
+  "name": "Eagle Gym — إدارة النادي",
+  "short_name": "Eagle Gym",
+  "description": "نظام إدارة صالة Eagle Gym الرياضية",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#c9a43c",
+  "orientation": "portrait-primary",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/eagle-gym-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/eagle-gym-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "الأعضاء",
+      "short_name": "أعضاء",
+      "description": "إدارة الأعضاء",
+      "url": "/admin/members",
+      "icons": [
+        {
+          "src": "/eagle-gym-logo.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "مسح QR",
+      "short_name": "QR",
+      "description": "تسجيل الحضور",
+      "url": "/admin/qr-scanner",
+      "icons": [
+        {
+          "src": "/eagle-gym-logo.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
