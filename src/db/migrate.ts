@@ -165,14 +165,21 @@ export async function runMigrations(): Promise<void> {
     `);
 
     // ── Fix legacy schemas ────────────────────────────────────────────────
-    // Older deployments had refresh_tokens.user_id as INTEGER. Newer User.id is TEXT.
-    // If a mismatch is detected, drop and recreate the table (tokens are transient).
-    const { rows: colRows } = await client.query(
-      `SELECT data_type FROM information_schema.columns
-       WHERE table_name = 'refresh_tokens' AND column_name = 'user_id'`
-    );
-    if (colRows.length > 0 && colRows[0].data_type !== "text") {
-      logger.warn({ currentType: colRows[0].data_type }, "Recreating refresh_tokens with TEXT user_id");
+    // Older deployments had user_id as INTEGER. Newer User.id is TEXT.
+    // For tables where a mismatch is detected, drop and recreate with the
+    // correct schema (legacy data was orphaned because integer ids cannot
+    // reference the new TEXT UUIDs).
+    async function userIdType(table: string): Promise<string | null> {
+      const { rows } = await client.query(
+        `SELECT data_type FROM information_schema.columns
+         WHERE table_name = $1 AND column_name = 'user_id'`,
+        [table]
+      );
+      return rows[0]?.data_type ?? null;
+    }
+
+    if ((await userIdType("refresh_tokens")) === "integer") {
+      logger.warn("Recreating refresh_tokens with TEXT user_id");
       await client.query(`DROP TABLE IF EXISTS refresh_tokens CASCADE`);
       await client.query(`
         CREATE TABLE refresh_tokens (
@@ -184,6 +191,90 @@ export async function runMigrations(): Promise<void> {
           expires_at TIMESTAMP NOT NULL
         )
       `);
+    }
+
+    if ((await userIdType("member_subscriptions")) === "integer") {
+      logger.warn("Recreating member_subscriptions with TEXT user_id (legacy data dropped)");
+      await client.query(`DROP TABLE IF EXISTS member_subscriptions CASCADE`);
+      await client.query(`
+        CREATE TABLE member_subscriptions (
+          id              SERIAL PRIMARY KEY,
+          user_id         TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          subscription_id INTEGER NOT NULL REFERENCES subscriptions(id),
+          start_date      DATE NOT NULL,
+          end_date        DATE NOT NULL,
+          status          subscription_status NOT NULL DEFAULT 'active',
+          created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+    }
+
+    if ((await userIdType("payments")) === "integer") {
+      logger.warn("Recreating payments with TEXT user_id (legacy data dropped)");
+      await client.query(`DROP TABLE IF EXISTS payments CASCADE`);
+      await client.query(`
+        CREATE TABLE payments (
+          id       SERIAL PRIMARY KEY,
+          user_id  TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          amount   NUMERIC(10,2) NOT NULL,
+          date     DATE NOT NULL,
+          method   payment_method NOT NULL DEFAULT 'cash'
+        )
+      `);
+    }
+
+    if ((await userIdType("exercise_logs")) === "integer") {
+      logger.warn("Recreating exercise_logs with TEXT user_id (legacy data dropped)");
+      await client.query(`DROP TABLE IF EXISTS exercise_logs CASCADE`);
+      await client.query(`
+        CREATE TABLE exercise_logs (
+          id          SERIAL PRIMARY KEY,
+          user_id     TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+          set_number  INTEGER NOT NULL,
+          reps        INTEGER NOT NULL,
+          weight      NUMERIC(6,2) NOT NULL,
+          date        DATE NOT NULL
+        )
+      `);
+    }
+
+    if ((await userIdType("body_stats")) === "integer") {
+      logger.warn("Recreating body_stats with TEXT user_id (legacy data dropped)");
+      await client.query(`DROP TABLE IF EXISTS body_stats CASCADE`);
+      await client.query(`
+        CREATE TABLE body_stats (
+          id                SERIAL PRIMARY KEY,
+          user_id           TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          date              DATE NOT NULL,
+          weight            NUMERIC(6,2),
+          body_fat          NUMERIC(5,2),
+          diet_note         TEXT,
+          performance_note  TEXT
+        )
+      `);
+    }
+
+    if ((await userIdType("training_programs")) === "integer") {
+      logger.warn("Recreating training_programs with TEXT user_id (legacy data dropped)");
+      await client.query(`DROP TABLE IF EXISTS training_programs CASCADE`);
+      await client.query(`
+        CREATE TABLE training_programs (
+          id         SERIAL PRIMARY KEY,
+          name       TEXT NOT NULL,
+          user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+    }
+
+    // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
+    const { rows: legacyCheckins } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
+    );
+    if (legacyCheckins.length > 0) {
+      logger.warn("Dropping legacy 'checkins' table (replaced by \"CheckIn\")");
+      await client.query(`DROP TABLE IF EXISTS checkins CASCADE`);
     }
 
     // ── Seed default admin ─────────────────────────────────────────────────
