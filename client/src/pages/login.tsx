@@ -33,8 +33,14 @@ export default function LoginPage() {
     setLoginError("");
     login.mutate({ data }, {
       onSuccess: (res: any) => {
+        if (res.user?.role !== "admin") {
+          setLoginError("هذا الحساب ليس لديه صلاحية الدخول");
+          setShaking(true);
+          setTimeout(() => setShaking(false), 500);
+          return;
+        }
         setAuth(res.accessToken, res.refreshToken, res.user);
-        setLocation(res.user.role === "admin" ? "/admin" : "/member");
+        setLocation("/admin");
       },
       onError: () => {
         setLoginError("رقم الهاتف أو كلمة المرور غير صحيحة");

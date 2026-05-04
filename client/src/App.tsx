@@ -20,8 +20,12 @@ import AdminSettings from "@/pages/admin/Settings";
 import AdminReminders from "@/pages/admin/Reminders";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { accessToken } = useAuthStore();
+  const { accessToken, user, clearAuth } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
+  if (user && user.role !== "admin") {
+    clearAuth();
+    return <Redirect to="/login" />;
+  }
   return <AdminLayout>{children}</AdminLayout>;
 }
 
