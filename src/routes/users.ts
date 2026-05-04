@@ -12,7 +12,7 @@ const router = Router();
 const createUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()),
-  memberCode: z.string().max(50).optional(),
+  memberCode: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
   role: z.enum(["admin", "trainer", "member"]).default("member"),
 });
@@ -20,7 +20,7 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
-  memberCode: z.string().max(50).optional(),
+  memberCode: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
   role: z.enum(["admin", "trainer", "member"]).optional(),
 });
 
