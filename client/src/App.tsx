@@ -114,6 +114,9 @@ export default function App() {
         <Route path="/">
           <Redirect to="/admin" />
         </Route>
+        <Route>
+          <Redirect to="/admin" />
+        </Route>
       </Switch>
     </>
   );
