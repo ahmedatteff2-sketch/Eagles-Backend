@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { exerciseLogsTable, bodyStatsTable, checkinsTable, exercisesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId } from "../lib/params.js";
+import { parseId, parseUserId } from "../lib/params.js";
 import { z } from "zod";
 
 const router = Router();
@@ -25,17 +25,16 @@ const bodyStatSchema = z.object({
 });
 
 const checkinSchema = z.object({
-  userId: z.string(),
+  userId: z.string().min(1).max(64),
 });
 
 // ─── Exercise logs ────────────────────────────────────────────────────────────
 
 router.get("/exercise-logs", authenticate, async (req, res) => {
-  const targetUserId = req.query.userId ? Number(req.query.userId) : req.user!.userId;
-  if (!Number.isInteger(targetUserId) || targetUserId <= 0 || targetUserId > 2_147_483_647) {
-    res.status(400).json({ error: "Bad request", message: "معرّف العضو غير صالح" });
-    return;
-  }
+  const targetUserId = req.query.userId
+    ? parseUserId(String(req.query.userId), res)
+    : req.user!.userId;
+  if (targetUserId === null) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
     res.status(403).json({ error: "Forbidden" });
     return;
@@ -120,11 +119,10 @@ router.delete("/exercise-logs/:logId", authenticate, async (req, res) => {
 // ─── Body stats ───────────────────────────────────────────────────────────────
 
 router.get("/body-stats", authenticate, async (req, res) => {
-  const targetUserId = req.query.userId ? Number(req.query.userId) : req.user!.userId;
-  if (!Number.isInteger(targetUserId) || targetUserId <= 0 || targetUserId > 2_147_483_647) {
-    res.status(400).json({ error: "Bad request", message: "معرّف العضو غير صالح" });
-    return;
-  }
+  const targetUserId = req.query.userId
+    ? parseUserId(String(req.query.userId), res)
+    : req.user!.userId;
+  if (targetUserId === null) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
     res.status(403).json({ error: "Forbidden" });
     return;
@@ -184,19 +182,24 @@ router.delete("/body-stats/:statId", authenticate, async (req, res) => {
 
 router.get("/checkins", authenticate, async (req, res) => {
   const targetUserId = req.query.userId
-    ? Number(req.query.userId)
+    ? parseUserId(String(req.query.userId), res)
     : (req.user!.role === "member" ? req.user!.userId : undefined);
 
-  if (req.query.userId && (!Number.isInteger(targetUserId) || (targetUserId as number) <= 0)) {
-    res.status(400).json({ error: "Bad request", message: "معرّف العضو غير صالح" });
-    return;
-  }
+  if (req.query.userId && targetUserId === null) return;
   const from = typeof req.query.from === "string" ? req.query.from : undefined;
   const to = typeof req.query.to === "string" ? req.query.to : undefined;
 
   try {
     const conditions = [];
     if (targetUserId) conditions.push(eq(checkinsTable.userId, targetUserId));
+    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+      conditions.push(gte(checkinsTable.timestamp, new Date(`${from}T00:00:00.000Z`)));
+    }
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      const next = new Date(`${to}T00:00:00.000Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      conditions.push(lte(checkinsTable.timestamp, next));
+    }
 
     const checkins = await db
       .select({
@@ -226,7 +229,7 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
     // Check if checkin exists for TODAY
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const existing = await db
       .select()
       .from(checkinsTable)

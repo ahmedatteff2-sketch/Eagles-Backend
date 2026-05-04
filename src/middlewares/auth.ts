@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../lib/jwt.js";
 
 export interface AuthPayload {
-  userId: number;
+  userId: string;
   role: "admin" | "member";
 }
 
@@ -52,7 +52,7 @@ export function requireOwnerOrAdmin(paramKey = "userId") {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const paramId = Number(req.params[paramKey]);
+    const paramId = req.params[paramKey];
     if (req.user.role === "admin" || req.user.userId === paramId) {
       next();
     } else {

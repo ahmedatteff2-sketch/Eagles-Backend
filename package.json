@@ -9,6 +9,7 @@
     "build": "npm run build:client && npm run build:server",
     "start": "node dist/index.mjs",
     "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"

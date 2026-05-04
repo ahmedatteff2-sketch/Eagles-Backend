@@ -23,10 +23,14 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-async function cleanExpiredTokens(userId: number) {
+async function cleanExpiredTokens(userId: string) {
   await db
     .delete(refreshTokensTable)
     .where(and(eq(refreshTokensTable.userId, userId), lt(refreshTokensTable.expiresAt, new Date())));
+}
+
+function normalizeRole(raw: string): "admin" | "member" {
+  return raw.toLowerCase() === "admin" ? "admin" : "member";
 }
 
 router.post("/auth/login", async (req, res) => {
@@ -44,13 +48,14 @@ router.post("/auth/login", async (req, res) => {
     return;
   }
 
-  const valid = await bcrypt.compare(password, user.password);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     res.status(401).json({ error: "Unauthorized", message: "رقم الهاتف أو كلمة المرور غير صحيحة" });
     return;
   }
 
-  const payload = { userId: user.id, role: user.role as "admin" | "member" };
+  const role = normalizeRole(user.role);
+  const payload = { userId: user.id, role };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
@@ -64,7 +69,7 @@ router.post("/auth/login", async (req, res) => {
   res.json({
     accessToken,
     refreshToken,
-    user: { id: user.id, name: user.name, phone: user.phone, role: user.role },
+    user: { id: user.id, name: user.name, phone: user.phone, role },
   });
 });
 
@@ -132,7 +137,7 @@ router.get("/auth/me", authenticate, async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json(user);
+  res.json({ ...user, role: normalizeRole(user.role) });
 });
 
 router.post("/auth/change-password", authenticate, async (req, res) => {
@@ -146,13 +151,13 @@ router.post("/auth/change-password", authenticate, async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const valid = await bcrypt.compare(body.data.currentPassword, user.password);
+  const valid = await bcrypt.compare(body.data.currentPassword, user.passwordHash);
   if (!valid) {
     res.status(400).json({ error: "Bad request", message: "كلمة المرور الحالية غير صحيحة" });
     return;
   }
   const hashed = await bcrypt.hash(body.data.newPassword, 12);
-  await db.update(usersTable).set({ password: hashed }).where(eq(usersTable.id, req.user!.userId));
+  await db.update(usersTable).set({ passwordHash: hashed }).where(eq(usersTable.id, req.user!.userId));
 
   await db.update(refreshTokensTable).set({ revoked: true }).where(eq(refreshTokensTable.userId, req.user!.userId));
 
@@ -175,7 +180,7 @@ router.post("/auth/update-phone", authenticate, async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const valid = await bcrypt.compare(body.data.password, user.password);
+  const valid = await bcrypt.compare(body.data.password, user.passwordHash);
   if (!valid) {
     res.status(400).json({ error: "Bad request", message: "كلمة المرور غير صحيحة" });
     return;

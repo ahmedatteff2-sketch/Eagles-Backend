@@ -3,13 +3,13 @@ import { db } from "@workspace/db";
 import { paymentsTable, usersTable } from "@workspace/db/schema";
 import { eq, desc, count, and } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId, parsePagination } from "../lib/params.js";
+import { parseId, parseUserId, parsePagination } from "../lib/params.js";
 import { z } from "zod";
 
 const router = Router();
 
 const paymentSchema = z.object({
-  userId: z.number().int().min(1).max(2_147_483_647),
+  userId: z.string().min(1).max(64),
   amount: z.number().positive().max(1_000_000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
   method: z.enum(["cash", "card", "transfer"]),
@@ -18,7 +18,7 @@ const paymentSchema = z.object({
 router.get("/payments", authenticate, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
   const targetUserId = req.query.userId
-    ? parseId(String(req.query.userId), res, "معرّف العضو")
+    ? parseUserId(String(req.query.userId), res)
     : (req.user!.role === "member" ? req.user!.userId : undefined);
 
   if (req.query.userId && targetUserId === null) return;

@@ -40,8 +40,8 @@ router.post("/imports/members", authenticate, requireAdmin, async (req, res) => 
       const name = row["name"] || row["الاسم"] || row["الاسم كامل"] || "";
       const phone = row["phone"] || row["رقم الهاتف"] || row["الهاتف"] || "";
       const password = row["password"] || row["كلمة المرور"] || randomBytes(8).toString("base64url");
-      const rawRole = row["role"] || row["الدور"] || "member";
-      const role = rawRole === "admin" ? "admin" : rawRole === "trainer" ? "trainer" : "member";
+      const rawRole = (row["role"] || row["الدور"] || "member").toLowerCase();
+      const role: "admin" | "trainer" | "member" = rawRole === "admin" ? "admin" : rawRole === "trainer" ? "trainer" : "member";
 
       if (!name.trim() || !phone.trim()) {
         results.errors.push(`صف مفقود البيانات: ${JSON.stringify(row)}`);
@@ -62,10 +62,11 @@ router.post("/imports/members", authenticate, requireAdmin, async (req, res) => 
 
         const hashed = await bcrypt.hash(password, 10);
         await db.insert(usersTable).values({
+          id: crypto.randomUUID(),
           name: name.trim(),
           phone: phone.trim(),
-          password: hashed,
-          role: role as "admin" | "trainer" | "member",
+          passwordHash: hashed,
+          role,
         });
         results.created++;
       } catch (rowErr: any) {

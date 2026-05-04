@@ -2,9 +2,9 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { usersTable, memberSubscriptionsTable, subscriptionsTable, checkinsTable, paymentsTable } from "@workspace/db/schema";
-import { eq, ilike, or, count, sum, desc, and, gte } from "drizzle-orm";
+import { eq, ilike, or, count, sum, desc, and } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId, parsePagination } from "../lib/params.js";
+import { parseUserId, parsePagination } from "../lib/params.js";
 import { z } from "zod";
 
 const router = Router();
@@ -14,14 +14,14 @@ const createUserSchema = z.object({
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()),
   membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
-  role: z.string().default("MEMBER"),
+  role: z.enum(["admin", "member"]).default("member"),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
   membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
-  role: z.string().optional(),
+  role: z.enum(["admin", "member"]).optional(),
 });
 
 router.get("/users", authenticate, requireAdmin, async (req, res) => {
@@ -31,11 +31,11 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
   const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
 
   try {
-    let query = db.select().from(usersTable).where(eq(usersTable.role, "MEMBER"));
+    let query = db.select().from(usersTable).where(eq(usersTable.role, "member"));
     if (search) {
       query = db.select().from(usersTable).where(
         and(
-          eq(usersTable.role, "MEMBER"),
+          eq(usersTable.role, "member"),
           or(
             ilike(usersTable.name, `%${search}%`),
             ilike(usersTable.phone, `%${search}%`),
@@ -51,7 +51,16 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
 
     // Single JOIN query for subscriptions (avoids N+1)
     const userIds = users.map(u => u.id);
-    let subsMap: Record<number, any> = {};
+    type SubInfo = {
+      id: number;
+      userId: string;
+      subscriptionId: number;
+      startDate: string;
+      endDate: string;
+      status: "active" | "expired";
+      subscription: { id: number; name: string; duration: number; price: string };
+    };
+    const subsMap: Record<string, SubInfo> = {};
     if (userIds.length > 0) {
       const allSubs = await db
         .select({
@@ -86,7 +95,7 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
     }
 
     const usersWithSubs = users.map(u => {
-      const { password: _, ...safe } = u;
+      const { passwordHash: _, ...safe } = u;
       return { ...safe, currentSubscription: subsMap[u.id] ?? null };
     });
 
@@ -108,8 +117,8 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
       return;
     }
-    if (body.data.memberCode) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.memberCode, body.data.memberCode)).limit(1);
+    if (body.data.membershipNumber) {
+      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
       if (existingCode.length > 0) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;
@@ -122,7 +131,7 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       phone: body.data.phone,
       membershipNumber: body.data.membershipNumber,
       passwordHash: hashed,
-      role: body.data.role
+      role: body.data.role,
     }).returning();
     const { passwordHash: _, ...safe } = user;
     res.status(201).json(safe);
@@ -132,10 +141,10 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.get("/users/:userId", authenticate, async (req, res) => {
-  const userId = req.params.userId;
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
-  if (req.user!.role !== "ADMIN" && req.user!.userId !== userId) {
+  if (req.user!.role !== "admin" && req.user!.userId !== userId) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -177,7 +186,7 @@ router.get("/users/:userId", authenticate, async (req, res) => {
 });
 
 router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
   const body = updateUserSchema.safeParse(req.body);
@@ -199,7 +208,7 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const { password: _, ...safe } = user;
+    const { passwordHash: _, ...safe } = user;
     res.json(safe);
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء التحديث" });
@@ -207,7 +216,7 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.delete("/users/:userId", authenticate, requireAdmin, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
   try {
@@ -219,7 +228,7 @@ router.delete("/users/:userId", authenticate, requireAdmin, async (req, res) => 
 });
 
 router.post("/users/:userId/reset-password", authenticate, requireAdmin, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
   const { newPassword } = req.body;
@@ -229,7 +238,7 @@ router.post("/users/:userId/reset-password", authenticate, requireAdmin, async (
   }
   try {
     const hashed = await bcrypt.hash(newPassword, 10);
-    await db.update(usersTable).set({ password: hashed }).where(eq(usersTable.id, userId));
+    await db.update(usersTable).set({ passwordHash: hashed }).where(eq(usersTable.id, userId));
     res.json({ success: true, message: "تم إعادة تعيين كلمة المرور" });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تغيير كلمة المرور" });

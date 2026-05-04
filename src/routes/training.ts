@@ -9,7 +9,7 @@ const router = Router();
 
 const programSchema = z.object({
   name: z.string().min(1),
-  userId: z.number().int(),
+  userId: z.string().min(1).max(64),
 });
 
 const weekSchema = z.object({
@@ -318,7 +318,7 @@ router.post("/training-programs/:programId/apply-template", authenticate, requir
 });
 
 router.get("/training-programs", authenticate, async (req, res) => {
-  const userId = req.query.userId ? Number(req.query.userId) : null;
+  const userId = req.query.userId ? String(req.query.userId) : null;
   const effectiveUserId = req.user!.role === "admin" ? userId : req.user!.userId;
 
   let programs;
