@@ -226,6 +226,17 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
+    const existing = await db
+      .select()
+      .from(checkinsTable)
+      .where(and(eq(checkinsTable.userId, body.data.userId), eq(checkinsTable.date, body.data.date)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Conflict", message: "العضو مسجل مسبقاً اليوم" });
+      return;
+    }
+
     const [checkin] = await db.insert(checkinsTable).values(body.data).returning();
     const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, checkin.userId)).limit(1);
     res.status(201).json({ ...checkin, userName: user?.name ?? "" });
