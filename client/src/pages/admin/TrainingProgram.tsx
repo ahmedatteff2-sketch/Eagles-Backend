@@ -4,7 +4,7 @@ import {
   useGetTrainingProgram, useCreateTrainingWeek, useListExercises,
   useCreateExercise, useUpdateExercise, useDeleteExercise, useGetUser,
   getGetTrainingProgramQueryKey, getListExercisesQueryKey, getGetUserQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

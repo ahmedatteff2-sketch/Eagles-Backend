@@ -1,22 +1,22 @@
 import { useAuthStore } from "@/store/auth";
-import { useListCheckins, getListCheckinsQueryKey } from "../../api-client";
+import { useListCheckins, getListCheckinsQueryKey } from "@workspace/api-client-react";
 
 export default function MemberAttendance() {
   const { user } = useAuthStore();
-  const userId = user?.id ?? 0;
+  const userId = user?.id;
 
   const { data: checkins, isLoading } = useListCheckins(
-    { userId },
-    { query: { queryKey: getListCheckinsQueryKey({ userId }), enabled: !!userId } }
+    { userId: userId ?? undefined },
+    { query: { queryKey: getListCheckinsQueryKey({ userId: userId ?? undefined }), enabled: !!userId } }
   );
 
   const checkinList = Array.isArray(checkins) ? checkins : (checkins as any)?.checkins ?? [];
-  const sorted = checkinList.slice().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sorted = checkinList.slice().sort((a: any, b: any) => new Date(b.timestamp ?? b.date).getTime() - new Date(a.timestamp ?? a.date).getTime());
 
   // Group by month
   const grouped: Record<string, any[]> = {};
   for (const c of sorted) {
-    const key = new Date(c.date).toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
+    const key = new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(c);
   }
@@ -39,7 +39,7 @@ export default function MemberAttendance() {
           <p className="text-muted-foreground text-xs mb-1">هذا الشهر</p>
           <p className="text-2xl font-bold text-foreground">
             {checkinList.filter((c: any) => {
-              const d = new Date(c.date);
+              const d = new Date(c.timestamp ?? c.date);
               const now = new Date();
               return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
             }).length}
@@ -64,7 +64,7 @@ export default function MemberAttendance() {
                     <div key={c.id} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
                       <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                       <p className="text-sm text-foreground">
-                        {new Date(c.date).toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                        {new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                       </p>
                     </div>
                   ))}

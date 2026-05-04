@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   useListCheckins, useCreateCheckin, useListUsers,
   getListCheckinsQueryKey, getListUsersQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,8 +10,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
 const checkinSchema = z.object({
-  userId: z.coerce.number().min(1, "اختر عضو"),
-  date: z.string().min(1, "التاريخ مطلوب"),
+  userId: z.string().min(1, "اختر عضو"),
 });
 type CheckinForm = z.infer<typeof checkinSchema>;
 
@@ -29,7 +28,6 @@ export default function AdminCheckins() {
   const createCheckin = useCreateCheckin();
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CheckinForm>({
     resolver: zodResolver(checkinSchema),
-    defaultValues: { date: new Date().toISOString().split("T")[0] },
   });
 
   function onSubmit(data: CheckinForm) {
@@ -37,15 +35,15 @@ export default function AdminCheckins() {
       onSuccess: () => {
         toast({ title: "تم تسجيل الحضور" });
         queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey() });
-        reset({ date: new Date().toISOString().split("T")[0] });
+        reset();
         setShowForm(false);
       },
       onError: () => toast({ title: "خطأ في تسجيل الحضور", variant: "destructive" }),
     });
   }
 
-  const checkinList = Array.isArray(checkins) ? checkins : (checkins as any)?.checkins ?? [];
-  const userList = Array.isArray(users) ? users : (users as any)?.users ?? [];
+  const checkinList = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? (checkins as any)?.checkins ?? [];
+  const userList = Array.isArray(users) ? users : (users as any)?.data ?? (users as any)?.users ?? [];
 
   return (
     <div className="p-6 space-y-4">
@@ -98,11 +96,6 @@ export default function AdminCheckins() {
                   ))}
                 </select>
                 {errors.userId && <p className="text-destructive text-xs mt-1">{errors.userId.message}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">التاريخ</label>
-                <input {...register("date")} type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-                {errors.date && <p className="text-destructive text-xs mt-1">{errors.date.message}</p>}
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={createCheckin.isPending} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">

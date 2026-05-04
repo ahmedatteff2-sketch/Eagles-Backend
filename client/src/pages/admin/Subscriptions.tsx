@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   useListSubscriptions, useCreateSubscription, useUpdateSubscription, useDeleteSubscription,
   getListSubscriptionsQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

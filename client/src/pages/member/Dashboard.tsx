@@ -1,9 +1,9 @@
 import { useAuthStore } from "@/store/auth";
-import { useGetMemberCurrentSubscription, getGetMemberCurrentSubscriptionQueryKey } from "../../api-client";
+import { useGetMemberCurrentSubscription, getGetMemberCurrentSubscriptionQueryKey } from "@workspace/api-client-react";
 
 export default function MemberDashboard() {
   const { user } = useAuthStore();
-  const userId = user?.id ?? 0;
+  const userId = user?.id ?? "";
 
   const { data: sub, isLoading } = useGetMemberCurrentSubscription(userId, {
     query: { queryKey: getGetMemberCurrentSubscriptionQueryKey(userId), enabled: !!userId },

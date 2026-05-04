@@ -746,12 +746,12 @@ export const useCreateUser = <
 /**
  * @summary Get user by ID
  */
-export const getGetUserUrl = (userId: number) => {
+export const getGetUserUrl = (userId: string) => {
   return `/api/users/${userId}`;
 };
 
 export const getUser = async (
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<UserDetail> => {
   return customFetch<UserDetail>(getGetUserUrl(userId), {
@@ -760,7 +760,7 @@ export const getUser = async (
   });
 };
 
-export const getGetUserQueryKey = (userId: number) => {
+export const getGetUserQueryKey = (userId: string) => {
   return [`/api/users/${userId}`] as const;
 };
 
@@ -768,7 +768,7 @@ export const getGetUserQueryOptions = <
   TData = Awaited<ReturnType<typeof getUser>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<Awaited<ReturnType<typeof getUser>>, TError, TData>;
     request?: SecondParameter<typeof customFetch>;
@@ -805,7 +805,7 @@ export function useGetUser<
   TData = Awaited<ReturnType<typeof getUser>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<Awaited<ReturnType<typeof getUser>>, TError, TData>;
     request?: SecondParameter<typeof customFetch>;
@@ -823,12 +823,12 @@ export function useGetUser<
 /**
  * @summary Update user (admin only)
  */
-export const getUpdateUserUrl = (userId: number) => {
+export const getUpdateUserUrl = (userId: string) => {
   return `/api/users/${userId}`;
 };
 
 export const updateUser = async (
-  userId: number,
+  userId: string,
   updateUserBody: UpdateUserBody,
   options?: RequestInit,
 ): Promise<User> => {
@@ -847,14 +847,14 @@ export const getUpdateUserMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateUser>>,
     TError,
-    { userId: number; data: BodyType<UpdateUserBody> },
+    { userId: string; data: BodyType<UpdateUserBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateUser>>,
   TError,
-  { userId: number; data: BodyType<UpdateUserBody> },
+  { userId: string; data: BodyType<UpdateUserBody> },
   TContext
 > => {
   const mutationKey = ["updateUser"];
@@ -868,7 +868,7 @@ export const getUpdateUserMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateUser>>,
-    { userId: number; data: BodyType<UpdateUserBody> }
+    { userId: string; data: BodyType<UpdateUserBody> }
   > = (props) => {
     const { userId, data } = props ?? {};
 
@@ -894,14 +894,14 @@ export const useUpdateUser = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateUser>>,
     TError,
-    { userId: number; data: BodyType<UpdateUserBody> },
+    { userId: string; data: BodyType<UpdateUserBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof updateUser>>,
   TError,
-  { userId: number; data: BodyType<UpdateUserBody> },
+  { userId: string; data: BodyType<UpdateUserBody> },
   TContext
 > => {
   return useMutation(getUpdateUserMutationOptions(options));
@@ -910,12 +910,12 @@ export const useUpdateUser = <
 /**
  * @summary Delete user (admin only)
  */
-export const getDeleteUserUrl = (userId: number) => {
+export const getDeleteUserUrl = (userId: string) => {
   return `/api/users/${userId}`;
 };
 
 export const deleteUser = async (
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<SuccessResponse> => {
   return customFetch<SuccessResponse>(getDeleteUserUrl(userId), {
@@ -931,14 +931,14 @@ export const getDeleteUserMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteUser>>,
     TError,
-    { userId: number },
+    { userId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteUser>>,
   TError,
-  { userId: number },
+  { userId: string },
   TContext
 > => {
   const mutationKey = ["deleteUser"];
@@ -952,7 +952,7 @@ export const getDeleteUserMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteUser>>,
-    { userId: number }
+    { userId: string }
   > = (props) => {
     const { userId } = props ?? {};
 
@@ -978,14 +978,14 @@ export const useDeleteUser = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteUser>>,
     TError,
-    { userId: number },
+    { userId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof deleteUser>>,
   TError,
-  { userId: number },
+  { userId: string },
   TContext
 > => {
   return useMutation(getDeleteUserMutationOptions(options));
@@ -994,12 +994,12 @@ export const useDeleteUser = <
 /**
  * @summary Reset a member's password (admin only)
  */
-export const getResetUserPasswordUrl = (userId: number) => {
+export const getResetUserPasswordUrl = (userId: string) => {
   return `/api/users/${userId}/reset-password`;
 };
 
 export const resetUserPassword = async (
-  userId: number,
+  userId: string,
   resetPasswordBody: ResetPasswordBody,
   options?: RequestInit,
 ): Promise<SuccessResponse> => {
@@ -1018,14 +1018,14 @@ export const getResetUserPasswordMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof resetUserPassword>>,
     TError,
-    { userId: number; data: BodyType<ResetPasswordBody> },
+    { userId: string; data: BodyType<ResetPasswordBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof resetUserPassword>>,
   TError,
-  { userId: number; data: BodyType<ResetPasswordBody> },
+  { userId: string; data: BodyType<ResetPasswordBody> },
   TContext
 > => {
   const mutationKey = ["resetUserPassword"];
@@ -1039,7 +1039,7 @@ export const getResetUserPasswordMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof resetUserPassword>>,
-    { userId: number; data: BodyType<ResetPasswordBody> }
+    { userId: string; data: BodyType<ResetPasswordBody> }
   > = (props) => {
     const { userId, data } = props ?? {};
 
@@ -1065,14 +1065,14 @@ export const useResetUserPassword = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof resetUserPassword>>,
     TError,
-    { userId: number; data: BodyType<ResetPasswordBody> },
+    { userId: string; data: BodyType<ResetPasswordBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof resetUserPassword>>,
   TError,
-  { userId: number; data: BodyType<ResetPasswordBody> },
+  { userId: string; data: BodyType<ResetPasswordBody> },
   TContext
 > => {
   return useMutation(getResetUserPasswordMutationOptions(options));
@@ -1502,12 +1502,12 @@ export const useAssignSubscription = <
 /**
  * @summary Get current subscription for a member
  */
-export const getGetMemberCurrentSubscriptionUrl = (userId: number) => {
+export const getGetMemberCurrentSubscriptionUrl = (userId: string) => {
   return `/api/member-subscriptions/${userId}/current`;
 };
 
 export const getMemberCurrentSubscription = async (
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<MemberSubscription> => {
   return customFetch<MemberSubscription>(
@@ -1519,7 +1519,7 @@ export const getMemberCurrentSubscription = async (
   );
 };
 
-export const getGetMemberCurrentSubscriptionQueryKey = (userId: number) => {
+export const getGetMemberCurrentSubscriptionQueryKey = (userId: string) => {
   return [`/api/member-subscriptions/${userId}/current`] as const;
 };
 
@@ -1527,7 +1527,7 @@ export const getGetMemberCurrentSubscriptionQueryOptions = <
   TData = Awaited<ReturnType<typeof getMemberCurrentSubscription>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberCurrentSubscription>>,
@@ -1572,7 +1572,7 @@ export function useGetMemberCurrentSubscription<
   TData = Awaited<ReturnType<typeof getMemberCurrentSubscription>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberCurrentSubscription>>,
@@ -1597,12 +1597,12 @@ export function useGetMemberCurrentSubscription<
 /**
  * @summary Get subscription history for a member
  */
-export const getGetMemberSubscriptionHistoryUrl = (userId: number) => {
+export const getGetMemberSubscriptionHistoryUrl = (userId: string) => {
   return `/api/member-subscriptions/${userId}/history`;
 };
 
 export const getMemberSubscriptionHistory = async (
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<MemberSubscription[]> => {
   return customFetch<MemberSubscription[]>(
@@ -1614,7 +1614,7 @@ export const getMemberSubscriptionHistory = async (
   );
 };
 
-export const getGetMemberSubscriptionHistoryQueryKey = (userId: number) => {
+export const getGetMemberSubscriptionHistoryQueryKey = (userId: string) => {
   return [`/api/member-subscriptions/${userId}/history`] as const;
 };
 
@@ -1622,7 +1622,7 @@ export const getGetMemberSubscriptionHistoryQueryOptions = <
   TData = Awaited<ReturnType<typeof getMemberSubscriptionHistory>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberSubscriptionHistory>>,
@@ -1667,7 +1667,7 @@ export function useGetMemberSubscriptionHistory<
   TData = Awaited<ReturnType<typeof getMemberSubscriptionHistory>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberSubscriptionHistory>>,
@@ -3453,12 +3453,12 @@ export function useGetDashboardStats<
 /**
  * @summary Get analytics for a specific member
  */
-export const getGetMemberAnalyticsUrl = (userId: number) => {
+export const getGetMemberAnalyticsUrl = (userId: string) => {
   return `/api/analytics/member/${userId}`;
 };
 
 export const getMemberAnalytics = async (
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<MemberAnalytics> => {
   return customFetch<MemberAnalytics>(getGetMemberAnalyticsUrl(userId), {
@@ -3467,7 +3467,7 @@ export const getMemberAnalytics = async (
   });
 };
 
-export const getGetMemberAnalyticsQueryKey = (userId: number) => {
+export const getGetMemberAnalyticsQueryKey = (userId: string) => {
   return [`/api/analytics/member/${userId}`] as const;
 };
 
@@ -3475,7 +3475,7 @@ export const getGetMemberAnalyticsQueryOptions = <
   TData = Awaited<ReturnType<typeof getMemberAnalytics>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberAnalytics>>,
@@ -3519,7 +3519,7 @@ export function useGetMemberAnalytics<
   TData = Awaited<ReturnType<typeof getMemberAnalytics>>,
   TError = ErrorType<unknown>,
 >(
-  userId: number,
+  userId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getMemberAnalytics>>,

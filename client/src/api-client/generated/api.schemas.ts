@@ -37,9 +37,10 @@ export const UserProfileRole = {
 } as const;
 
 export interface UserProfile {
-  id: number;
+  id: string;
   name: string;
   phone: string;
+  membershipNumber?: string | null;
   role: UserProfileRole;
 }
 
@@ -66,9 +67,10 @@ export const UserRole = {
 } as const;
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   phone: string;
+  membershipNumber?: string | null;
   role: UserRole;
   createdAt: string;
 }
@@ -99,7 +101,7 @@ export interface Subscription {
 
 export interface MemberSubscription {
   id: number;
-  userId: number;
+  userId: string;
   subscriptionId: number;
   startDate: string;
   endDate: string;
@@ -108,16 +110,18 @@ export interface MemberSubscription {
 }
 
 export interface Checkin {
-  id: number;
-  userId: number;
-  date: string;
+  id: string;
+  userId: string;
+  timestamp: string;
+  method?: string;
   userName?: string;
 }
 
 export interface UserDetail {
-  id: number;
+  id: string;
   name: string;
   phone: string;
+  membershipNumber?: string | null;
   role: UserDetailRole;
   createdAt: string;
   currentSubscription?: MemberSubscription;
@@ -134,9 +138,10 @@ export const UserWithSubscriptionRole = {
 } as const;
 
 export interface UserWithSubscription {
-  id: number;
+  id: string;
   name: string;
   phone: string;
+  membershipNumber?: string | null;
   role: UserWithSubscriptionRole;
   createdAt: string;
   currentSubscription?: MemberSubscription;
@@ -161,6 +166,7 @@ export interface CreateUserBody {
   name: string;
   phone: string;
   password: string;
+  membershipNumber?: string;
   role?: CreateUserBodyRole;
 }
 
@@ -175,6 +181,7 @@ export const UpdateUserBodyRole = {
 export interface UpdateUserBody {
   name?: string;
   phone?: string;
+  membershipNumber?: string;
   role?: UpdateUserBodyRole;
 }
 
@@ -194,7 +201,7 @@ export const AssignSubscriptionBodyPaymentMethod = {
 } as const;
 
 export interface AssignSubscriptionBody {
-  userId: number;
+  userId: string;
   subscriptionId: number;
   startDate: string;
   paymentAmount?: number;
@@ -204,14 +211,14 @@ export interface AssignSubscriptionBody {
 export interface TrainingProgram {
   id: number;
   name: string;
-  userId: number;
+  userId: string;
   createdAt: string;
   weekCount?: number;
 }
 
 export interface CreateTrainingProgramBody {
   name: string;
-  userId: number;
+  userId: string;
 }
 
 export interface Exercise {
@@ -235,7 +242,7 @@ export interface TrainingWeekWithExercises {
 export interface TrainingProgramDetail {
   id: number;
   name: string;
-  userId: number;
+  userId: string;
   createdAt: string;
   weeks: TrainingWeekWithExercises[];
 }
@@ -268,7 +275,7 @@ export interface CreateExerciseBody {
 
 export interface ExerciseLog {
   id: number;
-  userId: number;
+  userId: string;
   exerciseId: number;
   setNumber: number;
   reps: number;
@@ -287,7 +294,7 @@ export interface CreateExerciseLogBody {
 
 export interface BodyStat {
   id: number;
-  userId: number;
+  userId: string;
   date: string;
   weight?: number | null;
   bodyFat?: number | null;
@@ -304,8 +311,7 @@ export interface CreateBodyStatBody {
 }
 
 export interface CreateCheckinBody {
-  userId: number;
-  date: string;
+  userId: string;
 }
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
@@ -318,7 +324,7 @@ export const PaymentMethod = {
 
 export interface Payment {
   id: number;
-  userId: number;
+  userId: string;
   amount: number;
   date: string;
   method: PaymentMethod;
@@ -335,7 +341,7 @@ export const CreatePaymentBodyMethod = {
 } as const;
 
 export interface CreatePaymentBody {
-  userId: number;
+  userId: string;
   amount: number;
   date: string;
   method: CreatePaymentBodyMethod;
@@ -349,7 +355,7 @@ export interface PaymentListResponse {
 }
 
 export interface ExpiringMember {
-  userId: number;
+  userId: string;
   endDate: string;
   userName: string;
   userPhone: string;
@@ -482,7 +488,7 @@ export interface ProgressDataPoint {
 }
 
 export interface MemberAnalytics {
-  userId: number;
+  userId: string;
   weightProgress: ProgressDataPoint[];
   bodyFatProgress: ProgressDataPoint[];
   attendanceCount: number;
@@ -508,34 +514,35 @@ export type ListUsersStatus =
 export const ListUsersStatus = {
   active: "active",
   expired: "expired",
+  expiring: "expiring",
   all: "all",
 } as const;
 
 export type ListTrainingProgramsParams = {
-  userId?: number;
+  userId?: string;
 };
 
 export type ListExerciseLogsParams = {
-  userId?: number;
+  userId?: string;
   exerciseId?: number;
   from?: string;
   to?: string;
 };
 
 export type ListBodyStatsParams = {
-  userId?: number;
+  userId?: string;
   from?: string;
   to?: string;
 };
 
 export type ListCheckinsParams = {
-  userId?: number;
+  userId?: string;
   from?: string;
   to?: string;
 };
 
 export type ListPaymentsParams = {
-  userId?: number;
+  userId?: string;
   page?: number;
   limit?: number;
 };

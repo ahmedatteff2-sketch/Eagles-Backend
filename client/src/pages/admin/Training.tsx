@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   useListTrainingPrograms, useCreateTrainingProgram, useDeleteTrainingProgram,
   useListUsers, getListTrainingProgramsQueryKey, getListUsersQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const schema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
-  userId: z.coerce.number().min(1, "اختر عضو"),
+  userId: z.string().min(1, "اختر عضو"),
 });
 type FormData = z.infer<typeof schema>;
 

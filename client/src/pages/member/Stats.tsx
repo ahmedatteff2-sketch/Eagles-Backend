@@ -2,7 +2,7 @@ import { useAuthStore } from "@/store/auth";
 import {
   useListBodyStats, useCreateBodyStat, useDeleteBodyStat,
   getListBodyStatsQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +21,7 @@ type StatForm = z.infer<typeof statSchema>;
 
 export default function MemberStats() {
   const { user } = useAuthStore();
-  const userId = user?.id ?? 0;
+  const userId = user?.id ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

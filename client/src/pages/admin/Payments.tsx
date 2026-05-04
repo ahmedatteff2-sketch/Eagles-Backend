@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   useListPayments, useCreatePayment, useListUsers,
   getListPaymentsQueryKey, getListUsersQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 const METHOD_LABELS: Record<string, string> = { cash: "نقدي", card: "بطاقة", transfer: "تحويل" };
 
 const paySchema = z.object({
-  userId: z.coerce.number().min(1, "اختر عضو"),
+  userId: z.string().min(1, "اختر عضو"),
   amount: z.coerce.number().min(1, "المبلغ مطلوب"),
   date: z.string().min(1, "التاريخ مطلوب"),
   method: z.enum(["cash", "card", "transfer"]),

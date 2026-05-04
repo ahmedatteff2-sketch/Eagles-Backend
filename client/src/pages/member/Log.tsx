@@ -4,7 +4,7 @@ import {
   useLogExercise, useListExerciseLogs, useDeleteExerciseLog,
   getListTrainingProgramsQueryKey, getGetTrainingProgramQueryKey,
   getListExerciseLogsQueryKey,
-} from "../../api-client";
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -200,7 +200,7 @@ function QuickLogPanel({
 
 export default function MemberLog() {
   const { user } = useAuthStore();
-  const userId = user?.id ?? 0;
+  const userId = user?.id ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const today = new Date().toISOString().split("T")[0];

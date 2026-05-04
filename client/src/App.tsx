@@ -1,129 +1,120 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuthStore } from "@/store/auth";
-import LoginPage from "@/pages/login";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { useEffect } from "react";
 import AdminLayout from "@/layouts/AdminLayout";
-import MemberLayout from "@/layouts/MemberLayout";
+import { useAuthStore } from "@/store/auth";
+
+import Login from "@/pages/login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminMembers from "@/pages/admin/Members";
 import AdminMemberProfile from "@/pages/admin/MemberProfile";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
 import AdminTraining from "@/pages/admin/Training";
-import AdminTrainingProgram from "@/pages/admin/TrainingProgram";
 import AdminPayments from "@/pages/admin/Payments";
-import AdminCheckins from "@/pages/admin/Checkins";
+import AdminExpenses from "@/pages/admin/Expenses";
+import AdminAttendance from "@/pages/admin/Attendance";
+import AdminSchedule from "@/pages/admin/Schedule";
 import AdminAnalytics from "@/pages/admin/Analytics";
 import AdminExports from "@/pages/admin/Exports";
 import AdminImports from "@/pages/admin/Imports";
-import AdminExpenses from "@/pages/admin/Expenses";
-import AdminSchedule from "@/pages/admin/Schedule";
-import AdminQRScanner from "@/pages/admin/QRScanner";
-import MemberDashboard from "@/pages/member/Dashboard";
-import MemberWorkouts from "@/pages/member/Workouts";
-import MemberLog from "@/pages/member/Log";
-import MemberStats from "@/pages/member/Stats";
-import MemberAttendance from "@/pages/member/Attendance";
-import MemberSettings from "@/pages/member/Settings";
-import MemberQRCode from "@/pages/member/QRCode";
-import MemberSchedule from "@/pages/member/Schedule";
-import NotFound from "@/pages/not-found";
+import AdminSettings from "@/pages/admin/Settings";
+import AdminReminders from "@/pages/admin/Reminders";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
-});
-
-function ProtectedAdminRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, accessToken } = useAuthStore();
-  if (!accessToken || !user) return <Redirect to="/login" />;
-  if (user.role !== "admin") return <Redirect to="/member" />;
-  return <Component />;
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { accessToken } = useAuthStore();
+  if (!accessToken) return <Redirect to="/login" />;
+  return <AdminLayout>{children}</AdminLayout>;
 }
 
-function ProtectedMemberRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, accessToken } = useAuthStore();
-  if (!accessToken || !user) return <Redirect to="/login" />;
-  if (user.role === "admin") return <Redirect to="/admin" />;
-  return <Component />;
+function GlobalKeyboardShortcuts() {
+  const [, nav] = useLocation();
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case "m": e.preventDefault(); nav("/admin/members"); break;
+          case "a": e.preventDefault(); nav("/admin/attendance"); break;
+          case "d": e.preventDefault(); nav("/admin"); break;
+          case "p": e.preventDefault(); nav("/admin/payments"); break;
+          case "s": e.preventDefault(); nav("/admin/subscriptions"); break;
+          case ",": e.preventDefault(); nav("/admin/settings"); break;
+        }
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [nav]);
+  return null;
 }
 
-function AdminRoute({ component: Component }: { component: React.ComponentType }) {
-  return (
-    <AdminLayout>
-      <ProtectedAdminRoute component={Component} />
-    </AdminLayout>
-  );
-}
+import { ReminderPopup } from "@/components/ReminderPopup";
 
-function MemberRoute({ component: Component }: { component: React.ComponentType }) {
-  return (
-    <MemberLayout>
-      <ProtectedMemberRoute component={Component} />
-    </MemberLayout>
-  );
-}
-
-function Router() {
-  const { user, accessToken } = useAuthStore();
+export default function App() {
+  // Apply saved theme on mount
+  useEffect(() => {
+    const theme = localStorage.getItem("gym-theme") ?? "dark";
+    if (theme === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  }, []);
 
   return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-
-      {/* Admin routes */}
-      <Route path="/admin">{() => <AdminRoute component={AdminDashboard} />}</Route>
-      <Route path="/admin/members">{() => <AdminRoute component={AdminMembers} />}</Route>
-      <Route path="/admin/members/:id">{() => <AdminRoute component={AdminMemberProfile} />}</Route>
-      <Route path="/admin/subscriptions">{() => <AdminRoute component={AdminSubscriptions} />}</Route>
-      <Route path="/admin/training">{() => <AdminRoute component={AdminTraining} />}</Route>
-      <Route path="/admin/training/:programId">{() => <AdminRoute component={AdminTrainingProgram} />}</Route>
-      <Route path="/admin/payments">{() => <AdminRoute component={AdminPayments} />}</Route>
-      <Route path="/admin/checkins">{() => <AdminRoute component={AdminCheckins} />}</Route>
-      <Route path="/admin/analytics">{() => <AdminRoute component={AdminAnalytics} />}</Route>
-      <Route path="/admin/exports">{() => <AdminRoute component={AdminExports} />}</Route>
-      <Route path="/admin/imports">{() => <AdminRoute component={AdminImports} />}</Route>
-      <Route path="/admin/expenses">{() => <AdminRoute component={AdminExpenses} />}</Route>
-      <Route path="/admin/schedule">{() => <AdminRoute component={AdminSchedule} />}</Route>
-      <Route path="/admin/qr-scanner">{() => <AdminRoute component={AdminQRScanner} />}</Route>
-
-      {/* Member routes */}
-      <Route path="/member">{() => <MemberRoute component={MemberDashboard} />}</Route>
-      <Route path="/member/workouts">{() => <MemberRoute component={MemberWorkouts} />}</Route>
-      <Route path="/member/log">{() => <MemberRoute component={MemberLog} />}</Route>
-      <Route path="/member/stats">{() => <MemberRoute component={MemberStats} />}</Route>
-      <Route path="/member/attendance">{() => <MemberRoute component={MemberAttendance} />}</Route>
-      <Route path="/member/settings">{() => <MemberRoute component={MemberSettings} />}</Route>
-      <Route path="/member/qr">{() => <MemberRoute component={MemberQRCode} />}</Route>
-      <Route path="/member/schedule">{() => <MemberRoute component={MemberSchedule} />}</Route>
-
-      {/* Root redirect */}
-      <Route path="/">
-        {() => {
-          if (!accessToken || !user) return <Redirect to="/login" />;
-          if (user.role === "admin") return <Redirect to="/admin" />;
-          return <Redirect to="/member" />;
-        }}
-      </Route>
-
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <ReminderPopup />
+      <GlobalKeyboardShortcuts />
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/admin">
+          <ProtectedRoute><AdminDashboard /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/members">
+          <ProtectedRoute><AdminMembers /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/members/:id">
+          {(params) => <ProtectedRoute><AdminMemberProfile /></ProtectedRoute>}
+        </Route>
+        <Route path="/admin/subscriptions">
+          <ProtectedRoute><AdminSubscriptions /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/training">
+          <ProtectedRoute><AdminTraining /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/payments">
+          <ProtectedRoute><AdminPayments /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/expenses">
+          <ProtectedRoute><AdminExpenses /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/attendance">
+          <ProtectedRoute><AdminAttendance /></ProtectedRoute>
+        </Route>
+        {/* Legacy redirects */}
+        <Route path="/admin/checkins">
+          <Redirect to="/admin/attendance" />
+        </Route>
+        <Route path="/admin/qr-scanner">
+          <Redirect to="/admin/attendance" />
+        </Route>
+        <Route path="/admin/schedule">
+          <ProtectedRoute><AdminSchedule /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/analytics">
+          <ProtectedRoute><AdminAnalytics /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/exports">
+          <ProtectedRoute><AdminExports /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/imports">
+          <ProtectedRoute><AdminImports /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/settings">
+          <ProtectedRoute><AdminSettings /></ProtectedRoute>
+        </Route>
+        <Route path="/admin/reminders">
+          <ProtectedRoute><AdminReminders /></ProtectedRoute>
+        </Route>
+        <Route path="/">
+          <Redirect to="/admin" />
+        </Route>
+      </Switch>
+    </>
   );
 }
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
-
-export default App;
