@@ -58,7 +58,7 @@ export default function AdminTraining() {
   }
 
   const programList = Array.isArray(programs) ? programs : (programs as any)?.programs ?? [];
-  const userList = Array.isArray(users) ? users : (users as any)?.users ?? [];
+  const userList = Array.isArray(users) ? users : (users as any)?.data ?? [];
 
   return (
     <div className="p-6 space-y-4">
