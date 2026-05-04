@@ -43,7 +43,12 @@ export default function AdminQRScanner() {
       setTimeout(() => setFlash(false), 900);
       toast({ title: `✅ تم تسجيل حضور ${userName}` });
     } catch (err: any) {
-      toast({ title: err?.response?.data?.message ?? "فشل تسجيل الحضور", variant: "destructive" });
+      const serverMsg = err?.data?.message ?? err?.response?.data?.message;
+      const isDuplicate = err?.status === 409 || err?.response?.status === 409;
+      toast({
+        title: serverMsg ?? (isDuplicate ? "تم تسجيل الحضور مسبقاً اليوم" : "فشل تسجيل الحضور"),
+        variant: "destructive",
+      });
     }
     setLoading(false);
   }, [loading, toast, createCheckin]);

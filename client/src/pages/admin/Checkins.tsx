@@ -38,7 +38,14 @@ export default function AdminCheckins() {
         reset();
         setShowForm(false);
       },
-      onError: () => toast({ title: "خطأ في تسجيل الحضور", variant: "destructive" }),
+      onError: (err: any) => {
+        const serverMsg = err?.data?.message ?? err?.response?.data?.message;
+        const isDuplicate = err?.status === 409 || err?.response?.status === 409;
+        toast({
+          title: serverMsg ?? (isDuplicate ? "تم تسجيل الحضور مسبقاً اليوم" : "خطأ في تسجيل الحضور"),
+          variant: "destructive",
+        });
+      },
     });
   }
 

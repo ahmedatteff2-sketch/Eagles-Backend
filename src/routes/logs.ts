@@ -237,7 +237,7 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
       .limit(1);
 
     if (existing.length > 0) {
-      res.status(409).json({ error: "Conflict", message: "العضو مسجل مسبقاً اليوم" });
+      res.status(409).json({ error: "Conflict", message: "تم تسجيل الحضور مسبقاً" });
       return;
     }
 
