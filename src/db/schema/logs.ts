@@ -24,10 +24,11 @@ export const bodyStatsTable = pgTable("body_stats", {
   performanceNote: text("performance_note"),
 });
 
-export const checkinsTable = pgTable("checkins", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  date: date("date").notNull(),
+export const checkinsTable = pgTable("CheckIn", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  method: text("method").notNull().default("MANUAL"),
 });
 
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogsTable).omit({ id: true });

@@ -12,16 +12,16 @@ const router = Router();
 const createUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()),
-  memberCode: z.string().max(50).optional().transform(s => s?.trim() || null),
+  membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
-  role: z.enum(["admin", "trainer", "member"]).default("member"),
+  role: z.string().default("MEMBER"),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
-  memberCode: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
-  role: z.enum(["admin", "trainer", "member"]).optional(),
+  membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
+  role: z.string().optional(),
 });
 
 router.get("/users", authenticate, requireAdmin, async (req, res) => {
@@ -31,16 +31,16 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
   const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
 
   try {
-    let query = db.select().from(usersTable).where(eq(usersTable.role, "member"));
+    let query = db.select().from(usersTable).where(eq(usersTable.role, "MEMBER"));
     if (search) {
       query = db.select().from(usersTable).where(
         and(
-          eq(usersTable.role, "member"),
+          eq(usersTable.role, "MEMBER"),
           or(
             ilike(usersTable.name, `%${search}%`),
             ilike(usersTable.phone, `%${search}%`),
-            ilike(usersTable.memberCode, `%${search}%`),
-            !isNaN(parseInt(search, 10)) ? eq(usersTable.id, parseInt(search, 10)) : undefined
+            ilike(usersTable.membershipNumber, `%${search}%`),
+            eq(usersTable.id, search)
           )
         )
       ) as typeof query;
@@ -116,8 +116,15 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       }
     }
     const hashed = await bcrypt.hash(body.data.password, 10);
-    const [user] = await db.insert(usersTable).values({ ...body.data, password: hashed }).returning();
-    const { password: _, ...safe } = user;
+    const [user] = await db.insert(usersTable).values({
+      id: crypto.randomUUID(),
+      name: body.data.name,
+      phone: body.data.phone,
+      membershipNumber: body.data.membershipNumber,
+      passwordHash: hashed,
+      role: body.data.role
+    }).returning();
+    const { passwordHash: _, ...safe } = user;
     res.status(201).json(safe);
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة العضو" });
@@ -125,10 +132,10 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.get("/users/:userId", authenticate, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = req.params.userId;
   if (!userId) return;
 
-  if (req.user!.role !== "admin" && req.user!.userId !== userId) {
+  if (req.user!.role !== "ADMIN" && req.user!.userId !== userId) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -159,10 +166,10 @@ router.get("/users/:userId", authenticate, async (req, res) => {
       .orderBy(desc(memberSubscriptionsTable.createdAt))
       .limit(1);
 
-    const recentCheckins = await db.select().from(checkinsTable).where(eq(checkinsTable.userId, userId)).orderBy(desc(checkinsTable.date)).limit(5);
+    const recentCheckins = await db.select().from(checkinsTable).where(eq(checkinsTable.userId, userId)).orderBy(desc(checkinsTable.timestamp)).limit(5);
     const [paySum] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(eq(paymentsTable.userId, userId));
 
-    const { password: _, ...safe } = user;
+    const { passwordHash: _, ...safe } = user;
     res.json({ ...safe, currentSubscription: currentSubscription ?? null, recentCheckins, totalPayments: Number(paySum?.total ?? 0) });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب بيانات العضو" });
@@ -179,8 +186,8 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    if (body.data.memberCode) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.memberCode, body.data.memberCode)).limit(1);
+    if (body.data.membershipNumber) {
+      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
       if (existingCode.length > 0 && existingCode[0].id !== userId) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;

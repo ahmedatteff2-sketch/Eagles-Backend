@@ -25,8 +25,7 @@ const bodyStatSchema = z.object({
 });
 
 const checkinSchema = z.object({
-  userId: z.number().int().min(1).max(2_147_483_647),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
+  userId: z.string(),
 });
 
 // ─── Exercise logs ────────────────────────────────────────────────────────────
@@ -198,20 +197,18 @@ router.get("/checkins", authenticate, async (req, res) => {
   try {
     const conditions = [];
     if (targetUserId) conditions.push(eq(checkinsTable.userId, targetUserId));
-    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) conditions.push(gte(checkinsTable.date, from));
-    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) conditions.push(lte(checkinsTable.date, to));
 
     const checkins = await db
       .select({
         id: checkinsTable.id,
         userId: checkinsTable.userId,
-        date: checkinsTable.date,
+        timestamp: checkinsTable.timestamp,
         userName: usersTable.name,
       })
       .from(checkinsTable)
       .innerJoin(usersTable, eq(checkinsTable.userId, usersTable.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(checkinsTable.date));
+      .orderBy(desc(checkinsTable.timestamp));
 
     res.json(checkins);
   } catch {
@@ -226,10 +223,14 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
+    // Check if checkin exists for TODAY
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     const existing = await db
       .select()
       .from(checkinsTable)
-      .where(and(eq(checkinsTable.userId, body.data.userId), eq(checkinsTable.date, body.data.date)))
+      .where(and(eq(checkinsTable.userId, body.data.userId), gte(checkinsTable.timestamp, today)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -237,7 +238,12 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
       return;
     }
 
-    const [checkin] = await db.insert(checkinsTable).values(body.data).returning();
+    const [checkin] = await db.insert(checkinsTable).values({
+      id: crypto.randomUUID(),
+      userId: body.data.userId,
+      method: "MANUAL",
+      timestamp: new Date()
+    }).returning();
     const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, checkin.userId)).limit(1);
     res.status(201).json({ ...checkin, userName: user?.name ?? "" });
   } catch {
