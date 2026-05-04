@@ -164,6 +164,28 @@ export async function runMigrations(): Promise<void> {
       );
     `);
 
+    // ── Fix legacy schemas ────────────────────────────────────────────────
+    // Older deployments had refresh_tokens.user_id as INTEGER. Newer User.id is TEXT.
+    // If a mismatch is detected, drop and recreate the table (tokens are transient).
+    const { rows: colRows } = await client.query(
+      `SELECT data_type FROM information_schema.columns
+       WHERE table_name = 'refresh_tokens' AND column_name = 'user_id'`
+    );
+    if (colRows.length > 0 && colRows[0].data_type !== "text") {
+      logger.warn({ currentType: colRows[0].data_type }, "Recreating refresh_tokens with TEXT user_id");
+      await client.query(`DROP TABLE IF EXISTS refresh_tokens CASCADE`);
+      await client.query(`
+        CREATE TABLE refresh_tokens (
+          id         SERIAL PRIMARY KEY,
+          user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          token      TEXT NOT NULL UNIQUE,
+          revoked    BOOLEAN NOT NULL DEFAULT false,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMP NOT NULL
+        )
+      `);
+    }
+
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(
       `SELECT id FROM "User" WHERE phone = $1 LIMIT 1`,
