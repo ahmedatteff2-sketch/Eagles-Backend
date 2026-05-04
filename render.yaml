@@ -11,7 +11,7 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    buildCommand: npm install && npm run build:server
+    buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /api/healthz
     envVars:
