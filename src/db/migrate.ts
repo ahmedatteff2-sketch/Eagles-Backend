@@ -2,6 +2,12 @@ import { pool } from "./index.js";
 import bcrypt from "bcryptjs";
 import { logger } from "../lib/logger.js";
 
+/**
+ * Idempotent bootstrap migration that aligns the database with the Drizzle
+ * schema in `src/db/schema/*`. Only creates objects that don't already exist
+ * so it's safe to run on every boot. For schema changes, use `drizzle-kit
+ * generate` + `drizzle-kit migrate` (see package.json scripts).
+ */
 export async function runMigrations(): Promise<void> {
   const client = await pool.connect();
   try {
@@ -31,14 +37,17 @@ export async function runMigrations(): Promise<void> {
     `);
 
     // ── Tables ─────────────────────────────────────────────────────────────
+    // NOTE: Column types and names must match `src/db/schema/*`. User-related
+    // tables use opaque text IDs (cuid/UUID style) rather than serial integers.
     await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id          SERIAL PRIMARY KEY,
-        name        TEXT NOT NULL,
-        phone       TEXT NOT NULL UNIQUE,
-        password    TEXT NOT NULL,
-        role        role NOT NULL DEFAULT 'member',
-        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      CREATE TABLE IF NOT EXISTS "User" (
+        "id"               TEXT PRIMARY KEY,
+        "name"             TEXT NOT NULL,
+        "phone"            TEXT NOT NULL UNIQUE,
+        "membershipNumber" TEXT UNIQUE,
+        "passwordHash"     TEXT NOT NULL,
+        "role"             TEXT NOT NULL DEFAULT 'member',
+        "createdAt"        TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
       CREATE TABLE IF NOT EXISTS subscriptions (
@@ -50,7 +59,7 @@ export async function runMigrations(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS member_subscriptions (
         id              SERIAL PRIMARY KEY,
-        user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id         TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         subscription_id INTEGER NOT NULL REFERENCES subscriptions(id),
         start_date      DATE NOT NULL,
         end_date        DATE NOT NULL,
@@ -61,7 +70,7 @@ export async function runMigrations(): Promise<void> {
       CREATE TABLE IF NOT EXISTS training_programs (
         id         SERIAL PRIMARY KEY,
         name       TEXT NOT NULL,
-        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -83,7 +92,7 @@ export async function runMigrations(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS exercise_logs (
         id          SERIAL PRIMARY KEY,
-        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id     TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
         set_number  INTEGER NOT NULL,
         reps        INTEGER NOT NULL,
@@ -93,7 +102,7 @@ export async function runMigrations(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS body_stats (
         id                SERIAL PRIMARY KEY,
-        user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id           TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         date              DATE NOT NULL,
         weight            NUMERIC(6,2),
         body_fat          NUMERIC(5,2),
@@ -101,15 +110,16 @@ export async function runMigrations(): Promise<void> {
         performance_note  TEXT
       );
 
-      CREATE TABLE IF NOT EXISTS checkins (
-        id       SERIAL PRIMARY KEY,
-        user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        date     DATE NOT NULL
+      CREATE TABLE IF NOT EXISTS "CheckIn" (
+        "id"        TEXT PRIMARY KEY,
+        "userId"    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        "timestamp" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "method"    TEXT NOT NULL DEFAULT 'MANUAL'
       );
 
       CREATE TABLE IF NOT EXISTS payments (
         id       SERIAL PRIMARY KEY,
-        user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id  TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         amount   NUMERIC(10,2) NOT NULL,
         date     DATE NOT NULL,
         method   payment_method NOT NULL DEFAULT 'cash'
@@ -117,7 +127,7 @@ export async function runMigrations(): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS refresh_tokens (
         id         SERIAL PRIMARY KEY,
-        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
         token      TEXT NOT NULL UNIQUE,
         revoked    BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -143,18 +153,28 @@ export async function runMigrations(): Promise<void> {
         capacity     INTEGER,
         location     TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS reminders (
+        id               SERIAL PRIMARY KEY,
+        content          TEXT NOT NULL,
+        interval_minutes INTEGER NOT NULL,
+        is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      );
     `);
 
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(
-      "SELECT id FROM users WHERE phone = $1 LIMIT 1",
+      `SELECT id FROM "User" WHERE phone = $1 LIMIT 1`,
       ["01025754947"]
     );
     if (rows.length === 0) {
       const hashed = await bcrypt.hash("admin123", 10);
+      const { randomUUID } = await import("crypto");
       await client.query(
-        "INSERT INTO users (name, phone, password, role) VALUES ($1, $2, $3, $4)",
-        ["Admin", "01025754947", hashed, "admin"]
+        `INSERT INTO "User" (id, name, phone, "passwordHash", role) VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), "Admin", "01025754947", hashed, "admin"]
       );
       logger.info("Default admin user created");
     }

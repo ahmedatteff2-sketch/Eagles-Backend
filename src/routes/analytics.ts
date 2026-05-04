@@ -6,6 +6,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, count, sum, gte, lte, desc, and, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
+import { parseUserId } from "../lib/params.js";
 
 const router = Router();
 
@@ -18,12 +19,19 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
   nextWeek.setDate(nextWeek.getDate() + 7);
   const weekEnd = nextWeek.toISOString().split("T")[0]!;
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
   const [totalMembersRow] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, "member"));
   const [activeMembersRow] = await db.select({ count: count() }).from(memberSubscriptionsTable).where(eq(memberSubscriptionsTable.status, "active"));
   const [totalRevenueRow] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable);
   const [monthlyRevenueRow] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(gte(paymentsTable.date, monthStart));
   const [monthlyExpensesRow] = await db.select({ total: sum(expensesTable.amount) }).from(expensesTable).where(gte(expensesTable.date, monthStart));
-  const [todayCheckinsRow] = await db.select({ count: count() }).from(checkinsTable).where(eq(checkinsTable.date, today));
+  const [todayCheckinsRow] = await db.select({ count: count() }).from(checkinsTable).where(
+    and(gte(checkinsTable.timestamp, todayStart), lte(checkinsTable.timestamp, todayEnd))
+  );
   const [expiringRow] = await db.select({ count: count() }).from(memberSubscriptionsTable).where(
     and(eq(memberSubscriptionsTable.status, "active"), gte(memberSubscriptionsTable.endDate, today), lte(memberSubscriptionsTable.endDate, weekEnd))
   );
@@ -129,7 +137,8 @@ router.get("/analytics/monthly-revenue", authenticate, requireAdmin, async (req,
 });
 
 router.get("/analytics/member/:userId", authenticate, async (req, res) => {
-  const userId = Number(req.params.userId);
+  const userId = parseUserId(req.params.userId, res);
+  if (!userId) return;
   if (req.user!.role !== "admin" && req.user!.userId !== userId) {
     res.status(403).json({ error: "Forbidden" });
     return;
@@ -159,15 +168,22 @@ router.get("/analytics/attendance", authenticate, requireAdmin, async (req, res)
   const to = req.query.to as string | undefined;
 
   const conditions = [];
-  if (from) conditions.push(gte(checkinsTable.date, from));
-  if (to) conditions.push(lte(checkinsTable.date, to));
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    conditions.push(gte(checkinsTable.timestamp, new Date(`${from}T00:00:00.000Z`)));
+  }
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    const next = new Date(`${to}T00:00:00.000Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    conditions.push(lte(checkinsTable.timestamp, next));
+  }
 
+  const dayCol = sql<string>`TO_CHAR(${checkinsTable.timestamp}::date, 'YYYY-MM-DD')`;
   const rows = await db
-    .select({ date: checkinsTable.date, count: count() })
+    .select({ date: dayCol, count: count() })
     .from(checkinsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .groupBy(checkinsTable.date)
-    .orderBy(checkinsTable.date);
+    .groupBy(dayCol)
+    .orderBy(dayCol);
 
   res.json(rows);
 });

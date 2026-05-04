@@ -42,7 +42,7 @@ router.get("/exports/members-csv", authenticate, requireAdmin, async (_req, res)
       .where(eq(usersTable.role, "member"))
       .orderBy(desc(usersTable.createdAt));
 
-    const seen = new Set<number>();
+    const seen = new Set<string>();
     const unique = rows.filter((r) => {
       if (seen.has(r.id)) return false;
       seen.add(r.id);

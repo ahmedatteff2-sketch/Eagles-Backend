@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { subscriptionsTable, memberSubscriptionsTable, paymentsTable } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId } from "../lib/params.js";
+import { parseId, parseUserId } from "../lib/params.js";
 import { z } from "zod";
 
 const router = Router();
@@ -15,7 +15,7 @@ const subscriptionSchema = z.object({
 });
 
 const assignSchema = z.object({
-  userId: z.number().int().min(1).max(2_147_483_647),
+  userId: z.string().min(1).max(64),
   subscriptionId: z.number().int().min(1).max(2_147_483_647),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح (YYYY-MM-DD)"),
   paymentAmount: z.number().min(0).max(1_000_000).optional(),
@@ -129,7 +129,7 @@ router.post("/member-subscriptions", authenticate, requireAdmin, async (req, res
 });
 
 router.get("/member-subscriptions/:userId/current", authenticate, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
   if (req.user!.role !== "admin" && req.user!.userId !== userId) {
@@ -169,7 +169,7 @@ router.get("/member-subscriptions/:userId/current", authenticate, async (req, re
 });
 
 router.get("/member-subscriptions/:userId/history", authenticate, async (req, res) => {
-  const userId = parseId(req.params.userId, res, "معرّف العضو");
+  const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
   if (req.user!.role !== "admin" && req.user!.userId !== userId) {
