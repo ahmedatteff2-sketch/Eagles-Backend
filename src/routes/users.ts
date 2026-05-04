@@ -39,7 +39,8 @@ router.get("/users", authenticate, requireAdmin, async (req, res) => {
           or(
             ilike(usersTable.name, `%${search}%`),
             ilike(usersTable.phone, `%${search}%`),
-            ilike(usersTable.memberCode, `%${search}%`)
+            ilike(usersTable.memberCode, `%${search}%`),
+            !isNaN(parseInt(search, 10)) ? eq(usersTable.id, parseInt(search, 10)) : undefined
           )
         )
       ) as typeof query;
