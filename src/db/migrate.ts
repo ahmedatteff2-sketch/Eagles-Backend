@@ -67,27 +67,34 @@ export async function runMigrations(): Promise<void> {
         created_at      TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE IF NOT EXISTS training_programs (
-        id         SERIAL PRIMARY KEY,
-        name       TEXT NOT NULL,
-        user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS training_weeks (
-        id           SERIAL PRIMARY KEY,
-        program_id   INTEGER NOT NULL REFERENCES training_programs(id) ON DELETE CASCADE,
-        week_number  INTEGER NOT NULL
-      );
-
       CREATE TABLE IF NOT EXISTS exercises (
         id             SERIAL PRIMARY KEY,
         name           TEXT NOT NULL,
         video_url      TEXT,
-        sets_required  INTEGER NOT NULL DEFAULT 3,
-        reps_min       INTEGER NOT NULL,
-        reps_max       INTEGER NOT NULL,
-        week_id        INTEGER NOT NULL REFERENCES training_weeks(id) ON DELETE CASCADE
+        target_muscle  TEXT NOT NULL,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS workout_templates (
+        id         SERIAL PRIMARY KEY,
+        name       TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS workout_template_exercises (
+        id           SERIAL PRIMARY KEY,
+        template_id  INTEGER NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
+        exercise_id  INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+        sets         INTEGER NOT NULL,
+        reps         INTEGER NOT NULL,
+        sort_order   INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS member_workout_assignments (
+        id           SERIAL PRIMARY KEY,
+        template_id  INTEGER NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
+        user_id      TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        assigned_at  TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
       CREATE TABLE IF NOT EXISTS exercise_logs (
@@ -255,18 +262,67 @@ export async function runMigrations(): Promise<void> {
       `);
     }
 
-    if ((await userIdType("training_programs")) === "integer") {
-      logger.warn("Recreating training_programs with TEXT user_id (legacy data dropped)");
+    // ── Drop old training tables (replaced by exercises + workout_templates) ─
+    const { rows: oldTrainingWeeks } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'training_weeks'`
+    );
+    if (oldTrainingWeeks.length > 0) {
+      logger.warn("Dropping legacy training tables (training_programs, training_weeks, old exercises)");
+      await client.query(`DROP TABLE IF EXISTS exercise_logs CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS exercises CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS training_weeks CASCADE`);
       await client.query(`DROP TABLE IF EXISTS training_programs CASCADE`);
-      await client.query(`
-        CREATE TABLE training_programs (
-          id         SERIAL PRIMARY KEY,
-          name       TEXT NOT NULL,
-          user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-          created_at TIMESTAMP NOT NULL DEFAULT NOW()
-        )
-      `);
     }
+
+    // If exercises table exists but still has old columns (week_id), drop and recreate
+    const { rows: oldExCol } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'exercises' AND column_name = 'week_id'`
+    );
+    if (oldExCol.length > 0) {
+      logger.warn("Dropping old exercises table with week_id column");
+      await client.query(`DROP TABLE IF EXISTS exercise_logs CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS workout_template_exercises CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS exercises CASCADE`);
+    }
+
+    // Recreate new tables if they were just dropped
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS exercises (
+        id             SERIAL PRIMARY KEY,
+        name           TEXT NOT NULL,
+        video_url      TEXT,
+        target_muscle  TEXT NOT NULL,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS workout_templates (
+        id         SERIAL PRIMARY KEY,
+        name       TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS workout_template_exercises (
+        id           SERIAL PRIMARY KEY,
+        template_id  INTEGER NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
+        exercise_id  INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+        sets         INTEGER NOT NULL,
+        reps         INTEGER NOT NULL,
+        sort_order   INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS member_workout_assignments (
+        id           SERIAL PRIMARY KEY,
+        template_id  INTEGER NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
+        user_id      TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        assigned_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS exercise_logs (
+        id          SERIAL PRIMARY KEY,
+        user_id     TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+        set_number  INTEGER NOT NULL,
+        reps        INTEGER NOT NULL,
+        weight      NUMERIC(6,2) NOT NULL,
+        date        DATE NOT NULL
+      );
+    `);
 
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(

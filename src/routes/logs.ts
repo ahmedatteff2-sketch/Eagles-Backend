@@ -62,10 +62,7 @@ router.get("/exercise-logs", authenticate, async (req, res) => {
           id: exercisesTable.id,
           name: exercisesTable.name,
           videoUrl: exercisesTable.videoUrl,
-          setsRequired: exercisesTable.setsRequired,
-          repsMin: exercisesTable.repsMin,
-          repsMax: exercisesTable.repsMax,
-          weekId: exercisesTable.weekId,
+          targetMuscle: exercisesTable.targetMuscle,
         },
       })
       .from(exerciseLogsTable)

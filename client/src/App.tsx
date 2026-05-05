@@ -9,8 +9,8 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminMembers from "@/pages/admin/Members";
 import AdminMemberProfile from "@/pages/admin/MemberProfile";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
-import AdminTraining from "@/pages/admin/Training";
-import AdminTrainingProgram from "@/pages/admin/TrainingProgram";
+import AdminExercises from "@/pages/admin/Exercises";
+import AdminWorkoutTemplates from "@/pages/admin/WorkoutTemplates";
 import AdminPayments from "@/pages/admin/Payments";
 import AdminExpenses from "@/pages/admin/Expenses";
 import AdminAttendance from "@/pages/admin/Attendance";
@@ -98,11 +98,11 @@ export default function App() {
         <Route path="/admin/subscriptions">
           <AdminRoute><AdminSubscriptions /></AdminRoute>
         </Route>
-        <Route path="/admin/training">
-          <AdminRoute><AdminTraining /></AdminRoute>
+        <Route path="/admin/exercises">
+          <AdminRoute><AdminExercises /></AdminRoute>
         </Route>
-        <Route path="/admin/training/:programId">
-          {() => <AdminRoute><AdminTrainingProgram /></AdminRoute>}
+        <Route path="/admin/workout-templates">
+          <AdminRoute><AdminWorkoutTemplates /></AdminRoute>
         </Route>
         <Route path="/admin/payments">
           <AdminRoute><AdminPayments /></AdminRoute>

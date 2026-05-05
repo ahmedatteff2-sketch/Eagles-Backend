@@ -2,8 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   usersTable, memberSubscriptionsTable, subscriptionsTable, paymentsTable,
-  trainingProgramsTable, trainingWeeksTable, exercisesTable, exerciseLogsTable,
-  bodyStatsTable, checkinsTable,
+  exercisesTable, workoutTemplatesTable, workoutTemplateExercisesTable, memberWorkoutAssignmentsTable,
+  exerciseLogsTable, bodyStatsTable, checkinsTable,
 } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -97,15 +97,17 @@ router.get("/exports/payments-csv", authenticate, requireAdmin, async (_req, res
 router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res) => {
   try {
     const [
-      users, subscriptionsList, memberSubs, programs,
-      weeks, exerciseList, exerciseLogs, bodyStats, checkins, payments,
+      users, subscriptionsList, memberSubs,
+      exerciseList, workoutTemplates, templateExercises, workoutAssignments,
+      exerciseLogs, bodyStats, checkins, payments,
     ] = await Promise.all([
       db.select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone, role: usersTable.role, createdAt: usersTable.createdAt }).from(usersTable),
       db.select().from(subscriptionsTable),
       db.select().from(memberSubscriptionsTable),
-      db.select().from(trainingProgramsTable),
-      db.select().from(trainingWeeksTable),
       db.select().from(exercisesTable),
+      db.select().from(workoutTemplatesTable),
+      db.select().from(workoutTemplateExercisesTable),
+      db.select().from(memberWorkoutAssignmentsTable),
       db.select().from(exerciseLogsTable),
       db.select().from(bodyStatsTable),
       db.select().from(checkinsTable),
@@ -114,13 +116,14 @@ router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res)
 
     const backup = {
       exportedAt: new Date().toISOString(),
-      version: "1.0",
+      version: "2.0",
       users,
       subscriptions: subscriptionsList,
       memberSubs,
-      programs,
-      weeks,
       exercises: exerciseList,
+      workoutTemplates,
+      templateExercises,
+      workoutAssignments,
       exerciseLogs,
       bodyStats,
       checkins,

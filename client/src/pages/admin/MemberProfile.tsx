@@ -2,13 +2,13 @@ import { useParams, Link, useLocation } from "wouter";
 import {
   useGetUser, useGetMemberCurrentSubscription, useGetMemberSubscriptionHistory,
   useListCheckins, useListBodyStats, useAssignSubscription, useListSubscriptions,
-  useListTrainingPrograms, useCreateTrainingProgram, useDeleteTrainingProgram,
   useListExerciseLogs,
   getGetUserQueryKey, getGetMemberCurrentSubscriptionQueryKey,
   getGetMemberSubscriptionHistoryQueryKey, getListCheckinsQueryKey,
   getListBodyStatsQueryKey, getListSubscriptionsQueryKey,
-  getListTrainingProgramsQueryKey, getListExerciseLogsQueryKey,
+  getListExerciseLogsQueryKey,
 } from "@workspace/api-client-react";
+import { customFetch } from "@/api-client/custom-fetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useRef, useEffect } from "react";
@@ -34,8 +34,6 @@ const assignSchema = z.object({
   paymentMethod: z.enum(["cash", "card", "transfer"]).optional(),
 });
 type AssignForm = z.infer<typeof assignSchema>;
-const programSchema = z.object({ name: z.string().min(1, "اسم البرنامج مطلوب") });
-type ProgramForm = z.infer<typeof programSchema>;
 type Tab = "overview" | "qr" | "training" | "progress" | "notes";
 
 const inp = "w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary";
@@ -44,7 +42,10 @@ export default function AdminMemberProfile() {
   const params = useParams<{ id: string }>();
   const userId = params.id;
   const [showAssign, setShowAssign] = useState(false);
-  const [showCreateProgram, setShowCreateProgram] = useState(false);
+  const [memberTemplates, setMemberTemplates] = useState<any[]>([]);
+  const [allTemplates, setAllTemplates] = useState<any[]>([]);
+  const [showAssignTemplate, setShowAssignTemplate] = useState(false);
+  const [assignTemplateId, setAssignTemplateId] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -58,15 +59,34 @@ export default function AdminMemberProfile() {
   const { data: checkins } = useListCheckins({ userId }, { query: { queryKey: getListCheckinsQueryKey({ userId }), enabled: !!userId } });
   const { data: bodyStats } = useListBodyStats({ userId }, { query: { queryKey: getListBodyStatsQueryKey({ userId }), enabled: !!userId } });
   const { data: subscriptions } = useListSubscriptions({ query: { queryKey: getListSubscriptionsQueryKey() } });
-  const { data: programs, isLoading: programsLoading } = useListTrainingPrograms({ userId }, { query: { queryKey: getListTrainingProgramsQueryKey({ userId }), enabled: !!userId } });
   const { data: exerciseLogs } = useListExerciseLogs({ userId }, { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } });
 
   const assignSub = useAssignSubscription();
-  const createProgram = useCreateTrainingProgram();
-  const deleteProgram = useDeleteTrainingProgram();
 
   const assignForm = useForm<AssignForm>({ resolver: zodResolver(assignSchema), defaultValues: { startDate: new Date().toISOString().slice(0,10), paymentMethod: "cash" } });
-  const programForm = useForm<ProgramForm>({ resolver: zodResolver(programSchema) });
+
+  async function fetchMemberTemplates() {
+    if (!userId) return;
+    try {
+      const [templates, all] = await Promise.all([
+        customFetch<any[]>(`/api/workout-templates`),
+        customFetch<any[]>(`/api/workout-templates`),
+      ]);
+      // filter templates assigned to this user
+      const assigned: any[] = [];
+      for (const t of templates) {
+        try {
+          const assignments = await customFetch<any[]>(`/api/workout-templates/${t.id}/assignments`);
+          const match = assignments.find((a: any) => a.userId === userId);
+          if (match) assigned.push({ ...t, assignmentId: match.id });
+        } catch { /* ignore */ }
+      }
+      setMemberTemplates(assigned);
+      setAllTemplates(all);
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { if (activeTab === "training") fetchMemberTemplates(); }, [activeTab, userId]);
 
   const userData: any = user;
   const memberName = userData?.name ?? "—";
@@ -77,7 +97,6 @@ export default function AdminMemberProfile() {
   const checkinList: any[] = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? [];
   const statsList: any[] = Array.isArray(bodyStats) ? bodyStats : (bodyStats as any)?.data ?? [];
   const subList: any[] = Array.isArray(subscriptions) ? subscriptions : (subscriptions as any)?.data ?? [];
-  const programList: any[] = Array.isArray(programs) ? programs : (programs as any)?.data ?? [];
   const logList: any[] = Array.isArray(exerciseLogs) ? exerciseLogs : (exerciseLogs as any)?.data ?? [];
 
   const qrValue = JSON.stringify({ userId, name: memberName });
@@ -183,7 +202,7 @@ export default function AdminMemberProfile() {
         ["Total Checkins", checkinList.length],
         ["Checkins This Month", thisMonth],
         ["Checkins This Week", thisWeek],
-        ["Training Programs", programList.length],
+        ["Workout Templates", memberTemplates.length],
       ],
       styles: { fontSize: 9 }, headStyles: { fillColor: [30,30,30], textColor: [201,164,60] },
       alternateRowStyles: { fillColor: [20,20,20] }, bodyStyles: { fillColor: [14,14,14], textColor: [200,200,200] }, theme: "plain",
@@ -231,14 +250,27 @@ export default function AdminMemberProfile() {
     });
   }
 
-  function onCreateProgram(data: ProgramForm) {
-    createProgram.mutate({ data: { userId, name: data.name } }, {
-      onSuccess: () => {
-        toast({ title: "✅ تم إنشاء البرنامج" }); setShowCreateProgram(false); programForm.reset();
-        queryClient.invalidateQueries({ queryKey: getListTrainingProgramsQueryKey({ userId }) });
-      },
-      onError: () => toast({ title: "فشل في إنشاء البرنامج", variant: "destructive" }),
-    });
+  async function assignTemplate() {
+    if (!assignTemplateId || !userId) return;
+    try {
+      await customFetch(`/api/workout-templates/${assignTemplateId}/assign`, { method: "POST", body: JSON.stringify({ userId }) });
+      toast({ title: "تم تعيين القالب" });
+      setShowAssignTemplate(false);
+      setAssignTemplateId("");
+      fetchMemberTemplates();
+    } catch {
+      toast({ title: "فشل في التعيين", variant: "destructive" });
+    }
+  }
+
+  async function unassignTemplate(assignmentId: number) {
+    try {
+      await customFetch(`/api/workout-assignments/${assignmentId}`, { method: "DELETE" });
+      toast({ title: "تم إلغاء التعيين" });
+      fetchMemberTemplates();
+    } catch {
+      toast({ title: "فشل", variant: "destructive" });
+    }
   }
 
   return (
@@ -327,7 +359,7 @@ export default function AdminMemberProfile() {
               { label: "إجمالي الحضور", value: checkinList.length, color: GOLD },
               { label: "حضور الشهر", value: thisMonth, color: "hsl(142 60% 55%)" },
               { label: "حضور الأسبوع", value: thisWeek, color: "hsl(220 70% 65%)" },
-              { label: "برامج التدريب", value: programList.length, color: "hsl(280 60% 60%)" },
+              { label: "قوالب التمرين", value: memberTemplates.length, color: "hsl(280 60% 60%)" },
             ].map(s => (
               <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
                 <p className="text-2xl font-black mb-0.5" style={{ color: s.color }}>{s.value}</p>
@@ -423,25 +455,34 @@ export default function AdminMemberProfile() {
       {activeTab === "training" && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button onClick={() => setShowCreateProgram(true)}
+            <button onClick={() => setShowAssignTemplate(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
               style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-              + إنشاء برنامج
+              + تعيين قالب تمرين
             </button>
           </div>
-          {programsLoading ? <div className="h-20 rounded-xl animate-pulse" style={{ background: "hsl(0 0% 9%)" }} /> :
-           programList.length === 0 ? <p className="text-muted-foreground text-sm text-center py-10">لا توجد برامج تدريبية</p> : (
+          {memberTemplates.length === 0 ? <p className="text-muted-foreground text-sm text-center py-10">لا توجد قوالب تمرين معيّنة</p> : (
             <div className="grid gap-3">
-              {programList.map((p: any) => (
-                <div key={p.id} className="bg-card border border-card-border rounded-xl p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-foreground">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(p.createdAt ?? "").toLocaleDateString("ar-EG")}</p>
+              {memberTemplates.map((t: any) => (
+                <div key={t.id} className="bg-card border border-card-border rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold text-foreground">{t.name}</p>
+                    <button onClick={() => unassignTemplate(t.assignmentId)}
+                      className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
+                      إلغاء التعيين
+                    </button>
                   </div>
-                  <button onClick={() => deleteProgram.mutate({ programId: p.id }, { onSuccess: () => { toast({ title: "تم الحذف" }); queryClient.invalidateQueries({ queryKey: getListTrainingProgramsQueryKey({ userId }) }); } })}
-                    className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
-                    حذف
-                  </button>
+                  {t.exercises?.length > 0 && (
+                    <div className="space-y-1">
+                      {t.exercises.map((ex: any, i: number) => (
+                        <div key={ex.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span className="text-xs font-bold text-foreground">{i+1}.</span>
+                          <span>{ex.exerciseName}</span>
+                          <span className="text-xs">({ex.sets}×{ex.reps})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -575,29 +616,28 @@ export default function AdminMemberProfile() {
         </div>
       )}
 
-      {/* Create Training Program Modal */}
-      {showCreateProgram && (
+      {/* Assign Workout Template Modal */}
+      {showAssignTemplate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-lg font-bold text-foreground mb-1">إنشاء برنامج تدريبي</h2>
+            <h2 className="text-lg font-bold text-foreground mb-1">تعيين قالب تمرين</h2>
             <p className="text-muted-foreground text-sm mb-4">سيتم تعيينه لـ {memberName}</p>
-            <form onSubmit={programForm.handleSubmit(onCreateProgram)} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">اسم البرنامج</label>
-                <input {...programForm.register("name")} placeholder="مثال: برنامج تضخيم - 4 أسابيع" className={inp} />
-                {programForm.formState.errors.name && <p className="text-destructive text-xs mt-1">{programForm.formState.errors.name.message}</p>}
-              </div>
+            <div className="space-y-3">
+              <select value={assignTemplateId} onChange={(e) => setAssignTemplateId(e.target.value)} className={inp}>
+                <option value="">اختر قالب</option>
+                {allTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name} ({t.exercises?.length ?? 0} تمرين)</option>)}
+              </select>
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={createProgram.isPending}
+                <button onClick={assignTemplate} disabled={!assignTemplateId}
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
                   style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                  {createProgram.isPending ? "جاري الإنشاء..." : "إنشاء"}
+                  تعيين
                 </button>
-                <button type="button" onClick={() => setShowCreateProgram(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
+                <button onClick={() => setShowAssignTemplate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
                   إلغاء
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

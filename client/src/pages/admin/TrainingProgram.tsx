@@ -10,7 +10,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { useAuthStore } from "@/store/auth";
+import { customFetch } from "@/api-client/custom-fetch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,15 +113,14 @@ function TemplatePicker({
   onClose: () => void;
   applying: boolean;
 }) {
-  const { accessToken } = useAuthStore();
   const [templates, setTemplates] = useState<TemplateInfo[] | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   if (templates === null) {
-    fetch("/api/training-templates", { headers: { Authorization: `Bearer ${accessToken}` } })
-      .then(r => r.json())
-      .then(setTemplates);
+    customFetch<TemplateInfo[]>("/api/training-templates")
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
   }
 
   return (
@@ -656,8 +655,6 @@ export default function AdminTrainingProgram() {
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { accessToken } = useAuthStore();
-
   const { data: program, isLoading } = useGetTrainingProgram(programId, {
     query: { queryKey: getGetTrainingProgramQueryKey(programId) },
   });
@@ -673,13 +670,10 @@ export default function AdminTrainingProgram() {
   async function applyTemplate(templateId: string) {
     setApplyingTemplate(true);
     try {
-      const res = await fetch(`/api/training-programs/${programId}/apply-template`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ templateId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "فشل التطبيق");
+      const data = await customFetch<{ success: boolean; message: string }>(
+        `/api/training-programs/${programId}/apply-template`,
+        { method: "POST", body: JSON.stringify({ templateId }) },
+      );
       toast({ title: `✓ ${data.message}` });
       queryClient.invalidateQueries({ queryKey: getGetTrainingProgramQueryKey(programId) });
       setShowTemplatePicker(false);
