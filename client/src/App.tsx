@@ -28,6 +28,7 @@ import MemberAttendance from "@/pages/member/Attendance";
 import MemberSchedule from "@/pages/member/Schedule";
 import MemberQRCode from "@/pages/member/QRCode";
 import MemberSettings from "@/pages/member/Settings";
+import MemberReport from "@/pages/member/Report";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
@@ -180,6 +181,9 @@ export default function App() {
         </Route>
         <Route path="/member/log">
           <MemberRoute><MemberLog /></MemberRoute>
+        </Route>
+        <Route path="/member/report">
+          <MemberRoute><MemberReport /></MemberRoute>
         </Route>
         <Route path="/member/stats">
           <MemberRoute><MemberStats /></MemberRoute>

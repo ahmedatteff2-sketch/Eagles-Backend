@@ -22,6 +22,8 @@ const templateSchema = z.object({
   name: z.string().min(1),
   daysCount: z.number().int().min(1).max(14).optional(),
   daysPerWeek: z.number().int().min(1).max(7).optional(),
+  dayNames: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 const templateExerciseSchema = z.object({
@@ -30,6 +32,8 @@ const templateExerciseSchema = z.object({
   reps: z.number().int().min(1).max(100),
   dayNumber: z.number().int().min(1).optional(),
   sortOrder: z.number().int().min(0).optional(),
+  notes: z.string().nullable().optional(),
+  restSeconds: z.number().int().min(0).max(600).optional(),
 });
 
 const assignSchema = z.object({
@@ -86,6 +90,8 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
         exerciseName: exercisesTable.name,
         targetMuscle: exercisesTable.targetMuscle,
         videoUrl: exercisesTable.videoUrl,
+        notes: workoutTemplateExercisesTable.notes,
+        restSeconds: workoutTemplateExercisesTable.restSeconds,
       })
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
@@ -106,7 +112,7 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
 router.post("/workout-templates", authenticate, requireAdmin, async (req, res) => {
   const body = templateSchema.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(workoutTemplatesTable).values({ name: body.data.name, daysCount: body.data.daysCount ?? 1, daysPerWeek: body.data.daysPerWeek ?? 4 }).returning();
+  const [row] = await db.insert(workoutTemplatesTable).values({ name: body.data.name, daysCount: body.data.daysCount ?? 1, daysPerWeek: body.data.daysPerWeek ?? 4, dayNames: body.data.dayNames ?? null, notes: body.data.notes ?? null }).returning();
   res.status(201).json({ ...row, exercises: [], assignedCount: 0 });
 });
 
@@ -118,6 +124,8 @@ router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res
   if (body.data.name) updates.name = body.data.name;
   if (body.data.daysCount) updates.daysCount = body.data.daysCount;
   if (body.data.daysPerWeek) updates.daysPerWeek = body.data.daysPerWeek;
+  if (body.data.dayNames !== undefined) updates.dayNames = body.data.dayNames;
+  if (body.data.notes !== undefined) updates.notes = body.data.notes;
   const [row] = await db.update(workoutTemplatesTable).set(updates).where(eq(workoutTemplatesTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(row);
@@ -150,6 +158,8 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
     reps: body.data.reps,
     dayNumber: body.data.dayNumber ?? 1,
     sortOrder: body.data.sortOrder ?? ((maxOrder[0]?.sortOrder ?? -1) + 1),
+    notes: body.data.notes ?? null,
+    restSeconds: body.data.restSeconds ?? 90,
   }).returning();
 
   res.status(201).json(row);
@@ -168,6 +178,41 @@ router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, asy
   const id = Number(req.params.id);
   await db.delete(workoutTemplateExercisesTable).where(eq(workoutTemplateExercisesTable.id, id));
   res.json({ success: true });
+});
+
+// ── Duplicate template ──────────────────────────────────────────────────────
+
+router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const [orig] = await db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id)).limit(1);
+  if (!orig) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [newTemplate] = await db.insert(workoutTemplatesTable).values({
+    name: orig.name + " (نسخة)",
+    daysCount: orig.daysCount,
+    daysPerWeek: orig.daysPerWeek,
+    dayNames: orig.dayNames,
+    notes: orig.notes,
+  }).returning();
+
+  const origExercises = await db.select().from(workoutTemplateExercisesTable)
+    .where(eq(workoutTemplateExercisesTable.templateId, id))
+    .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
+
+  for (const ex of origExercises) {
+    await db.insert(workoutTemplateExercisesTable).values({
+      templateId: newTemplate.id,
+      exerciseId: ex.exerciseId,
+      sets: ex.sets,
+      reps: ex.reps,
+      dayNumber: ex.dayNumber,
+      sortOrder: ex.sortOrder,
+      notes: ex.notes,
+      restSeconds: ex.restSeconds,
+    });
+  }
+
+  res.status(201).json({ ...newTemplate, exercises: origExercises.length, message: "تم نسخ القالب" });
 });
 
 // ── Member assignments ──────────────────────────────────────────────────────
@@ -213,6 +258,8 @@ router.get("/my-workouts", authenticate, async (req, res) => {
         exerciseName: exercisesTable.name,
         targetMuscle: exercisesTable.targetMuscle,
         videoUrl: exercisesTable.videoUrl,
+        notes: workoutTemplateExercisesTable.notes,
+        restSeconds: workoutTemplateExercisesTable.restSeconds,
       })
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))

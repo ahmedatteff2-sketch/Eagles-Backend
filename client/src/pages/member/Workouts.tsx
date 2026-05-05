@@ -12,6 +12,8 @@ interface TemplateExercise {
   exerciseName: string;
   targetMuscle: string;
   videoUrl: string | null;
+  notes: string | null;
+  restSeconds: number | null;
 }
 
 interface AssignedTemplate {
@@ -19,6 +21,8 @@ interface AssignedTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
+  dayNames: string | null;
+  notes: string | null;
   assignedAt: string;
   exercises: TemplateExercise[];
 }
@@ -28,6 +32,13 @@ const MUSCLE_COLORS: Record<string, string> = {
   "بايسبس": "#f39c12", "ترايسبس": "#e67e22", "أرجل": "#9b59b6",
   "بطن": "#1abc9c", "كارديو": "#e91e63", "أخرى": "#95a5a6",
 };
+
+function getDayName(t: AssignedTemplate, dayNum: number): string {
+  if (t.dayNames) {
+    try { const n = JSON.parse(t.dayNames); if (n[dayNum]) return n[dayNum]; } catch {}
+  }
+  return `يوم ${dayNum}`;
+}
 
 function TemplateCard({ t }: { t: AssignedTemplate }) {
   const [activeDay, setActiveDay] = useState(1);
@@ -59,7 +70,7 @@ function TemplateCard({ t }: { t: AssignedTemplate }) {
                     activeDay === day ? "text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                   style={activeDay === day ? { background: "hsl(40 65% 48%)", color: "#000" } : {}}>
-                  يوم {day} <span className="opacity-70">({count})</span>
+                  {getDayName(t, day)} <span className="opacity-70">({count})</span>
                 </button>
               );
             })}
@@ -83,7 +94,9 @@ function TemplateCard({ t }: { t: AssignedTemplate }) {
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-muted-foreground">{ex.sets} مجموعات × {ex.reps} تكرار</span>
                     <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${color}15`, color }}>{ex.targetMuscle}</span>
+                    {ex.restSeconds && <span className="text-xs text-muted-foreground">⏱ {ex.restSeconds}ث</span>}
                   </div>
+                  {ex.notes && <p className="text-xs text-muted-foreground mt-1 italic">💡 {ex.notes}</p>}
                 </div>
                 {ex.videoUrl && (
                   <a href={ex.videoUrl} target="_blank" rel="noreferrer"

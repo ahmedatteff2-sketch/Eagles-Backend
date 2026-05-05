@@ -18,6 +18,8 @@ export const workoutTemplatesTable = pgTable("workout_templates", {
   name: text("name").notNull(),
   daysCount: integer("days_count").notNull().default(1),
   daysPerWeek: integer("days_per_week").notNull().default(4),
+  dayNames: text("day_names"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -30,6 +32,8 @@ export const workoutTemplateExercisesTable = pgTable("workout_template_exercises
   reps: integer("reps").notNull(),
   dayNumber: integer("day_number").notNull().default(1),
   sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+  restSeconds: integer("rest_seconds").default(90),
 });
 
 // ── Assign a template to a member ───────────────────────────────────────────

@@ -19,6 +19,8 @@ interface TemplateExercise {
   exerciseName: string;
   targetMuscle: string;
   videoUrl: string | null;
+  notes: string | null;
+  restSeconds: number | null;
 }
 
 interface WorkoutTemplate {
@@ -26,6 +28,8 @@ interface WorkoutTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
+  dayNames: string | null;
+  notes: string | null;
   createdAt: string;
   exercises: TemplateExercise[];
   assignedCount: number;
@@ -62,7 +66,7 @@ export default function AdminWorkoutTemplates() {
 
   // Add exercise to template
   const [showAddExercise, setShowAddExercise] = useState<number | null>(null);
-  const [addForm, setAddForm] = useState({ exerciseId: 0, sets: 3, reps: 10 });
+  const [addForm, setAddForm] = useState({ exerciseId: 0, sets: 3, reps: 10, notes: "", restSeconds: 90 });
   const [exSearch, setExSearch] = useState("");
 
   // Assign to member
@@ -128,11 +132,11 @@ export default function AdminWorkoutTemplates() {
     try {
       await customFetch(`/api/workout-templates/${templateId}/exercises`, {
         method: "POST",
-        body: JSON.stringify({ exerciseId: addForm.exerciseId, sets: addForm.sets, reps: addForm.reps, dayNumber }),
+        body: JSON.stringify({ exerciseId: addForm.exerciseId, sets: addForm.sets, reps: addForm.reps, dayNumber, notes: addForm.notes || null, restSeconds: addForm.restSeconds }),
       });
       toast({ title: "تم إضافة التمرين للقالب" });
       setShowAddExercise(null);
-      setAddForm({ exerciseId: 0, sets: 3, reps: 10 });
+      setAddForm({ exerciseId: 0, sets: 3, reps: 10, notes: "", restSeconds: 90 });
       fetchAll();
     } catch {
       toast({ title: "فشل في الإضافة", variant: "destructive" });
@@ -163,6 +167,45 @@ export default function AdminWorkoutTemplates() {
     } catch {
       toast({ title: "فشل في التعيين", variant: "destructive" });
     }
+  }
+
+  async function duplicateTemplate(id: number) {
+    try {
+      await customFetch(`/api/workout-templates/${id}/duplicate`, { method: "POST" });
+      toast({ title: "تم نسخ القالب بنجاح" });
+      fetchAll();
+    } catch {
+      toast({ title: "فشل في النسخ", variant: "destructive" });
+    }
+  }
+
+  function getDayName(t: WorkoutTemplate, dayNum: number): string {
+    if (t.dayNames) {
+      try {
+        const names = JSON.parse(t.dayNames);
+        if (names[dayNum]) return names[dayNum];
+      } catch {}
+    }
+    return `يوم ${dayNum}`;
+  }
+
+  async function updateDayName(templateId: number, dayNum: number, name: string) {
+    const t = templates.find(tpl => tpl.id === templateId);
+    if (!t) return;
+    let names: Record<number, string> = {};
+    if (t.dayNames) try { names = JSON.parse(t.dayNames); } catch {}
+    names[dayNum] = name;
+    try {
+      await customFetch(`/api/workout-templates/${templateId}`, { method: "PUT", body: JSON.stringify({ dayNames: JSON.stringify(names) }) });
+      fetchAll();
+    } catch {}
+  }
+
+  async function updateTemplateNotes(templateId: number, notes: string) {
+    try {
+      await customFetch(`/api/workout-templates/${templateId}`, { method: "PUT", body: JSON.stringify({ notes }) });
+      fetchAll();
+    } catch {}
   }
 
   const filteredExercises = exSearch
@@ -210,6 +253,10 @@ export default function AdminWorkoutTemplates() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={(e) => { e.stopPropagation(); duplicateTemplate(t.id); }}
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline px-2 py-1"
+                    >نسخ</button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); setShowAssign(t.id); }}
                       className="text-xs text-primary hover:underline px-2 py-1"
                     >تعيين لعضو</button>
@@ -249,12 +296,24 @@ export default function AdminWorkoutTemplates() {
                         </div>
                       </div>
 
+                      {/* Template notes */}
+                      <div>
+                        <textarea
+                          placeholder="ملاحظات عامة للقالب (اختياري)..."
+                          defaultValue={t.notes ?? ""}
+                          onBlur={(e) => { if (e.target.value !== (t.notes ?? "")) updateTemplateNotes(t.id, e.target.value); }}
+                          className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                          rows={2}
+                        />
+                      </div>
+
                       {/* Day tabs */}
                       {t.daysCount > 1 && (
                         <div className="flex gap-1.5 overflow-x-auto pb-1">
                           {Array.from({ length: t.daysCount }).map((_, i) => {
                             const day = i + 1;
                             const count = t.exercises.filter((te) => te.dayNumber === day).length;
+                            const dayName = getDayName(t, day);
                             return (
                               <button
                                 key={day}
@@ -265,16 +324,28 @@ export default function AdminWorkoutTemplates() {
                                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                                 }`}
                               >
-                                يوم {day} <span className="opacity-70">({count})</span>
+                                {dayName} <span className="opacity-70">({count})</span>
                               </button>
                             );
                           })}
                         </div>
                       )}
 
+                      {/* Editable day name */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">اسم اليوم:</span>
+                        <input
+                          key={`dayname-${t.id}-${currentDay}`}
+                          defaultValue={getDayName(t, currentDay)}
+                          onBlur={(e) => updateDayName(t.id, currentDay, e.target.value.trim() || `يوم ${currentDay}`)}
+                          className="bg-input border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-32"
+                          placeholder={`يوم ${currentDay}`}
+                        />
+                      </div>
+
                       {/* Exercises for current day */}
                       {dayExercises.length === 0 ? (
-                        <p className="text-center text-muted-foreground text-sm py-4">لا توجد تمارين في يوم {currentDay}</p>
+                        <p className="text-center text-muted-foreground text-sm py-4">لا توجد تمارين في {getDayName(t, currentDay)}</p>
                       ) : (
                         dayExercises.map((te, i) => {
                           const color = MUSCLE_COLORS[te.targetMuscle] ?? "#95a5a6";
@@ -287,9 +358,11 @@ export default function AdminWorkoutTemplates() {
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-foreground truncate">{te.exerciseName}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs text-muted-foreground">{te.sets} مجموعات × {te.reps} تكرار</span>
+                                  <span className="text-xs text-muted-foreground">{te.sets}×{te.reps}</span>
                                   <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${color}15`, color }}>{te.targetMuscle}</span>
+                                  {te.restSeconds && <span className="text-xs text-muted-foreground">⏱ {te.restSeconds}ث</span>}
                                 </div>
+                                {te.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">💡 {te.notes}</p>}
                               </div>
                               {te.videoUrl && (
                                 <a href={te.videoUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex-shrink-0">فيديو</a>
@@ -303,9 +376,9 @@ export default function AdminWorkoutTemplates() {
                         })
                       )}
                       <button
-                        onClick={() => { setShowAddExercise(t.id); setAddForm({ exerciseId: 0, sets: 3, reps: 10 }); setExSearch(""); }}
+                        onClick={() => { setShowAddExercise(t.id); setAddForm({ exerciseId: 0, sets: 3, reps: 10, notes: "", restSeconds: 90 }); setExSearch(""); }}
                         className="w-full py-2 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-                      >+ إضافة تمرين ليوم {currentDay}</button>
+                      >+ إضافة تمرين ل{getDayName(t, currentDay)}</button>
                     </div>
                   );
                 })()}
@@ -396,8 +469,8 @@ export default function AdminWorkoutTemplates() {
               )}
             </div>
 
-            {/* Sets & Reps */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            {/* Sets & Reps & Rest */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">المجموعات</label>
                 <input
@@ -416,6 +489,25 @@ export default function AdminWorkoutTemplates() {
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">راحة (ثانية)</label>
+                <input
+                  type="number" min={0} max={600}
+                  value={addForm.restSeconds}
+                  onChange={(e) => setAddForm({ ...addForm, restSeconds: Number(e.target.value) })}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            {/* Notes */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">ملاحظات للتمرين (اختياري)</label>
+              <input
+                value={addForm.notes}
+                onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+                placeholder="مثال: ابدأ بوزن خفيف — ركّز على الفورم"
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
 
             <div className="flex gap-3">

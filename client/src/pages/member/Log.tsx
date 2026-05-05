@@ -18,6 +18,8 @@ interface TemplateExercise {
   exerciseName: string;
   targetMuscle: string;
   videoUrl: string | null;
+  notes: string | null;
+  restSeconds: number | null;
 }
 
 interface AssignedTemplate {
@@ -25,6 +27,8 @@ interface AssignedTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
+  dayNames: string | null;
+  notes: string | null;
   exercises: TemplateExercise[];
 }
 
@@ -36,6 +40,13 @@ interface QuickLogState {
   weight: number;
   reps: number;
   setNumber: number;
+}
+
+function getDayName(t: AssignedTemplate, dayNum: number): string {
+  if (t.dayNames) {
+    try { const n = JSON.parse(t.dayNames); if (n[dayNum]) return n[dayNum]; } catch {}
+  }
+  return `يوم ${dayNum}`;
 }
 
 const MUSCLE_COLORS: Record<string, string> = {
@@ -91,7 +102,9 @@ function ExerciseCard({
             <p className="text-xs text-muted-foreground">{total} مجموعات × {ex.reps} تكرار</p>
             <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${color}15`, color }}>{ex.targetMuscle}</span>
             {lastWeight > 0 && <span className="text-xs text-muted-foreground">· آخر وزن: {lastWeight} كجم</span>}
+            {ex.restSeconds && <span className="text-xs text-muted-foreground">· ⏱ {ex.restSeconds}ث</span>}
           </div>
+          {ex.notes && <p className="text-xs text-muted-foreground mb-1 italic">💡 {ex.notes}</p>}
           <SetBadge done={done} total={total} />
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -109,6 +122,37 @@ function ExerciseCard({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    if (left <= 0) { onDone(); return; }
+    const t = setTimeout(() => setLeft(l => l - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left, onDone]);
+  const pct = ((seconds - left) / seconds) * 100;
+  const mins = Math.floor(left / 60);
+  const secs = left % 60;
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={onDone}>
+      <div className="text-center" onClick={e => e.stopPropagation()}>
+        <div className="relative w-32 h-32 mx-auto mb-4">
+          <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(0 0% 20%)" strokeWidth="6" />
+            <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(40 65% 52%)" strokeWidth="6"
+              strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - pct / 100)}
+              strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s linear" }} />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-3xl font-black text-foreground tabular-nums">{mins}:{secs.toString().padStart(2, '0')}</span>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground mb-3">راحة بين المجموعات</p>
+        <button onClick={onDone} className="px-6 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground">تخطي</button>
       </div>
     </div>
   );
@@ -190,6 +234,7 @@ export default function MemberLog() {
   const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [restTimer, setRestTimer] = useState<number | null>(null);
 
   useEffect(() => {
     customFetch<AssignedTemplate[]>("/api/my-workouts")
@@ -225,6 +270,9 @@ export default function MemberLog() {
 
   function handleLog() {
     if (!quickLog) return;
+    const currentEx = exList.find(e => e.exerciseId === quickLog.exerciseId);
+    const restSecs = currentEx?.restSeconds ?? 90;
+    const isLastSet = quickLog.setNumber >= quickLog.totalSets;
     logExercise.mutate(
       { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: today } },
       {
@@ -232,6 +280,9 @@ export default function MemberLog() {
           toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
           queryClient.invalidateQueries({ queryKey: getListExerciseLogsQueryKey({ userId }) });
           setQuickLog(null);
+          if (!isLastSet && restSecs > 0) {
+            setRestTimer(restSecs);
+          }
         },
         onError: () => toast({ title: "خطأ في التسجيل", variant: "destructive" }),
       }
@@ -320,7 +371,7 @@ export default function MemberLog() {
                         className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                         }`}>
-                        يوم {day} <span className="opacity-70">({count})</span>
+                        {activeTemplate ? getDayName(activeTemplate, day) : `يوم ${day}`} <span className="opacity-70">({count})</span>
                       </button>
                     );
                   })}
@@ -416,6 +467,9 @@ export default function MemberLog() {
 
       {quickLog && (
         <QuickLogPanel state={quickLog} onChange={setQuickLog} onSubmit={handleLog} onClose={() => setQuickLog(null)} isPending={logExercise.isPending} />
+      )}
+      {restTimer !== null && (
+        <RestTimer seconds={restTimer} onDone={() => setRestTimer(null)} />
       )}
     </div>
   );

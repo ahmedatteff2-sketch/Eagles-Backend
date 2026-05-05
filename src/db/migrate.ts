@@ -348,6 +348,38 @@ export async function runMigrations(): Promise<void> {
       await client.query(`ALTER TABLE workout_templates ADD COLUMN days_per_week INTEGER NOT NULL DEFAULT 4`);
     }
 
+    // ── day_names & notes on templates ──────────────────────────────────────
+    const { rows: hasDayNames } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='day_names'`
+    );
+    if (hasDayNames.length === 0) {
+      logger.info("Adding day_names to workout_templates");
+      await client.query(`ALTER TABLE workout_templates ADD COLUMN day_names TEXT`);
+    }
+    const { rows: hasTemplateNotes } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='notes'`
+    );
+    if (hasTemplateNotes.length === 0) {
+      logger.info("Adding notes to workout_templates");
+      await client.query(`ALTER TABLE workout_templates ADD COLUMN notes TEXT`);
+    }
+
+    // ── notes & rest_seconds on template exercises ──────────────────────────
+    const { rows: hasExNotes } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='notes'`
+    );
+    if (hasExNotes.length === 0) {
+      logger.info("Adding notes to workout_template_exercises");
+      await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN notes TEXT`);
+    }
+    const { rows: hasRestSec } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='rest_seconds'`
+    );
+    if (hasRestSec.length === 0) {
+      logger.info("Adding rest_seconds to workout_template_exercises");
+      await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN rest_seconds INTEGER DEFAULT 90`);
+    }
+
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
