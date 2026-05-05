@@ -30,26 +30,43 @@ const MUSCLE_COLORS: Record<string, string> = {
 };
 
 function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: { t: any; daysCount: number; exercises: any[]; onUnassign: () => void }) {
+  const weeksCount = t.weeksCount ?? 1;
+  const [week, setWeek] = useState(1);
   const [day, setDay] = useState(1);
-  const dayExercises = daysCount > 1 ? exercises.filter((ex: any) => ex.dayNumber === day) : exercises;
+  const weekExercises = weeksCount > 1 ? exercises.filter((ex: any) => (ex.weekNumber ?? 1) === week) : exercises;
+  const dayExercises = daysCount > 1 ? weekExercises.filter((ex: any) => ex.dayNumber === day) : weekExercises;
 
   return (
     <div className="bg-card border border-card-border rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <div>
           <p className="font-semibold text-foreground">{t.name}</p>
-          <p className="text-xs text-muted-foreground">{daysCount} يوم · {exercises.length} تمرين</p>
+          <p className="text-xs text-muted-foreground">{weeksCount} أسبوع · {daysCount} يوم · {exercises.length} تمرين</p>
         </div>
         <button onClick={onUnassign}
           className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
           إلغاء التعيين
         </button>
       </div>
+      {weeksCount > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
+          {Array.from({ length: weeksCount }).map((_, i) => {
+            const w = i + 1;
+            const count = exercises.filter((ex: any) => (ex.weekNumber ?? 1) === w).length;
+            return (
+              <button key={w} onClick={() => { setWeek(w); setDay(1); }}
+                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  week === w ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}>أسبوع {w} ({count})</button>
+            );
+          })}
+        </div>
+      )}
       {daysCount > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
           {Array.from({ length: daysCount }).map((_, i) => {
             const d = i + 1;
-            const count = exercises.filter((ex: any) => ex.dayNumber === d).length;
+            const count = weekExercises.filter((ex: any) => ex.dayNumber === d).length;
             return (
               <button key={d} onClick={() => setDay(d)}
                 className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
@@ -74,7 +91,7 @@ function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: { t: any; da
           })}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground text-center py-2">لا توجد تمارين في يوم {day}</p>
+        <p className="text-xs text-muted-foreground text-center py-2">لا توجد تمارين في أسبوع {week} — يوم {day}</p>
       )}
     </div>
   );

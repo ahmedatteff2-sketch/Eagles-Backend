@@ -13,6 +13,7 @@ interface TemplateExercise {
   exerciseId: number;
   sets: number;
   reps: number;
+  weekNumber: number;
   dayNumber: number;
   sortOrder: number;
   exerciseName: string;
@@ -25,6 +26,7 @@ interface AssignedTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
+  weeksCount: number;
   exercises: TemplateExercise[];
 }
 
@@ -267,6 +269,7 @@ export default function MemberLog() {
 
   const [templates, setTemplates] = useState<AssignedTemplate[]>([]);
   const [activeTemplateIdx, setActiveTemplateIdx] = useState(0);
+  const [activeWeek, setActiveWeek] = useState(1);
   const [activeDay, setActiveDay] = useState(1);
   const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -284,14 +287,15 @@ export default function MemberLog() {
 
   const activeTemplate = templates[activeTemplateIdx] ?? null;
   const allExercises = activeTemplate?.exercises ?? [];
-  const exList = allExercises.filter((ex) => ex.dayNumber === activeDay);
+  const weekExercises = allExercises.filter((ex) => ex.weekNumber === activeWeek);
+  const exList = weekExercises.filter((ex) => ex.dayNumber === activeDay);
 
   const { data: logs } = useListExerciseLogs(
     { userId },
     { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } }
   );
   const logList = Array.isArray(logs) ? logs : [];
-  const todayLogs = logList.filter((l: any) => l.date === today);
+  const todayLogs = logList.filter((l: any) => l.date === today && (l.weekNumber ?? 1) === activeWeek);
   const logExercise = useLogExercise();
   const deleteLog = useDeleteExerciseLog();
 
@@ -310,7 +314,7 @@ export default function MemberLog() {
   function handleLog() {
     if (!quickLog) return;
     logExercise.mutate(
-      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: today } },
+      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, weekNumber: activeWeek, date: today } as any },
       {
         onSuccess: () => {
           toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
@@ -406,27 +410,51 @@ export default function MemberLog() {
               {templates.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
                   {templates.map((t, i) => (
-                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveDay(1); }}
+                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveWeek(1); setActiveDay(1); }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         i === activeTemplateIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}>{t.name}</button>
                   ))}
                 </div>
               )}
+              {/* Week tabs */}
+              {(activeTemplate?.weeksCount ?? 1) > 1 && (
+                <div className="mb-2">
+                  <p className="text-xs text-muted-foreground mb-1.5">الأسبوع</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {Array.from({ length: activeTemplate!.weeksCount }).map((_, i) => {
+                      const week = i + 1;
+                      const count = allExercises.filter((ex) => ex.weekNumber === week).length;
+                      return (
+                        <button key={week} onClick={() => { setActiveWeek(week); setActiveDay(1); }}
+                          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            activeWeek === week ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}>
+                          أسبوع {week} <span className="opacity-70">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Day tabs */}
               {(activeTemplate?.daysCount ?? 1) > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
-                    const day = i + 1;
-                    const count = allExercises.filter((ex) => ex.dayNumber === day).length;
-                    return (
-                      <button key={day} onClick={() => setActiveDay(day)}
-                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                        }`}>
-                        يوم {day} <span className="opacity-70">({count})</span>
-                      </button>
-                    );
-                  })}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5">اليوم</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
+                      const day = i + 1;
+                      const count = weekExercises.filter((ex) => ex.dayNumber === day).length;
+                      return (
+                        <button key={day} onClick={() => setActiveDay(day)}
+                          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}>
+                          يوم {day} <span className="opacity-70">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -498,7 +526,7 @@ export default function MemberLog() {
                   <div key={l.id} className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">{l.exercise?.name ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">أسبوع {l.weekNumber ?? 1} · سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</p>
