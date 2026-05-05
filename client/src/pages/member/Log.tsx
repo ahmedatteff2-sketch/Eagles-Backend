@@ -7,6 +7,7 @@ import { customFetch } from "@/api-client/custom-fetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/hooks/use-pull-refresh";
 
 interface TemplateExercise {
   id: number;
@@ -408,6 +409,7 @@ export default function MemberLog() {
       { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate } },
       {
         onSuccess: (data: any) => {
+          haptic(data?.isPR ? 50 : 15);
           queryClient.invalidateQueries({ queryKey: getListExerciseLogsQueryKey({ userId }) });
           if (data?.isPR) {
             setPrCelebration({ exerciseName: quickLog.exerciseName, weight: quickLog.weight, prevMax: data.previousMax ?? 0 });
@@ -433,8 +435,8 @@ export default function MemberLog() {
 
   if (loaded && templates.length === 0) {
     return (
-      <div className="p-6">
-        <div className="bg-card border border-card-border rounded-xl p-10 text-center">
+      <div className="p-3 sm:p-6">
+        <div className="bg-card border border-card-border rounded-xl p-6 sm:p-10 text-center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-12 h-12 mx-auto mb-4 text-muted-foreground">
             <path d="M6.5 6.5h11M6.5 17.5h11M3 12h18" />
             <circle cx="6.5" cy="6.5" r="1.5" /><circle cx="6.5" cy="17.5" r="1.5" />

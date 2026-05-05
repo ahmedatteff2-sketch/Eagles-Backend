@@ -119,7 +119,7 @@ export default function AdminExpenses() {
   }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">المصاريف</h1>
@@ -215,8 +215,8 @@ export default function AdminExpenses() {
       )}
 
       {/* Table */}
-      <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-card border border-card-border rounded-xl overflow-hidden mobile-table-wrap">
+        <table className="w-full text-sm min-w-[600px]">
           <thead style={{ background: "hsl(0 0% 8%)" }}>
             <tr>
               {["التاريخ", "الوصف", "الفئة", "المبلغ", "ملاحظات", ""].map(h => (

@@ -277,6 +277,16 @@ export default function MemberDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Floating Action Button — mobile only */}
+      <Link href="/member/log">
+        <div className="md:hidden fixed bottom-20 left-4 z-30 w-14 h-14 rounded-full flex items-center justify-center shadow-xl cursor-pointer active:scale-95 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${GOLD}, ${G2})`, boxShadow: `0 4px 20px hsl(40 65% 48% / 0.4)` }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="hsl(0 0% 5%)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </div>
+      </Link>
     </div>
   );
 }

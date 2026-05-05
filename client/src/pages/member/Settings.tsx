@@ -53,7 +53,7 @@ export default function MemberSettings() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
       <div>
         <h1 className="text-xl font-bold text-foreground">الإعدادات</h1>
         <p className="text-muted-foreground text-sm">إدارة حسابك</p>

@@ -105,7 +105,7 @@ export default function AdminAnalytics() {
   }
 
   return (
-    <div className="p-6 space-y-6" dir="rtl">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">الإحصائيات</h1>

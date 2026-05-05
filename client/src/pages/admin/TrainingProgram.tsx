@@ -716,7 +716,7 @@ export default function AdminTrainingProgram() {
   const totalExercises = weeks.reduce((a: number, w: any) => a + (w.exercises?.length ?? 0), 0);
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link href="/admin/training">

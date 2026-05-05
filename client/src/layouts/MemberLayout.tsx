@@ -2,7 +2,8 @@ import { Link, useLocation } from "wouter";
 import { useAuthStore } from "@/store/auth";
 import { useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { usePullRefresh } from "@/hooks/use-pull-refresh";
 
 const navItems = [
   { path: "/member", label: "الرئيسية", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
@@ -28,6 +29,11 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
   const queryClient = useQueryClient();
   const logout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const onPullRefresh = useCallback(() => {
+    queryClient.invalidateQueries();
+  }, [queryClient]);
+  const pullRef = usePullRefresh(onPullRefresh);
 
   function handleLogout() {
     logout.mutate({ data: { refreshToken: refreshToken ?? "" } }, {
@@ -146,7 +152,32 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto" dir="rtl">{children}</main>
+        <main ref={pullRef} className="flex-1 overflow-y-auto pb-16 md:pb-0" dir="rtl">{children}</main>
+
+        {/* Mobile Bottom Tab Bar */}
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-1 py-1"
+          style={{ background: "hsl(0 0% 3%)", borderTop: "1px solid hsl(0 0% 12%)", paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
+          {[
+            { path: "/member", label: "الرئيسية", exact: true, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+            { path: "/member/log", label: "تسجيل", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+            { path: "/member/stats", label: "القياسات", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg> },
+            { path: "/member/chat", label: "الرسائل", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+            { path: "/member/workouts", label: "التمارين", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M6.5 6.5h11M6.5 17.5h11M3 12h18"/><circle cx="6.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="17.5" r="1.5"/></svg> },
+          ].map(tab => {
+            const isActive = tab.exact ? location === "/member" : location.startsWith(tab.path);
+            return (
+              <Link key={tab.path} href={tab.path}>
+                <div onClick={() => setMobileMenuOpen(false)}
+                  className="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-colors min-w-[48px]"
+                  style={isActive ? { color: "hsl(40 65% 52%)" } : { color: "hsl(0 0% 42%)" }}>
+                  {tab.icon}
+                  <span className="text-[10px] font-medium">{tab.label}</span>
+                  {isActive && <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: "hsl(40 65% 52%)" }} />}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

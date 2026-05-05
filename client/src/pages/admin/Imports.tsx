@@ -165,7 +165,7 @@ function ImportSection({
 
 export default function AdminImports() {
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">استيراد البيانات</h1>
         <p className="text-muted-foreground text-sm">استيراد بيانات الأعضاء والمدفوعات من ملفات CSV</p>

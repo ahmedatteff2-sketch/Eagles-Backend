@@ -19,7 +19,7 @@ export default function MemberBadges() {
   const earned = badges.filter(b => b.earned);
   const locked = badges.filter(b => !b.earned);
 
-  if (loading) return <div className="p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
+  if (loading) return <div className="p-3 sm:p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
 
   return (
     <div className="p-4 space-y-4 pb-8">

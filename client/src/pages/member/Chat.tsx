@@ -59,7 +59,7 @@ export default function MemberChat() {
     setSending(false);
   }
 
-  if (loading) return <div className="p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
+  if (loading) return <div className="p-3 sm:p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
 
   // Chat view
   if (activeContact) {

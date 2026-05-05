@@ -7,7 +7,7 @@ export default function MemberQRCode() {
   const qrData = JSON.stringify({ userId: user?.id, name: user?.name, type: "gym-checkin" });
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">كود الحضور</h1>
         <p className="text-muted-foreground text-sm">اعرض هذا الكود للمسؤول لتسجيل حضورك</p>

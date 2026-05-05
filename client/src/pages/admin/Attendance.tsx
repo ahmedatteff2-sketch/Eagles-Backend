@@ -205,7 +205,7 @@ export default function AdminAttendance() {
   const hasFilters = !!(dateFrom || dateTo || search);
 
   return (
-    <div className="p-6 space-y-4" dir="rtl">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-4" dir="rtl">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <span>الرئيسية</span><span>/</span><span style={{ color: GOLD }}>الحضور</span>

@@ -61,7 +61,7 @@ export default function AdminTraining() {
   const userList = Array.isArray(users) ? users : (users as any)?.data ?? [];
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">برامج التدريب</h1>

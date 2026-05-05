@@ -197,6 +197,14 @@
   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after { inset: -1px; }
 
+  /* Mobile responsive table */
+  .mobile-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-table-wrap::-webkit-scrollbar { height: 4px; }
+  .mobile-table-wrap::-webkit-scrollbar-thumb { background: hsl(0 0% 25%); border-radius: 4px; }
+
   .gold-glow {
     box-shadow: 0 0 20px rgba(201,164,60,.25), 0 0 40px rgba(201,164,60,.10);
   }

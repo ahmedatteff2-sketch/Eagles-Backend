@@ -194,6 +194,14 @@ function NotificationBell({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+const mobileBottomTabs = [
+  { path: "/admin", label: "الرئيسية", exact: true, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
+  { path: "/admin/members", label: "الأعضاء", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="9" cy="7" r="4"/><path d="M2 21v-1a7 7 0 0 1 14 0v1"/></svg> },
+  { path: "/admin/attendance", label: "الحضور", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+  { path: "/admin/payments", label: "المدفوعات", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> },
+  { path: "/admin/analytics", label: "الإحصائيات", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, clearAuth, refreshToken } = useAuthStore();
@@ -201,6 +209,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const logout = useLogout();
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
 
   // Today's checkins for badge
@@ -239,11 +248,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const w = collapsed ? "w-[68px]" : "w-64";
 
+  const NavItem = ({ item, onClick }: { item: typeof navItems[0]; onClick?: () => void }) => {
+    const isActive = item.exact ? location === item.path : location.startsWith(item.path);
+    const showBadge = item.badge && todayCount > 0;
+    return (
+      <Link href={item.path}>
+        <div onClick={onClick}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 text-sm font-medium group relative"
+          style={isActive
+            ? { background: "linear-gradient(135deg, hsl(40 65% 48% / 0.2), hsl(40 65% 48% / 0.08))", color: "hsl(40 65% 65%)", boxShadow: "inset 0 0 0 1px hsl(40 65% 48% / 0.25)" }
+            : { color: "hsl(0 0% 50%)" }}
+          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = "hsl(0 0% 8%)"; e.currentTarget.style.color = "hsl(0 0% 80%)"; } }}
+          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "hsl(0 0% 50%)"; } }}>
+          {isActive && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{ background: GOLD }} />}
+          <span style={{ color: isActive ? "hsl(40 65% 58%)" : "hsl(0 0% 38%)" }} className="flex-shrink-0">{item.icon}</span>
+          {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+          {!collapsed && showBadge && (
+            <span className="text-xs px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+              style={{ background: "hsl(142 60% 50% / 0.2)", color: "hsl(142 60% 60%)", fontSize: "10px" }}>
+              {todayCount}
+            </span>
+          )}
+          {collapsed && showBadge && (
+            <span className="absolute -top-0.5 -left-0.5 w-4 h-4 rounded-full text-center text-white flex items-center justify-center"
+              style={{ background: "hsl(142 60% 45%)", fontSize: "9px", fontWeight: "bold" }}>
+              {todayCount > 9 ? "9+" : todayCount}
+            </span>
+          )}
+          {collapsed && (
+            <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg text-xs font-semibold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50"
+              style={{ background: "hsl(0 0% 12%)", color: "hsl(40 65% 58%)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", border: "1px solid hsl(0 0% 18%)" }}>
+              {item.label}{showBadge ? ` (${todayCount})` : ""}
+            </div>
+          )}
+        </div>
+      </Link>
+    );
+  };
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "hsl(0 0% 5%)" }} dir="rtl">
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
 
-      <aside className={`${w} flex-shrink-0 flex flex-col transition-all duration-300`}
+      {/* ═══════════ Desktop Sidebar ═══════════ */}
+      <aside className={`hidden md:flex ${w} flex-shrink-0 flex-col transition-all duration-300`}
         style={{ background: "hsl(0 0% 3%)", borderLeft: "1px solid hsl(0 0% 10%)" }}>
 
         {/* Header */}
@@ -298,42 +346,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden space-y-0.5 px-2">
-          {navItems.map((item) => {
-            const isActive = item.exact ? location === item.path : location.startsWith(item.path);
-            const showBadge = item.badge && todayCount > 0;
-            return (
-              <Link key={item.path} href={item.path}>
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 text-sm font-medium group relative"
-                  style={isActive
-                    ? { background: "linear-gradient(135deg, hsl(40 65% 48% / 0.2), hsl(40 65% 48% / 0.08))", color: "hsl(40 65% 65%)", boxShadow: "inset 0 0 0 1px hsl(40 65% 48% / 0.25)" }
-                    : { color: "hsl(0 0% 50%)" }}
-                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = "hsl(0 0% 8%)"; e.currentTarget.style.color = "hsl(0 0% 80%)"; } }}
-                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "hsl(0 0% 50%)"; } }}>
-                  {isActive && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{ background: GOLD }} />}
-                  <span style={{ color: isActive ? "hsl(40 65% 58%)" : "hsl(0 0% 38%)" }} className="flex-shrink-0">{item.icon}</span>
-                  {!collapsed && <span className="truncate flex-1">{item.label}</span>}
-                  {!collapsed && showBadge && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
-                      style={{ background: "hsl(142 60% 50% / 0.2)", color: "hsl(142 60% 60%)", fontSize: "10px" }}>
-                      {todayCount}
-                    </span>
-                  )}
-                  {collapsed && showBadge && (
-                    <span className="absolute -top-0.5 -left-0.5 w-4 h-4 rounded-full text-center text-white flex items-center justify-center"
-                      style={{ background: "hsl(142 60% 45%)", fontSize: "9px", fontWeight: "bold" }}>
-                      {todayCount > 9 ? "9+" : todayCount}
-                    </span>
-                  )}
-                  {collapsed && (
-                    <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg text-xs font-semibold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50"
-                      style={{ background: "hsl(0 0% 12%)", color: "hsl(40 65% 58%)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", border: "1px solid hsl(0 0% 18%)" }}>
-                      {item.label}{showBadge ? ` (${todayCount})` : ""}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+          {navItems.map((item) => <NavItem key={item.path} item={item} />)}
         </nav>
 
         {/* Footer */}
@@ -349,7 +362,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-xs" style={{ color: "hsl(40 65% 45%)" }}>مسؤول</p>
               </div>
               <NotificationBell collapsed={false} />
-              {/* Theme toggle */}
               <button onClick={toggleTheme} className="p-1.5 rounded-lg transition-colors flex-shrink-0"
                 style={{ color: "hsl(0 0% 40%)" }}
                 onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
@@ -367,7 +379,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </svg>
                 )}
               </button>
-              {/* Settings link */}
               <Link href="/admin/settings">
                 <button className="p-1.5 rounded-lg transition-colors flex-shrink-0"
                   style={{ color: "hsl(0 0% 40%)" }}
@@ -408,7 +419,103 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto" dir="rtl">{children}</main>
+      {/* ═══════════ Mobile Layout ═══════════ */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center justify-between px-3 py-2.5 flex-shrink-0"
+          style={{ background: "hsl(0 0% 3%)", borderBottom: "1px solid hsl(0 0% 10%)" }}>
+          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg" style={{ color: GOLD }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-5 h-5">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          <div className="flex items-center gap-2">
+            <img src="/eagle-gym-logo.jpg" alt="Eagle Gym" className="w-7 h-7 rounded-lg object-contain" style={{ background: "hsl(0 0% 7%)" }} />
+            <span className="font-black text-xs tracking-widest uppercase" style={{ color: "hsl(40 65% 55%)" }}>Eagle Gym</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setSearchOpen(true)} className="p-2 rounded-lg" style={{ color: "hsl(0 0% 45%)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </button>
+            <NotificationBell collapsed={true} />
+          </div>
+        </div>
+
+        {/* Mobile drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex" dir="rtl">
+            <div className="absolute inset-0 bg-black/70" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative w-72 flex flex-col h-full z-10"
+              style={{ background: "hsl(0 0% 3%)", borderLeft: "1px solid hsl(0 0% 12%)" }}>
+              <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: "1px solid hsl(0 0% 10%)" }}>
+                <div className="flex items-center gap-3">
+                  <img src="/eagle-gym-logo.jpg" alt="Eagle Gym" className="w-9 h-9 rounded-xl object-contain" style={{ background: "hsl(0 0% 7%)" }} />
+                  <span className="font-black text-sm tracking-widest uppercase" style={{ color: "hsl(40 65% 55%)" }}>Eagle Gym</span>
+                </div>
+                <button onClick={() => setMobileMenuOpen(false)} style={{ color: "hsl(0 0% 40%)" }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              {/* User info */}
+              <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid hsl(0 0% 8%)" }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, hsl(40 65% 32%), hsl(40 65% 22%))", color: "hsl(40 65% 68%)", border: "1.5px solid hsl(40 65% 40% / 0.4)" }}>
+                  {user?.name?.[0] ?? "A"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: "hsl(40 20% 80%)" }}>{user?.name}</p>
+                  <p className="text-xs" style={{ color: "hsl(40 65% 45%)" }}>مسؤول</p>
+                </div>
+              </div>
+              <nav className="flex-1 py-3 overflow-y-auto space-y-0.5 px-2">
+                {navItems.map(item => <NavItem key={item.path} item={item} onClick={() => setMobileMenuOpen(false)} />)}
+              </nav>
+              <div className="p-3 space-y-2" style={{ borderTop: "1px solid hsl(0 0% 10%)" }}>
+                <div className="flex gap-2">
+                  <button onClick={toggleTheme} className="flex-1 text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2"
+                    style={{ background: "hsl(0 0% 7%)", color: "hsl(0 0% 55%)" }}>
+                    {isDark ? "☀️ فاتح" : "🌙 داكن"}
+                  </button>
+                  <Link href="/admin/settings">
+                    <button onClick={() => setMobileMenuOpen(false)} className="text-xs py-2.5 px-4 rounded-xl flex items-center gap-2"
+                      style={{ background: "hsl(0 0% 7%)", color: "hsl(0 0% 55%)" }}>
+                      ⚙️ إعدادات
+                    </button>
+                  </Link>
+                </div>
+                <button onClick={handleLogout} className="w-full text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2"
+                  style={{ background: "hsl(0 72% 51% / 0.08)", color: "hsl(0 72% 55%)", border: "1px solid hsl(0 72% 51% / 0.2)" }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  تسجيل الخروج
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0" dir="rtl">{children}</main>
+
+        {/* Mobile Bottom Tab Bar */}
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-1 py-1"
+          style={{ background: "hsl(0 0% 3%)", borderTop: "1px solid hsl(0 0% 12%)", paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
+          {mobileBottomTabs.map(tab => {
+            const isActive = tab.exact ? location === tab.path : location.startsWith(tab.path);
+            return (
+              <Link key={tab.path} href={tab.path}>
+                <div className="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-colors min-w-[52px]"
+                  style={isActive ? { color: GOLD } : { color: "hsl(0 0% 42%)" }}>
+                  {tab.icon}
+                  <span className="text-[10px] font-medium">{tab.label}</span>
+                  {isActive && <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: GOLD }} />}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

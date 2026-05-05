@@ -65,10 +65,10 @@ function Field({ label, error, children }: any) {
 
 function Modal({ title, sub, onClose, children, accentGreen = false }: any) {
   return (
-    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4" style={{ backdropFilter: "blur(4px)" }}>
-      <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+    <div className="fixed inset-0 bg-black/75 flex items-end sm:items-center justify-center z-50 sm:p-4" style={{ backdropFilter: "blur(4px)" }}>
+      <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
         style={{ background: "hsl(0 0% 8%)", border: `1px solid ${accentGreen ? "rgba(37,211,102,0.25)" : "hsl(40 65% 48% / 0.2)"}` }}>
-        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid hsl(0 0% 14%)" }}>
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: "1px solid hsl(0 0% 14%)", background: "hsl(0 0% 8%)" }}>
           <div>
             <h2 className="text-base font-bold text-foreground">{title}</h2>
             {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
@@ -89,7 +89,7 @@ function ConfirmModal({ title, description, confirmLabel = "تأكيد", danger 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-sm rounded-2xl overflow-hidden" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 16%)" }}>
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
             style={{ background: danger ? "hsl(0 60% 50% / 0.15)" : "hsl(40 65% 48% / 0.15)" }}>
             {danger
@@ -265,16 +265,16 @@ export default function AdminMembers() {
   ];
 
   return (
-    <div className="p-6 space-y-5" dir="rtl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-5" dir="rtl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">الأعضاء</h1>
           <p className="text-muted-foreground text-sm mt-0.5">إجمالي {total} عضو</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {expiringMembers.length > 0 && (
             <button onClick={() => setShowBulkWa(true)}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold"
+              className="flex items-center gap-2 px-3 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold"
               style={{ background: "hsl(142 60% 40% / 0.15)", color: "hsl(142 60% 60%)", border: "1px solid hsl(142 60% 40% / 0.3)" }}>
               <WaIcon />
               تذكيرات ({expiringMembers.length})
@@ -289,7 +289,7 @@ export default function AdminMembers() {
             </svg>
           </button>
           <button onClick={() => { createForm.reset(); setShowCreate(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold"
             style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -300,7 +300,7 @@ export default function AdminMembers() {
       </div>
 
       {/* Search + page size */}
-      <div className="flex gap-3 items-center">
+      <div className="flex gap-2 sm:gap-3 items-center">
         <div className="relative flex-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
             className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none">
@@ -390,7 +390,7 @@ export default function AdminMembers() {
                   {status === "active" ? "نشط" : status === "expired" ? "منتهي" : "بدون"}
                 </span>
                 {/* Actions */}
-                <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                   <button onClick={() => openWa(u)} title="واتساب"
                     className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
                     style={{ color: "#25D366" }}
@@ -475,7 +475,7 @@ export default function AdminMembers() {
       {/* Reset password modal */}
       {resettingUser && (
         <Modal title="تغيير كلمة المرور" sub={resettingUser.name} onClose={() => setResettingUser(null)}>
-          <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="p-6 space-y-4">
+          <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="p-3 sm:p-6 space-y-4 sm:space-y-4">
             <Field label="كلمة المرور الجديدة" error={resetForm.formState.errors.newPassword?.message}>
               <input {...resetForm.register("newPassword")} type="password" className={inputCls} style={inputSt} placeholder="6 أحرف على الأقل" />
             </Field>
@@ -493,7 +493,7 @@ export default function AdminMembers() {
       {/* WA modal */}
       {waUser && (
         <Modal title="رسالة واتساب" sub={waUser.name} onClose={() => setWaUser(null)} accentGreen>
-          <div className="p-6 space-y-4">
+          <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
             <Field label="نوع الرسالة">
               <select value={waTemplateId} onChange={e => onTplChange(e.target.value)} className={inputCls} style={inputSt}>
                 {WA_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -540,7 +540,7 @@ export default function AdminMembers() {
       {/* Edit modal */}
       {editingUser && (
         <Modal title="تعديل بيانات العضو" sub={editingUser.name} onClose={() => setEditingUser(null)}>
-          <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="p-6 space-y-4">
+          <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="p-3 sm:p-6 space-y-4 sm:space-y-4">
             <Field label="الاسم" error={editForm.formState.errors.name?.message}>
               <input {...editForm.register("name")} className={inputCls} style={inputSt} />
             </Field>

@@ -102,7 +102,7 @@ export default function AdminExercises() {
   });
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

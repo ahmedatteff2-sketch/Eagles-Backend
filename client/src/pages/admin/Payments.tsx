@@ -52,7 +52,7 @@ export default function AdminPayments() {
   const userList = Array.isArray(users) ? users : (users as any)?.data ?? [];
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">المدفوعات</h1>
@@ -63,8 +63,8 @@ export default function AdminPayments() {
         </button>
       </div>
 
-      <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-card border border-card-border rounded-xl overflow-hidden mobile-table-wrap">
+        <table className="w-full text-sm min-w-[500px]">
           <thead className="border-b border-border">
             <tr>
               <th className="text-right text-muted-foreground font-medium px-4 py-3">العضو</th>

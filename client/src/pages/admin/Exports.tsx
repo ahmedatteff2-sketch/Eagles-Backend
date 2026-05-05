@@ -113,7 +113,7 @@ export default function AdminExports() {
   const today = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">التصدير والنسخ الاحتياطي</h1>
         <p className="text-muted-foreground text-sm mt-0.5">تصدير بيانات النادي وإنشاء نسخ احتياطية</p>

@@ -31,7 +31,7 @@ export default function MemberMealPlan() {
   const totalCarbs = plan?.items.reduce((s, m) => s + (m.carbs ?? 0), 0) ?? 0;
   const totalFats = plan?.items.reduce((s, m) => s + (m.fats ?? 0), 0) ?? 0;
 
-  if (loading) return <div className="p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
+  if (loading) return <div className="p-3 sm:p-6 text-center"><p className="text-muted-foreground text-sm">جاري التحميل...</p></div>;
 
   return (
     <div className="p-4 space-y-4 pb-8">
