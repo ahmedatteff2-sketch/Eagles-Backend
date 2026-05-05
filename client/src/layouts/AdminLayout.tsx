@@ -311,7 +311,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto" dir="rtl">{children}</main>
+      <main className="flex-1 overflow-y-auto" dir="rtl"><div key={location} className="page-enter">{children}</div></main>
     </div>
   );
 }
