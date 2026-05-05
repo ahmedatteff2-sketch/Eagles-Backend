@@ -20,12 +20,15 @@ const exerciseSchema = z.object({
 
 const templateSchema = z.object({
   name: z.string().min(1),
+  daysCount: z.number().int().min(1).max(14).optional(),
+  daysPerWeek: z.number().int().min(1).max(7).optional(),
 });
 
 const templateExerciseSchema = z.object({
   exerciseId: z.number().int().positive(),
   sets: z.number().int().min(1).max(20),
   reps: z.number().int().min(1).max(100),
+  dayNumber: z.number().int().min(1).optional(),
   sortOrder: z.number().int().min(0).optional(),
 });
 
@@ -78,6 +81,7 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
         exerciseId: workoutTemplateExercisesTable.exerciseId,
         sets: workoutTemplateExercisesTable.sets,
         reps: workoutTemplateExercisesTable.reps,
+        dayNumber: workoutTemplateExercisesTable.dayNumber,
         sortOrder: workoutTemplateExercisesTable.sortOrder,
         exerciseName: exercisesTable.name,
         targetMuscle: exercisesTable.targetMuscle,
@@ -86,7 +90,7 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
       .where(eq(workoutTemplateExercisesTable.templateId, t.id))
-      .orderBy(asc(workoutTemplateExercisesTable.sortOrder));
+      .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
     const assignments = await db
       .select()
@@ -102,8 +106,21 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
 router.post("/workout-templates", authenticate, requireAdmin, async (req, res) => {
   const body = templateSchema.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(workoutTemplatesTable).values(body.data).returning();
+  const [row] = await db.insert(workoutTemplatesTable).values({ name: body.data.name, daysCount: body.data.daysCount ?? 1, daysPerWeek: body.data.daysPerWeek ?? 4 }).returning();
   res.status(201).json({ ...row, exercises: [], assignedCount: 0 });
+});
+
+router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const body = templateSchema.partial().safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  const updates: any = {};
+  if (body.data.name) updates.name = body.data.name;
+  if (body.data.daysCount) updates.daysCount = body.data.daysCount;
+  if (body.data.daysPerWeek) updates.daysPerWeek = body.data.daysPerWeek;
+  const [row] = await db.update(workoutTemplatesTable).set(updates).where(eq(workoutTemplatesTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
 });
 
 router.delete("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
@@ -131,6 +148,7 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
     exerciseId: body.data.exerciseId,
     sets: body.data.sets,
     reps: body.data.reps,
+    dayNumber: body.data.dayNumber ?? 1,
     sortOrder: body.data.sortOrder ?? ((maxOrder[0]?.sortOrder ?? -1) + 1),
   }).returning();
 
@@ -190,6 +208,7 @@ router.get("/my-workouts", authenticate, async (req, res) => {
         exerciseId: workoutTemplateExercisesTable.exerciseId,
         sets: workoutTemplateExercisesTable.sets,
         reps: workoutTemplateExercisesTable.reps,
+        dayNumber: workoutTemplateExercisesTable.dayNumber,
         sortOrder: workoutTemplateExercisesTable.sortOrder,
         exerciseName: exercisesTable.name,
         targetMuscle: exercisesTable.targetMuscle,
@@ -198,7 +217,7 @@ router.get("/my-workouts", authenticate, async (req, res) => {
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
       .where(eq(workoutTemplateExercisesTable.templateId, a.templateId))
-      .orderBy(asc(workoutTemplateExercisesTable.sortOrder));
+      .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
     return { ...template, assignedAt: a.assignedAt, exercises };
   }));

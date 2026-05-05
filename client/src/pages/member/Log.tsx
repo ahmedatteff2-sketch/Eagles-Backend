@@ -13,6 +13,7 @@ interface TemplateExercise {
   exerciseId: number;
   sets: number;
   reps: number;
+  dayNumber: number;
   sortOrder: number;
   exerciseName: string;
   targetMuscle: string;
@@ -22,6 +23,8 @@ interface TemplateExercise {
 interface AssignedTemplate {
   id: number;
   name: string;
+  daysCount: number;
+  daysPerWeek: number;
   exercises: TemplateExercise[];
 }
 
@@ -183,6 +186,7 @@ export default function MemberLog() {
 
   const [templates, setTemplates] = useState<AssignedTemplate[]>([]);
   const [activeTemplateIdx, setActiveTemplateIdx] = useState(0);
+  const [activeDay, setActiveDay] = useState(1);
   const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -195,7 +199,8 @@ export default function MemberLog() {
   }, []);
 
   const activeTemplate = templates[activeTemplateIdx] ?? null;
-  const exList = activeTemplate?.exercises ?? [];
+  const allExercises = activeTemplate?.exercises ?? [];
+  const exList = allExercises.filter((ex) => ex.dayNumber === activeDay);
 
   const { data: logs } = useListExerciseLogs(
     { userId },
@@ -296,13 +301,29 @@ export default function MemberLog() {
               <p className="text-xs text-muted-foreground mb-1">القالب الحالي</p>
               <p className="font-bold text-foreground mb-3">{activeTemplate?.name}</p>
               {templates.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
                   {templates.map((t, i) => (
-                    <button key={t.id} onClick={() => setActiveTemplateIdx(i)}
+                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveDay(1); }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         i === activeTemplateIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}>{t.name}</button>
                   ))}
+                </div>
+              )}
+              {(activeTemplate?.daysCount ?? 1) > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
+                    const day = i + 1;
+                    const count = allExercises.filter((ex) => ex.dayNumber === day).length;
+                    return (
+                      <button key={day} onClick={() => setActiveDay(day)}
+                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}>
+                        يوم {day} <span className="opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -310,7 +331,7 @@ export default function MemberLog() {
 
           {exList.length === 0 ? (
             <div className="bg-card border border-card-border rounded-xl p-8 text-center">
-              <p className="text-muted-foreground text-sm">لا توجد تمارين في هذا القالب</p>
+              <p className="text-muted-foreground text-sm">لا توجد تمارين في هذا اليوم</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -323,31 +344,73 @@ export default function MemberLog() {
           )}
         </>
       ) : (
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border"><h2 className="text-sm font-semibold text-foreground">سجل التمارين</h2></div>
-          {logList.length === 0 ? (
-            <div className="p-8 text-center"><p className="text-muted-foreground text-sm">لا يوجد سجل بعد</p></div>
-          ) : (
-            <div className="divide-y divide-border">
-              {logList.slice(0, 30).map((l: any) => (
-                <div key={l.id} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{l.exercise?.name ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</p>
-                    <button onClick={() => handleDelete(l.id)} className="text-destructive/60 hover:text-destructive transition-colors">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6M9 6V4h6v2" />
-                      </svg>
-                    </button>
-                  </div>
+        <div className="space-y-3">
+          {/* Weight progression per exercise */}
+          {logList.length > 0 && (() => {
+            const byEx: Record<string, any[]> = {};
+            logList.forEach((l: any) => {
+              const name = l.exercise?.name ?? "—";
+              if (!byEx[name]) byEx[name] = [];
+              byEx[name].push(l);
+            });
+            return (
+              <div className="bg-card border border-card-border rounded-xl p-4">
+                <h2 className="text-sm font-semibold text-foreground mb-3">تطور الأوزان</h2>
+                <div className="space-y-2">
+                  {Object.entries(byEx).slice(0, 10).map(([name, logs]) => {
+                    const maxW = Math.max(...logs.map((l: any) => parseFloat(l.weight)));
+                    const lastW = parseFloat(logs[0].weight);
+                    const firstW = parseFloat(logs[logs.length - 1].weight);
+                    const diff = lastW - firstW;
+                    return (
+                      <div key={name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{name}</p>
+                          <p className="text-xs text-muted-foreground">{logs.length} سجل · أقصى: {maxW} كجم</p>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-bold text-primary">{lastW} كجم</p>
+                          {diff !== 0 && (
+                            <p className={`text-xs font-medium ${diff > 0 ? "text-green-400" : "text-red-400"}`}>
+                              {diff > 0 ? "↑" : "↓"} {Math.abs(diff).toFixed(1)} كجم
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
+
+          {/* Raw log entries */}
+          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-border"><h2 className="text-sm font-semibold text-foreground">آخر التسجيلات</h2></div>
+            {logList.length === 0 ? (
+              <div className="p-8 text-center"><p className="text-muted-foreground text-sm">لا يوجد سجل بعد</p></div>
+            ) : (
+              <div className="divide-y divide-border">
+                {logList.slice(0, 30).map((l: any) => (
+                  <div key={l.id} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{l.exercise?.name ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</p>
+                      <button onClick={() => handleDelete(l.id)} className="text-destructive/60 hover:text-destructive transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6M9 6V4h6v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

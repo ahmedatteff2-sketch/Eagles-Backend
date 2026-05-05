@@ -16,6 +16,8 @@ export const exercisesTable = pgTable("exercises", {
 export const workoutTemplatesTable = pgTable("workout_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  daysCount: integer("days_count").notNull().default(1),
+  daysPerWeek: integer("days_per_week").notNull().default(4),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -26,6 +28,7 @@ export const workoutTemplateExercisesTable = pgTable("workout_template_exercises
   exerciseId: integer("exercise_id").notNull().references(() => exercisesTable.id, { onDelete: "cascade" }),
   sets: integer("sets").notNull(),
   reps: integer("reps").notNull(),
+  dayNumber: integer("day_number").notNull().default(1),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 

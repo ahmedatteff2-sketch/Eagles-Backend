@@ -22,6 +22,63 @@ import autoTable from "jspdf-autotable";
 
 const GOLD = "hsl(40 65% 52%)";
 const AVATAR_COLORS = ["hsl(40 65% 48%)","hsl(142 60% 45%)","hsl(220 70% 58%)","hsl(280 60% 55%)","hsl(0 60% 52%)","hsl(30 80% 52%)","hsl(180 60% 45%)"];
+
+const MUSCLE_COLORS: Record<string, string> = {
+  "صدر": "#e74c3c", "ظهر": "#3498db", "أكتاف": "#2ecc71",
+  "بايسبس": "#f39c12", "ترايسبس": "#e67e22", "أرجل": "#9b59b6",
+  "بطن": "#1abc9c", "كارديو": "#e91e63", "أخرى": "#95a5a6",
+};
+
+function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: { t: any; daysCount: number; exercises: any[]; onUnassign: () => void }) {
+  const [day, setDay] = useState(1);
+  const dayExercises = daysCount > 1 ? exercises.filter((ex: any) => ex.dayNumber === day) : exercises;
+
+  return (
+    <div className="bg-card border border-card-border rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="font-semibold text-foreground">{t.name}</p>
+          <p className="text-xs text-muted-foreground">{daysCount} يوم · {exercises.length} تمرين</p>
+        </div>
+        <button onClick={onUnassign}
+          className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
+          إلغاء التعيين
+        </button>
+      </div>
+      {daysCount > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
+          {Array.from({ length: daysCount }).map((_, i) => {
+            const d = i + 1;
+            const count = exercises.filter((ex: any) => ex.dayNumber === d).length;
+            return (
+              <button key={d} onClick={() => setDay(d)}
+                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  day === d ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}>يوم {d} ({count})</button>
+            );
+          })}
+        </div>
+      )}
+      {dayExercises.length > 0 ? (
+        <div className="space-y-1">
+          {dayExercises.map((ex: any, i: number) => {
+            const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
+            return (
+              <div key={ex.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="text-xs font-bold text-foreground">{i+1}.</span>
+                <span>{ex.exerciseName}</span>
+                <span className="text-xs">({ex.sets}×{ex.reps})</span>
+                <span className="text-xs px-1 py-0.5 rounded" style={{ background: `${color}15`, color }}>{ex.targetMuscle}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground text-center py-2">لا توجد تمارين في يوم {day}</p>
+      )}
+    </div>
+  );
+}
 function avatarColor(name: string): string {
   let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length;
   return AVATAR_COLORS[Math.abs(h)];
@@ -452,43 +509,122 @@ export default function AdminMemberProfile() {
       )}
 
       {/* ═══ TRAINING TAB ═══ */}
-      {activeTab === "training" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => setShowAssignTemplate(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
-              style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-              + تعيين قالب تمرين
-            </button>
-          </div>
-          {memberTemplates.length === 0 ? <p className="text-muted-foreground text-sm text-center py-10">لا توجد قوالب تمرين معيّنة</p> : (
-            <div className="grid gap-3">
-              {memberTemplates.map((t: any) => (
-                <div key={t.id} className="bg-card border border-card-border rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold text-foreground">{t.name}</p>
-                    <button onClick={() => unassignTemplate(t.assignmentId)}
-                      className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
-                      إلغاء التعيين
-                    </button>
-                  </div>
-                  {t.exercises?.length > 0 && (
-                    <div className="space-y-1">
-                      {t.exercises.map((ex: any, i: number) => (
-                        <div key={ex.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span className="text-xs font-bold text-foreground">{i+1}.</span>
-                          <span>{ex.exerciseName}</span>
-                          <span className="text-xs">({ex.sets}×{ex.reps})</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+      {activeTab === "training" && (() => {
+        // Group logs by exercise for weight progression
+        const exerciseNames = Object.keys(logsByExercise);
+        const selectedExName = exerciseNames[0] ?? null;
+
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button onClick={() => setShowAssignTemplate(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
+                style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
+                + تعيين قالب تمرين
+              </button>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Assigned templates with day tabs */}
+            {memberTemplates.length === 0 ? <p className="text-muted-foreground text-sm text-center py-10">لا توجد قوالب تمرين معيّنة</p> : (
+              <div className="grid gap-3">
+                {memberTemplates.map((t: any) => {
+                  const daysCount = t.daysCount ?? 1;
+                  const exercises: any[] = t.exercises ?? [];
+                  return (
+                    <TemplateCardAdmin key={t.id} t={t} daysCount={daysCount} exercises={exercises} onUnassign={() => unassignTemplate(t.assignmentId)} />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Exercise Weight Logs ── */}
+            <div className="bg-card border border-card-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-3">سجل أوزان التمارين</h2>
+              {logList.length === 0 ? (
+                <p className="text-muted-foreground text-sm text-center py-6">لا يوجد سجل أوزان بعد</p>
+              ) : (
+                <>
+                  {/* Weight progression chart per exercise */}
+                  {selectedExName && (() => {
+                    const exLogs = logsByExercise[selectedExName] ?? [];
+                    const progressData = [...exLogs]
+                      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                      .reduce((acc: any[], l: any) => {
+                        const dateStr = new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" });
+                        const w = parseFloat(l.weight);
+                        const existing = acc.find((d) => d.date === dateStr);
+                        if (existing) { if (w > existing["أقصى وزن"]) existing["أقصى وزن"] = w; }
+                        else acc.push({ date: dateStr, "أقصى وزن": w });
+                        return acc;
+                      }, []);
+
+                    return progressData.length > 1 ? (
+                      <div className="mb-4">
+                        <p className="text-xs text-muted-foreground mb-2">تطور الأوزان — {selectedExName}</p>
+                        <ResponsiveContainer width="100%" height={160}>
+                          <LineChart data={progressData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 14%)" />
+                            <XAxis dataKey="date" tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 8 }} />
+                            <Line type="monotone" dataKey="أقصى وزن" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Per-exercise summary */}
+                  <div className="space-y-2 mb-4">
+                    {exerciseNames.slice(0, 10).map((name) => {
+                      const eLogs = logsByExercise[name] as any[];
+                      const maxW = Math.max(...eLogs.map((l: any) => parseFloat(l.weight)));
+                      const lastLog = eLogs[0];
+                      return (
+                        <div key={name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{name}</p>
+                            <p className="text-xs text-muted-foreground">{eLogs.length} سجل · أقصى وزن: {maxW} كجم</p>
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-bold" style={{ color: GOLD }}>{parseFloat(lastLog.weight)} كجم</p>
+                            <p className="text-xs text-muted-foreground">آخر تسجيل</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Recent logs table */}
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">آخر التسجيلات</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border">
+                        <th className="text-right text-muted-foreground font-medium py-2 px-2">التمرين</th>
+                        <th className="text-right text-muted-foreground font-medium py-2 px-2">سيت</th>
+                        <th className="text-right text-muted-foreground font-medium py-2 px-2">تكرار</th>
+                        <th className="text-right text-muted-foreground font-medium py-2 px-2">الوزن</th>
+                        <th className="text-right text-muted-foreground font-medium py-2 px-2">التاريخ</th>
+                      </tr></thead>
+                      <tbody>
+                        {recentLogs.map((l: any) => (
+                          <tr key={l.id} className="border-b border-border last:border-0">
+                            <td className="py-2 px-2 font-medium text-foreground">{l.exercise?.name ?? "—"}</td>
+                            <td className="py-2 px-2 text-muted-foreground">{l.setNumber}</td>
+                            <td className="py-2 px-2 text-muted-foreground">{l.reps}</td>
+                            <td className="py-2 px-2 font-bold" style={{ color: GOLD }}>{parseFloat(l.weight)} كجم</td>
+                            <td className="py-2 px-2 text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══ PROGRESS TAB ═══ */}
       {activeTab === "progress" && (

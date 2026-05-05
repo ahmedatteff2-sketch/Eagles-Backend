@@ -324,6 +324,30 @@ export async function runMigrations(): Promise<void> {
       );
     `);
 
+    // ── Add day columns if missing ─────────────────────────────────────────
+    const { rows: hasDaysCount } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_count'`
+    );
+    if (hasDaysCount.length === 0) {
+      logger.info("Adding days_count to workout_templates");
+      await client.query(`ALTER TABLE workout_templates ADD COLUMN days_count INTEGER NOT NULL DEFAULT 1`);
+    }
+    const { rows: hasDayNumber } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='day_number'`
+    );
+    if (hasDayNumber.length === 0) {
+      logger.info("Adding day_number to workout_template_exercises");
+      await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN day_number INTEGER NOT NULL DEFAULT 1`);
+    }
+
+    const { rows: hasDaysPerWeek } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_per_week'`
+    );
+    if (hasDaysPerWeek.length === 0) {
+      logger.info("Adding days_per_week to workout_templates");
+      await client.query(`ALTER TABLE workout_templates ADD COLUMN days_per_week INTEGER NOT NULL DEFAULT 4`);
+    }
+
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
