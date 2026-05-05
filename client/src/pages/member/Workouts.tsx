@@ -7,7 +7,6 @@ interface TemplateExercise {
   exerciseId: number;
   sets: number;
   reps: number;
-  weekNumber: number;
   dayNumber: number;
   sortOrder: number;
   exerciseName: string;
@@ -20,7 +19,6 @@ interface AssignedTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
-  weeksCount: number;
   assignedAt: string;
   exercises: TemplateExercise[];
 }
@@ -32,10 +30,8 @@ const MUSCLE_COLORS: Record<string, string> = {
 };
 
 function TemplateCard({ t }: { t: AssignedTemplate }) {
-  const [activeWeek, setActiveWeek] = useState(1);
   const [activeDay, setActiveDay] = useState(1);
-  const weekExercises = t.exercises.filter((ex) => ex.weekNumber === activeWeek);
-  const dayExercises = weekExercises.filter((ex) => ex.dayNumber === activeDay);
+  const dayExercises = t.exercises.filter((ex) => ex.dayNumber === activeDay);
 
   return (
     <div className="bg-card border border-card-border rounded-xl overflow-hidden">
@@ -43,7 +39,7 @@ function TemplateCard({ t }: { t: AssignedTemplate }) {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-base font-bold text-foreground">{t.name}</h2>
-            <p className="text-muted-foreground text-xs mt-0.5">{t.weeksCount} أسبوع · {t.daysCount} يوم/أسبوع · {t.daysPerWeek} مرات/أسبوع · {t.exercises.length} تمرين</p>
+            <p className="text-muted-foreground text-xs mt-0.5">{t.daysCount} يوم · {t.daysPerWeek} مرات/أسبوع · {t.exercises.length} تمرين</p>
           </div>
           <Link href="/member/log">
             <button className="px-4 py-2 rounded-lg text-xs font-bold" style={{ background: "hsl(40 65% 48%)", color: "#000" }}>
@@ -52,36 +48,17 @@ function TemplateCard({ t }: { t: AssignedTemplate }) {
           </Link>
         </div>
 
-        {/* Week tabs */}
-        {(t.weeksCount ?? 1) > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 mt-3">
-            {Array.from({ length: t.weeksCount }).map((_, i) => {
-              const week = i + 1;
-              const count = t.exercises.filter((ex) => ex.weekNumber === week).length;
-              return (
-                <button key={week} onClick={() => { setActiveWeek(week); setActiveDay(1); }}
-                  className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    activeWeek === week ? "text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                  style={activeWeek === week ? { background: "hsl(40 65% 48%)", color: "#000" } : {}}>
-                  أسبوع {week} <span className="opacity-70">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Day tabs */}
         {t.daysCount > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 mt-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 mt-3">
             {Array.from({ length: t.daysCount }).map((_, i) => {
               const day = i + 1;
-              const count = weekExercises.filter((ex) => ex.dayNumber === day).length;
+              const count = t.exercises.filter((ex) => ex.dayNumber === day).length;
               return (
                 <button key={day} onClick={() => setActiveDay(day)}
                   className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    activeDay === day ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}>
+                    activeDay === day ? "text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                  style={activeDay === day ? { background: "hsl(40 65% 48%)", color: "#000" } : {}}>
                   يوم {day} <span className="opacity-70">({count})</span>
                 </button>
               );

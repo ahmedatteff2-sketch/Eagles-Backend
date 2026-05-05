@@ -14,7 +14,6 @@ interface TemplateExercise {
   exerciseId: number;
   sets: number;
   reps: number;
-  weekNumber: number;
   dayNumber: number;
   sortOrder: number;
   exerciseName: string;
@@ -27,7 +26,6 @@ interface WorkoutTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
-  weeksCount: number;
   createdAt: string;
   exercises: TemplateExercise[];
   assignedCount: number;
@@ -57,11 +55,9 @@ export default function AdminWorkoutTemplates() {
   const [newName, setNewName] = useState("");
   const [newDaysCount, setNewDaysCount] = useState(1);
   const [newDaysPerWeek, setNewDaysPerWeek] = useState(4);
-  const [newWeeksCount, setNewWeeksCount] = useState(4);
 
   // Expanded template
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [activeWeek, setActiveWeek] = useState<Record<number, number>>({});
   const [activeDay, setActiveDay] = useState<Record<number, number>>({});
 
   // Add exercise to template
@@ -93,13 +89,12 @@ export default function AdminWorkoutTemplates() {
   async function createTemplate() {
     if (!newName.trim()) return;
     try {
-      await customFetch("/api/workout-templates", { method: "POST", body: JSON.stringify({ name: newName.trim(), daysCount: newDaysCount, daysPerWeek: newDaysPerWeek, weeksCount: newWeeksCount }) });
+      await customFetch("/api/workout-templates", { method: "POST", body: JSON.stringify({ name: newName.trim(), daysCount: newDaysCount, daysPerWeek: newDaysPerWeek }) });
       toast({ title: "تم إنشاء القالب" });
       setShowCreateForm(false);
       setNewName("");
       setNewDaysCount(1);
       setNewDaysPerWeek(4);
-      setNewWeeksCount(4);
       fetchAll();
     } catch {
       toast({ title: "فشل في الإنشاء", variant: "destructive" });
@@ -129,12 +124,11 @@ export default function AdminWorkoutTemplates() {
 
   async function addExerciseToTemplate(templateId: number) {
     if (!addForm.exerciseId) { toast({ title: "اختر تمرين", variant: "destructive" }); return; }
-    const weekNumber = activeWeek[templateId] ?? 1;
     const dayNumber = activeDay[templateId] ?? 1;
     try {
       await customFetch(`/api/workout-templates/${templateId}/exercises`, {
         method: "POST",
-        body: JSON.stringify({ exerciseId: addForm.exerciseId, sets: addForm.sets, reps: addForm.reps, weekNumber, dayNumber }),
+        body: JSON.stringify({ exerciseId: addForm.exerciseId, sets: addForm.sets, reps: addForm.reps, dayNumber }),
       });
       toast({ title: "تم إضافة التمرين للقالب" });
       setShowAddExercise(null);
@@ -210,7 +204,7 @@ export default function AdminWorkoutTemplates() {
                     <div>
                       <p className="font-semibold text-foreground text-sm">{t.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {t.weeksCount} أسبوع · {t.daysCount} يوم/أسبوع · {t.daysPerWeek} مرات/أسبوع · {t.exercises.length} تمرين · {t.assignedCount} متدرب
+                        {t.daysCount} يوم · {t.daysPerWeek} مرات/أسبوع · {t.exercises.length} تمرين · {t.assignedCount} متدرب
                       </p>
                     </div>
                   </div>
@@ -234,86 +228,53 @@ export default function AdminWorkoutTemplates() {
 
                 {/* Expanded: day tabs + exercises list */}
                 {isExpanded && (() => {
-                  const currentWeek = activeWeek[t.id] ?? 1;
                   const currentDay = activeDay[t.id] ?? 1;
-                  const weekExercises = t.exercises.filter((te) => te.weekNumber === currentWeek);
-                  const dayExercises = weekExercises.filter((te) => te.dayNumber === currentDay);
+                  const dayExercises = t.exercises.filter((te) => te.dayNumber === currentDay);
                   return (
                     <div className="border-t border-border px-4 py-3 space-y-3">
                       {/* Days count control */}
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">عدد الأيام/أسبوع:</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => t.daysCount > 1 && updateDaysCount(t.id, t.daysCount - 1)}
-                              disabled={t.daysCount <= 1}
-                              className="w-6 h-6 rounded bg-muted hover:bg-muted/80 text-foreground text-xs font-bold disabled:opacity-30"
-                            >−</button>
-                            <span className="text-sm font-bold text-foreground w-6 text-center">{t.daysCount}</span>
-                            <button
-                              onClick={() => updateDaysCount(t.id, t.daysCount + 1)}
-                              className="w-6 h-6 rounded bg-primary/20 hover:bg-primary/30 text-primary text-xs font-bold"
-                            >+</button>
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">عدد الأيام:</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => t.daysCount > 1 && updateDaysCount(t.id, t.daysCount - 1)}
+                            disabled={t.daysCount <= 1}
+                            className="w-6 h-6 rounded bg-muted hover:bg-muted/80 text-foreground text-xs font-bold disabled:opacity-30"
+                          >−</button>
+                          <span className="text-sm font-bold text-foreground w-6 text-center">{t.daysCount}</span>
+                          <button
+                            onClick={() => updateDaysCount(t.id, t.daysCount + 1)}
+                            className="w-6 h-6 rounded bg-primary/20 hover:bg-primary/30 text-primary text-xs font-bold"
+                          >+</button>
                         </div>
                       </div>
 
-                      {/* Week tabs */}
-                      {t.weeksCount > 1 && (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1.5">الأسبوع</p>
-                          <div className="flex gap-1.5 overflow-x-auto pb-1">
-                            {Array.from({ length: t.weeksCount }).map((_, i) => {
-                              const week = i + 1;
-                              const count = t.exercises.filter((te) => te.weekNumber === week).length;
-                              return (
-                                <button
-                                  key={week}
-                                  onClick={() => { setActiveWeek((prev) => ({ ...prev, [t.id]: week })); setActiveDay((prev) => ({ ...prev, [t.id]: 1 })); }}
-                                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                    currentWeek === week
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                  }`}
-                                >
-                                  أسبوع {week} <span className="opacity-70">({count})</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Day tabs */}
                       {t.daysCount > 1 && (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1.5">اليوم</p>
-                          <div className="flex gap-1.5 overflow-x-auto pb-1">
-                            {Array.from({ length: t.daysCount }).map((_, i) => {
-                              const day = i + 1;
-                              const count = weekExercises.filter((te) => te.dayNumber === day).length;
-                              return (
-                                <button
-                                  key={day}
-                                  onClick={() => setActiveDay((prev) => ({ ...prev, [t.id]: day }))}
-                                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                    currentDay === day
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                  }`}
-                                >
-                                  يوم {day} <span className="opacity-70">({count})</span>
-                                </button>
-                              );
-                            })}
-                          </div>
+                        <div className="flex gap-1.5 overflow-x-auto pb-1">
+                          {Array.from({ length: t.daysCount }).map((_, i) => {
+                            const day = i + 1;
+                            const count = t.exercises.filter((te) => te.dayNumber === day).length;
+                            return (
+                              <button
+                                key={day}
+                                onClick={() => setActiveDay((prev) => ({ ...prev, [t.id]: day }))}
+                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  currentDay === day
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}
+                              >
+                                يوم {day} <span className="opacity-70">({count})</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
 
-                      {/* Exercises for current week + day */}
+                      {/* Exercises for current day */}
                       {dayExercises.length === 0 ? (
-                        <p className="text-center text-muted-foreground text-sm py-4">لا توجد تمارين في أسبوع {currentWeek} — يوم {currentDay}</p>
+                        <p className="text-center text-muted-foreground text-sm py-4">لا توجد تمارين في يوم {currentDay}</p>
                       ) : (
                         dayExercises.map((te, i) => {
                           const color = MUSCLE_COLORS[te.targetMuscle] ?? "#95a5a6";
@@ -344,7 +305,7 @@ export default function AdminWorkoutTemplates() {
                       <button
                         onClick={() => { setShowAddExercise(t.id); setAddForm({ exerciseId: 0, sets: 3, reps: 10 }); setExSearch(""); }}
                         className="w-full py-2 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-                      >+ إضافة تمرين لأسبوع {currentWeek} — يوم {currentDay}</button>
+                      >+ إضافة تمرين ليوم {currentDay}</button>
                     </div>
                   );
                 })()}
@@ -373,16 +334,6 @@ export default function AdminWorkoutTemplates() {
                   {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                     <button key={n} onClick={() => setNewDaysCount(n)}
                       className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${newDaysCount === n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-                    >{n}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">عدد الأسابيع</label>
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <button key={n} onClick={() => setNewWeeksCount(n)}
-                      className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${newWeeksCount === n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
                     >{n}</button>
                   ))}
                 </div>

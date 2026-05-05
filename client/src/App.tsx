@@ -71,14 +71,47 @@ function GlobalKeyboardShortcuts() {
 }
 
 import { ReminderPopup } from "@/components/ReminderPopup";
+import { useState } from "react";
+
+function SplashScreen({ onDone }: { onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 1800); return () => clearTimeout(t); }, [onDone]);
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: "hsl(0 0% 4%)" }}>
+      <style>{`
+        @keyframes splashIn { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
+        @keyframes splashGlow { 0%,100%{box-shadow:0 0 20px hsl(40 65% 48% / 0.2)} 50%{box-shadow:0 0 60px hsl(40 65% 48% / 0.5)} }
+        @keyframes splashFadeOut { from{opacity:1} to{opacity:0} }
+        .splash-wrapper { animation: splashIn 0.6s ease-out, splashFadeOut 0.4s ease-in 1.4s forwards; }
+        .splash-logo { animation: splashGlow 1.2s ease-in-out infinite; }
+      `}</style>
+      <div className="splash-wrapper flex flex-col items-center gap-4">
+        <img src="/eagle-gym-logo.jpg" alt="Eagle Gym" className="splash-logo w-24 h-24 rounded-2xl object-contain"
+          style={{ background: "hsl(0 0% 6%)", border: "1px solid hsl(40 65% 48% / 0.3)" }} />
+        <div className="text-center">
+          <h1 className="text-xl font-black tracking-[0.25em] uppercase" style={{ color: "hsl(40 65% 55%)" }}>Eagle Gym</h1>
+          <div className="w-12 h-0.5 rounded mx-auto mt-2" style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 48%), transparent)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
+  const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem("splash-done") === "1");
+
   // Apply saved theme on mount
   useEffect(() => {
     const theme = localStorage.getItem("gym-theme") ?? "dark";
     if (theme === "dark") document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
   }, []);
+
+  function handleSplashDone() {
+    sessionStorage.setItem("splash-done", "1");
+    setSplashDone(true);
+  }
+
+  if (!splashDone) return <SplashScreen onDone={handleSplashDone} />;
 
   return (
     <>

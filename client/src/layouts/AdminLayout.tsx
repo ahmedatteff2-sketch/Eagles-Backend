@@ -99,6 +99,101 @@ function GlobalSearch({ onClose }: { onClose: () => void }) {
   );
 }
 
+function NotificationBell({ collapsed }: { collapsed: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { data: usersData } = useListUsers(
+    { status: "active", limit: 100 },
+    { query: { queryKey: getListUsersQueryKey({ status: "active", limit: 100 }) } }
+  );
+  const allActive: any[] = (usersData as any)?.data ?? [];
+  const now = new Date();
+  const expiringSoon = allActive.filter((m: any) => {
+    if (!m.currentSubscription?.endDate) return false;
+    const diff = (new Date(m.currentSubscription.endDate).getTime() - now.getTime()) / 86400000;
+    return diff >= 0 && diff <= 3;
+  });
+  const expiringToday = expiringSoon.filter((m: any) => {
+    return new Date(m.currentSubscription.endDate).toDateString() === now.toDateString();
+  });
+  const count = expiringSoon.length;
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(!open)}
+        className={`relative p-2 rounded-xl transition-colors ${collapsed ? "" : ""}`}
+        style={{ color: count > 0 ? GOLD : "hsl(0 0% 38%)" }}
+        onMouseEnter={e => (e.currentTarget.style.background = "hsl(0 0% 10%)")}
+        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center text-white"
+            style={{ background: "hsl(0 72% 50%)", fontSize: "9px", fontWeight: "bold", minWidth: 16, height: 16, padding: "0 3px" }}>
+            {count > 9 ? "9+" : count}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-2 w-72 rounded-xl shadow-2xl z-50 overflow-hidden"
+          style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid hsl(0 0% 13%)" }}>
+            <p className="text-sm font-bold text-foreground">التنبيهات</p>
+            {count > 0 && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsl(0 72% 50% / 0.15)", color: "hsl(0 72% 60%)" }}>{count}</span>}
+          </div>
+          {count === 0 ? (
+            <div className="px-4 py-6 text-center"><p className="text-xs text-muted-foreground">لا توجد تنبيهات</p></div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto">
+              {expiringToday.length > 0 && (
+                <div className="px-3 py-2">
+                  <p className="text-xs font-bold mb-1.5" style={{ color: "hsl(0 72% 60%)" }}>⚠ تنتهي اليوم</p>
+                  {expiringToday.map((m: any) => (
+                    <Link key={m.id} href={`/admin/members/${m.id}`}>
+                      <div onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: "hsl(0 72% 50% / 0.15)", color: "hsl(0 72% 60%)" }}>{m.name?.[0]}</div>
+                        <p className="text-xs text-foreground truncate">{m.name}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {expiringSoon.filter((m: any) => !expiringToday.includes(m)).length > 0 && (
+                <div className="px-3 py-2" style={{ borderTop: expiringToday.length > 0 ? "1px solid hsl(0 0% 12%)" : "none" }}>
+                  <p className="text-xs font-bold mb-1.5" style={{ color: "hsl(40 65% 52%)" }}>⏰ تنتهي قريباً</p>
+                  {expiringSoon.filter((m: any) => !expiringToday.includes(m)).map((m: any) => {
+                    const d = Math.ceil((new Date(m.currentSubscription.endDate).getTime() - now.getTime()) / 86400000);
+                    return (
+                      <Link key={m.id} href={`/admin/members/${m.id}`}>
+                        <div onClick={() => setOpen(false)} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                              style={{ background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 58%)" }}>{m.name?.[0]}</div>
+                            <p className="text-xs text-foreground truncate">{m.name}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">{d} يوم</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, clearAuth, refreshToken } = useAuthStore();
@@ -253,6 +348,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-xs font-semibold truncate" style={{ color: "hsl(40 20% 80%)" }}>{user?.name}</p>
                 <p className="text-xs" style={{ color: "hsl(40 65% 45%)" }}>مسؤول</p>
               </div>
+              <NotificationBell collapsed={false} />
               {/* Theme toggle */}
               <button onClick={toggleTheme} className="p-1.5 rounded-lg transition-colors flex-shrink-0"
                 style={{ color: "hsl(0 0% 40%)" }}
@@ -291,6 +387,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 style={{ background: "linear-gradient(135deg, hsl(40 65% 32%), hsl(40 65% 22%))", color: "hsl(40 65% 68%)", border: "1.5px solid hsl(40 65% 40% / 0.4)" }}>
                 {user?.name?.[0] ?? "A"}
               </div>
+              <NotificationBell collapsed={true} />
               <button onClick={toggleTheme} className="p-1.5 rounded-lg" style={{ color: "hsl(0 0% 40%)" }}
                 onMouseEnter={e => (e.currentTarget.style.color = GOLD)} onMouseLeave={e => (e.currentTarget.style.color = "hsl(0 0% 40%)")}>
                 {isDark ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
@@ -311,7 +408,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto" dir="rtl"><div key={location} className="page-enter">{children}</div></main>
+      <main className="flex-1 overflow-y-auto" dir="rtl">{children}</main>
     </div>
   );
 }

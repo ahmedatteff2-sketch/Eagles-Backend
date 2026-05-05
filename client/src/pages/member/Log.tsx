@@ -5,7 +5,7 @@ import {
 } from "@workspace/api-client-react";
 import { customFetch } from "@/api-client/custom-fetch";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 interface TemplateExercise {
@@ -13,7 +13,6 @@ interface TemplateExercise {
   exerciseId: number;
   sets: number;
   reps: number;
-  weekNumber: number;
   dayNumber: number;
   sortOrder: number;
   exerciseName: string;
@@ -26,7 +25,6 @@ interface AssignedTemplate {
   name: string;
   daysCount: number;
   daysPerWeek: number;
-  weeksCount: number;
   exercises: TemplateExercise[];
 }
 
@@ -50,84 +48,8 @@ function SetBadge({ done, total }: { done: number; total: number }) {
   return (
     <div className="flex gap-1">
       {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i < done ? "bg-primary scale-110" : "bg-muted"}`} />
+        <div key={i} className={`w-2.5 h-2.5 rounded-full ${i < done ? "bg-primary" : "bg-muted"}`} />
       ))}
-    </div>
-  );
-}
-
-function RestTimer({ onDone }: { onDone: () => void }) {
-  const [seconds, setSeconds] = useState(90);
-  const [running, setRunning] = useState(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (running && seconds > 0) {
-      intervalRef.current = setInterval(() => setSeconds(s => s - 1), 1000);
-    } else if (seconds === 0 && running) {
-      setRunning(false);
-      try { new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1sZWJy").play(); } catch {}
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, seconds]);
-
-  const min = Math.floor(seconds / 60);
-  const sec = seconds % 60;
-  const pct = ((90 - seconds) / 90) * 100;
-
-  return (
-    <div className="fixed bottom-4 left-4 right-4 z-40 flex justify-center">
-      <div className="bg-card border border-primary/30 rounded-2xl px-5 py-3.5 shadow-xl flex items-center gap-4 max-w-sm w-full"
-        style={{ backdropFilter: "blur(12px)" }}>
-        <div className="relative w-12 h-12 flex-shrink-0">
-          <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
-            <circle cx="24" cy="24" r="20" fill="none" stroke="hsl(0 0% 14%)" strokeWidth="3" />
-            <circle cx="24" cy="24" r="20" fill="none" stroke={seconds === 0 ? "hsl(142 60% 50%)" : "hsl(40 65% 52%)"} strokeWidth="3"
-              strokeDasharray={125.6} strokeDashoffset={125.6 - (pct / 100) * 125.6} strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 1s linear" }} />
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
-            {min}:{sec.toString().padStart(2, "0")}
-          </span>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-bold text-foreground">{seconds === 0 ? "وقت الراحة انتهى!" : "استراحة"}</p>
-          <p className="text-xs text-muted-foreground">بين المجموعات</p>
-        </div>
-        <div className="flex gap-2">
-          {seconds > 0 && (
-            <button onClick={() => { setSeconds(s => Math.max(0, s - 30)); }}
-              className="text-xs px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80">-30</button>
-          )}
-          <button onClick={onDone}
-            className="text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold">
-            {seconds === 0 ? "ابدأ" : "تخطي"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Confetti() {
-  const colors = ["#C9A84C", "#4CAF50", "#FF5252", "#448AFF", "#FF9800", "#E040FB"];
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      {Array.from({ length: 40 }).map((_, i) => {
-        const left = Math.random() * 100;
-        const delay = Math.random() * 0.5;
-        const dur = 1.5 + Math.random();
-        const color = colors[i % colors.length];
-        const size = 6 + Math.random() * 6;
-        return (
-          <div key={i} className="absolute" style={{
-            left: `${left}%`, top: "-10px", width: size, height: size, borderRadius: Math.random() > 0.5 ? "50%" : "2px",
-            background: color, opacity: 0.9,
-            animation: `confettiFall ${dur}s ease-in ${delay}s forwards`,
-          }} />
-        );
-      })}
-      <style>{`@keyframes confettiFall { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(${360 + Math.random()*360}deg);opacity:0} }`}</style>
     </div>
   );
 }
@@ -147,19 +69,14 @@ function ExerciseCard({
   const lastWeight = loggedSets.length > 0 ? parseFloat(loggedSets[loggedSets.length - 1].weight) : 0;
   const nextSet = Math.min(done + 1, total);
   const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
-  const progressPct = total > 0 ? (done / total) * 100 : 0;
 
   return (
     <div
-      className={`rounded-xl border p-4 transition-all relative overflow-hidden ${
+      className={`rounded-xl border p-4 transition-all ${
         isComplete ? "border-green-500/30 bg-green-500/5" : "border-card-border bg-card hover:border-primary/40 cursor-pointer"
       }`}
       onClick={() => !isComplete && onLog(ex, nextSet, lastWeight)}
     >
-      {/* Progress bar at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: "hsl(0 0% 12%)" }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, background: isComplete ? "hsl(142 60% 50%)" : "hsl(40 65% 52%)" }} />
-      </div>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -269,14 +186,10 @@ export default function MemberLog() {
 
   const [templates, setTemplates] = useState<AssignedTemplate[]>([]);
   const [activeTemplateIdx, setActiveTemplateIdx] = useState(0);
-  const [activeWeek, setActiveWeek] = useState(1);
   const [activeDay, setActiveDay] = useState(1);
   const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [showRestTimer, setShowRestTimer] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const prevSessionComplete = useRef(false);
 
   useEffect(() => {
     customFetch<AssignedTemplate[]>("/api/my-workouts")
@@ -287,15 +200,14 @@ export default function MemberLog() {
 
   const activeTemplate = templates[activeTemplateIdx] ?? null;
   const allExercises = activeTemplate?.exercises ?? [];
-  const weekExercises = allExercises.filter((ex) => ex.weekNumber === activeWeek);
-  const exList = weekExercises.filter((ex) => ex.dayNumber === activeDay);
+  const exList = allExercises.filter((ex) => ex.dayNumber === activeDay);
 
   const { data: logs } = useListExerciseLogs(
     { userId },
     { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } }
   );
   const logList = Array.isArray(logs) ? logs : [];
-  const todayLogs = logList.filter((l: any) => l.date === today && (l.weekNumber ?? 1) === activeWeek);
+  const todayLogs = logList.filter((l: any) => l.date === today);
   const logExercise = useLogExercise();
   const deleteLog = useDeleteExerciseLog();
 
@@ -314,16 +226,12 @@ export default function MemberLog() {
   function handleLog() {
     if (!quickLog) return;
     logExercise.mutate(
-      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, weekNumber: activeWeek, date: today } as any },
+      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: today } },
       {
         onSuccess: () => {
           toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
           queryClient.invalidateQueries({ queryKey: getListExerciseLogsQueryKey({ userId }) });
           setQuickLog(null);
-          // Show rest timer if not last set of last exercise
-          if (quickLog.setNumber < quickLog.totalSets) {
-            setShowRestTimer(true);
-          }
         },
         onError: () => toast({ title: "خطأ في التسجيل", variant: "destructive" }),
       }
@@ -341,15 +249,6 @@ export default function MemberLog() {
     const done = todayLogs.filter((l: any) => l.exerciseId === ex.exerciseId).length;
     return done >= ex.sets;
   });
-
-  // Show confetti when session just completed
-  useEffect(() => {
-    if (sessionComplete && !prevSessionComplete.current) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    }
-    prevSessionComplete.current = sessionComplete;
-  }, [sessionComplete]);
 
   if (loaded && templates.length === 0) {
     return (
@@ -385,20 +284,14 @@ export default function MemberLog() {
       {!showHistory ? (
         <>
           {sessionComplete ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-6 text-center">
-              <div className="text-4xl mb-2">🏆</div>
-              <p className="text-green-400 font-black text-lg">أحسنت! أتممت كل التمارين</p>
-              <p className="text-green-400/70 text-sm mt-1">تم إكمال {exList.length} تمرين · {todayLogs.length} مجموعة</p>
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
+              <p className="text-green-400 font-bold text-base">أحسنت! أتممت كل التمارين</p>
+              <p className="text-green-400/70 text-sm mt-0.5">تم إكمال {exList.length} تمرين</p>
             </div>
           ) : todayLogs.length > 0 ? (
-            <div className="rounded-xl p-3" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(40 65% 48% / 0.2)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-foreground"><span className="font-bold" style={{ color: "hsl(40 65% 52%)" }}>{todayDoneCount}</span> تمارين تمت اليوم</p>
-                <span className="text-xs text-muted-foreground">{exList.length - todayDoneCount} متبقية</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(0 0% 14%)" }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${exList.length > 0 ? (todayDoneCount / exList.length) * 100 : 0}%`, background: "linear-gradient(90deg, hsl(40 65% 48%), hsl(40 65% 58%))" }} />
-              </div>
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center justify-between">
+              <p className="text-sm text-foreground"><span className="font-bold text-primary">{todayDoneCount}</span> تمارين تمت اليوم</p>
+              <span className="text-xs text-muted-foreground">{exList.length - todayDoneCount} متبقية</span>
             </div>
           ) : null}
 
@@ -410,51 +303,27 @@ export default function MemberLog() {
               {templates.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
                   {templates.map((t, i) => (
-                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveWeek(1); setActiveDay(1); }}
+                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveDay(1); }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         i === activeTemplateIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}>{t.name}</button>
                   ))}
                 </div>
               )}
-              {/* Week tabs */}
-              {(activeTemplate?.weeksCount ?? 1) > 1 && (
-                <div className="mb-2">
-                  <p className="text-xs text-muted-foreground mb-1.5">الأسبوع</p>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {Array.from({ length: activeTemplate!.weeksCount }).map((_, i) => {
-                      const week = i + 1;
-                      const count = allExercises.filter((ex) => ex.weekNumber === week).length;
-                      return (
-                        <button key={week} onClick={() => { setActiveWeek(week); setActiveDay(1); }}
-                          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            activeWeek === week ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}>
-                          أسبوع {week} <span className="opacity-70">({count})</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* Day tabs */}
               {(activeTemplate?.daysCount ?? 1) > 1 && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">اليوم</p>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
-                      const day = i + 1;
-                      const count = weekExercises.filter((ex) => ex.dayNumber === day).length;
-                      return (
-                        <button key={day} onClick={() => setActiveDay(day)}
-                          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}>
-                          يوم {day} <span className="opacity-70">({count})</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
+                    const day = i + 1;
+                    const count = allExercises.filter((ex) => ex.dayNumber === day).length;
+                    return (
+                      <button key={day} onClick={() => setActiveDay(day)}
+                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}>
+                        يوم {day} <span className="opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -526,7 +395,7 @@ export default function MemberLog() {
                   <div key={l.id} className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">{l.exercise?.name ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">أسبوع {l.weekNumber ?? 1} · سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</p>
@@ -548,8 +417,6 @@ export default function MemberLog() {
       {quickLog && (
         <QuickLogPanel state={quickLog} onChange={setQuickLog} onSubmit={handleLog} onClose={() => setQuickLog(null)} isPending={logExercise.isPending} />
       )}
-      {showRestTimer && !quickLog && <RestTimer onDone={() => setShowRestTimer(false)} />}
-      {showConfetti && <Confetti />}
     </div>
   );
 }

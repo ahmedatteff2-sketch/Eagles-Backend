@@ -3,7 +3,7 @@ import {
   getGetDashboardStatsQueryKey, getListUsersQueryKey,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -12,26 +12,53 @@ import { customFetch } from "@/api-client/custom-fetch";
 const GOLD = "hsl(40 65% 52%)";
 const TIP = { background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 10, color: "hsl(0 0% 90%)" };
 
+function useAnimatedCounter(target: number | undefined, duration = 800) {
+  const [count, setCount] = useState(0);
+  const prevTarget = useRef<number | undefined>();
+  useEffect(() => {
+    if (target === undefined || target === prevTarget.current) return;
+    prevTarget.current = target;
+    const start = 0;
+    const startTime = performance.now();
+    function tick(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(start + (target! - start) * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return target === undefined ? undefined : count;
+}
+
 function SkeletonCard() {
   return (
     <div className="rounded-xl p-5 animate-pulse" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
-      <div className="h-3 w-20 rounded mb-3" style={{ background: "hsl(0 0% 14%)" }} />
-      <div className="h-8 w-28 rounded" style={{ background: "hsl(0 0% 14%)" }} />
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl" style={{ background: "hsl(0 0% 14%)" }} />
+        <div className="flex-1">
+          <div className="h-3 w-20 rounded mb-3" style={{ background: "hsl(0 0% 14%)" }} />
+          <div className="h-7 w-16 rounded" style={{ background: "hsl(0 0% 14%)" }} />
+        </div>
+      </div>
     </div>
   );
 }
 
 function StatCard({ label, value, sub, icon, color = GOLD, href }: any) {
+  const animatedValue = useAnimatedCounter(typeof value === "number" ? value : undefined);
+  const displayValue = typeof value === "number" ? (animatedValue ?? 0) : value;
   const inner = (
-    <div className="rounded-xl p-5 flex items-center gap-4 transition-all cursor-pointer"
+    <div className="rounded-xl p-5 flex items-center gap-4 transition-all cursor-pointer group"
       style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "hsl(40 65% 48% / 0.3)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "hsl(0 0% 15%)"; }}>
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "hsl(40 65% 48% / 0.3)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "hsl(0 0% 15%)"; (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}>
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
         style={{ background: color + "22" }}>{icon}</div>
       <div>
         <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-        <p className="text-2xl font-black text-foreground">{value ?? "—"}</p>
+        <p className="text-2xl font-black text-foreground tabular-nums">{displayValue ?? "—"}</p>
         {sub && <p className="text-xs mt-0.5" style={{ color }}>{sub}</p>}
       </div>
     </div>

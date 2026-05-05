@@ -139,7 +139,7 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto" dir="rtl"><div key={location} className="page-enter">{children}</div></main>
+        <main className="flex-1 overflow-y-auto" dir="rtl">{children}</main>
       </div>
     </div>
   );

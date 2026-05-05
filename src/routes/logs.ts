@@ -13,7 +13,6 @@ const exerciseLogSchema = z.object({
   setNumber: z.number().int().min(1).max(10),
   reps: z.number().int().min(1).max(10000),
   weight: z.number().min(0).max(10000),
-  weekNumber: z.number().int().min(1).max(12).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
 });
 
@@ -58,7 +57,6 @@ router.get("/exercise-logs", authenticate, async (req, res) => {
         setNumber: exerciseLogsTable.setNumber,
         reps: exerciseLogsTable.reps,
         weight: exerciseLogsTable.weight,
-        weekNumber: exerciseLogsTable.weekNumber,
         date: exerciseLogsTable.date,
         exercise: {
           id: exercisesTable.id,
@@ -91,7 +89,6 @@ router.post("/exercise-logs", authenticate, async (req, res) => {
       setNumber: body.data.setNumber,
       reps: body.data.reps,
       weight: String(body.data.weight),
-      weekNumber: body.data.weekNumber ?? 1,
       date: body.data.date,
     }).returning();
     const [exercise] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, log.exerciseId)).limit(1);

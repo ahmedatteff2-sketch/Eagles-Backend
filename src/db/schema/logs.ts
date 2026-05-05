@@ -11,7 +11,6 @@ export const exerciseLogsTable = pgTable("exercise_logs", {
   setNumber: integer("set_number").notNull(),
   reps: integer("reps").notNull(),
   weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
-  weekNumber: integer("week_number").notNull().default(1),
   date: date("date").notNull(),
 });
 

@@ -348,33 +348,6 @@ export async function runMigrations(): Promise<void> {
       await client.query(`ALTER TABLE workout_templates ADD COLUMN days_per_week INTEGER NOT NULL DEFAULT 4`);
     }
 
-    // ── Add weeks_count to workout_templates ───────────────────────────────
-    const { rows: hasWeeksCount } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='weeks_count'`
-    );
-    if (hasWeeksCount.length === 0) {
-      logger.info("Adding weeks_count to workout_templates");
-      await client.query(`ALTER TABLE workout_templates ADD COLUMN weeks_count INTEGER NOT NULL DEFAULT 4`);
-    }
-
-    // ── Add week_number to workout_template_exercises ──────────────────────
-    const { rows: hasWeekNumber } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='week_number'`
-    );
-    if (hasWeekNumber.length === 0) {
-      logger.info("Adding week_number to workout_template_exercises");
-      await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN week_number INTEGER NOT NULL DEFAULT 1`);
-    }
-
-    // ── Add week_number to exercise_logs ───────────────────────────────────
-    const { rows: hasLogWeekNumber } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='exercise_logs' AND column_name='week_number'`
-    );
-    if (hasLogWeekNumber.length === 0) {
-      logger.info("Adding week_number to exercise_logs");
-      await client.query(`ALTER TABLE exercise_logs ADD COLUMN week_number INTEGER NOT NULL DEFAULT 1`);
-    }
-
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
