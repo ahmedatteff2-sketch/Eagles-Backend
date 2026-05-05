@@ -90,6 +90,19 @@ export default function AdminAttendance() {
     }
   }
 
+  // Parse QR data — supports JSON {userId, type:'gym-checkin'} and plain text formats
+  function extractUserId(raw: string): string | null {
+    // Try JSON first (from member QR code page)
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.userId && parsed.type === "gym-checkin") return String(parsed.userId);
+      if (parsed.userId) return String(parsed.userId);
+    } catch { }
+    // Fallback: plain text formats
+    const match = raw.match(/userId[:=]([\w-]+)/i) || raw.match(/^([\w-]+)$/);
+    return match ? match[1] : null;
+  }
+
   // QR scanning
   useEffect(() => {
     if (!scanning || !cameraActive) return;
@@ -106,9 +119,8 @@ export default function AdminAttendance() {
       const code = jsQR(imageData.data, imageData.width, imageData.height);
       if (code && code.data !== lastScanned) {
         setLastScanned(code.data);
-        const match = code.data.match(/userId[:=]([\w-]+)/i) || code.data.match(/^([\w-]+)$/);
-        if (match) {
-          const uid = match[1];
+        const uid = extractUserId(code.data);
+        if (uid) {
           const result = await doCheckin(uid);
           toast({ title: result.ok ? "✅ تم تسجيل الحضور" : "⚠️ حضور مسجل مسبقاً أو خطأ" });
           setTimeout(() => setLastScanned(null), 3000);
@@ -151,9 +163,9 @@ export default function AdminAttendance() {
       const d = canvas.getContext("2d")!.getImageData(0, 0, img.width, img.height);
       const code = jsQR(d.data, d.width, d.height);
       if (!code) { toast({ title: "لم يُعثر على QR في الصورة", variant: "destructive" }); return; }
-      const match = code.data.match(/userId[:=]([\w-]+)/i) || code.data.match(/^([\w-]+)$/);
-      if (!match) { toast({ title: "QR غير صالح", variant: "destructive" }); return; }
-      const result = await doCheckin(match[1]);
+      const uid = extractUserId(code.data);
+      if (!uid) { toast({ title: "QR غير صالح", variant: "destructive" }); return; }
+      const result = await doCheckin(uid);
       toast({ title: result.ok ? "✅ تم تسجيل الزياره بنجاح" : "⚠️ حضور مسجل مسبقاً أو خطأ" });
     };
     img.src = URL.createObjectURL(file);
