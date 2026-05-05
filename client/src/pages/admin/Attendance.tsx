@@ -84,8 +84,8 @@ export default function AdminAttendance() {
       queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey({}) });
       return { ok: true, conflict: false };
     } catch (e: any) {
-      const status = e?.response?.status ?? e?.status;
-      const msg = e?.response?.data?.message ?? e?.message ?? "";
+      const status = e?.status ?? e?.response?.status;
+      const msg = e?.data?.message ?? e?.response?.data?.message ?? e?.message ?? "";
       return { ok: false, conflict: status === 409, message: msg };
     }
   }
@@ -122,7 +122,13 @@ export default function AdminAttendance() {
         const uid = extractUserId(code.data);
         if (uid) {
           const result = await doCheckin(uid);
-          toast({ title: result.ok ? "✅ تم تسجيل الحضور" : "⚠️ حضور مسجل مسبقاً أو خطأ" });
+          if (result.ok) {
+            toast({ title: "✅ تم تسجيل الحضور بنجاح" });
+          } else if (result.conflict) {
+            toast({ title: "⚠️ تم تسجيل الحضور مسبقاً اليوم", variant: "destructive" });
+          } else {
+            toast({ title: "❌ خطأ في تسجيل الحضور", variant: "destructive" });
+          }
           setTimeout(() => setLastScanned(null), 3000);
         }
       }
@@ -166,7 +172,13 @@ export default function AdminAttendance() {
       const uid = extractUserId(code.data);
       if (!uid) { toast({ title: "QR غير صالح", variant: "destructive" }); return; }
       const result = await doCheckin(uid);
-      toast({ title: result.ok ? "✅ تم تسجيل الزياره بنجاح" : "⚠️ حضور مسجل مسبقاً أو خطأ" });
+      if (result.ok) {
+        toast({ title: "✅ تم تسجيل الزيارة بنجاح" });
+      } else if (result.conflict) {
+        toast({ title: "⚠️ تم تسجيل الحضور مسبقاً اليوم", variant: "destructive" });
+      } else {
+        toast({ title: "❌ خطأ في تسجيل الحضور", variant: "destructive" });
+      }
     };
     img.src = URL.createObjectURL(file);
   }
