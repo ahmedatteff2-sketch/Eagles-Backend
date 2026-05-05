@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { exerciseLogsTable, bodyStatsTable, checkinsTable, exercisesTable, usersTable } from "@workspace/db/schema";
+import { exerciseLogsTable, bodyStatsTable, checkinsTable, exercisesTable, usersTable, progressPhotosTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parseUserId } from "../lib/params.js";
@@ -83,6 +83,15 @@ router.post("/exercise-logs", authenticate, async (req, res) => {
     return;
   }
   try {
+    // Check previous max weight for PR detection
+    const prevLogs = await db.select({ weight: exerciseLogsTable.weight })
+      .from(exerciseLogsTable)
+      .where(and(
+        eq(exerciseLogsTable.userId, req.user!.userId),
+        eq(exerciseLogsTable.exerciseId, body.data.exerciseId),
+      ));
+    const prevMax = prevLogs.reduce((max, l) => Math.max(max, parseFloat(l.weight) || 0), 0);
+
     const [log] = await db.insert(exerciseLogsTable).values({
       userId: req.user!.userId,
       exerciseId: body.data.exerciseId,
@@ -92,7 +101,8 @@ router.post("/exercise-logs", authenticate, async (req, res) => {
       date: body.data.date,
     }).returning();
     const [exercise] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, log.exerciseId)).limit(1);
-    res.status(201).json({ ...log, exercise });
+    const isPR = body.data.weight > 0 && body.data.weight > prevMax;
+    res.status(201).json({ ...log, exercise, isPR, previousMax: prevMax });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تسجيل الأداء" });
   }
@@ -110,6 +120,53 @@ router.delete("/exercise-logs/:logId", authenticate, async (req, res) => {
     res.json({ success: true, message: "تم حذف السجل" });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء الحذف" });
+  }
+});
+
+// ─── Personal Records ─────────────────────────────────────────────────────────
+
+router.get("/personal-records", authenticate, async (req, res) => {
+  const targetUserId = req.query.userId
+    ? parseUserId(String(req.query.userId), res)
+    : req.user!.userId;
+  if (targetUserId === null) return;
+  if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  try {
+    const logs = await db
+      .select({
+        exerciseId: exerciseLogsTable.exerciseId,
+        weight: exerciseLogsTable.weight,
+        reps: exerciseLogsTable.reps,
+        date: exerciseLogsTable.date,
+        exerciseName: exercisesTable.name,
+        targetMuscle: exercisesTable.targetMuscle,
+      })
+      .from(exerciseLogsTable)
+      .innerJoin(exercisesTable, eq(exerciseLogsTable.exerciseId, exercisesTable.id))
+      .where(eq(exerciseLogsTable.userId, targetUserId));
+
+    // Group by exercise, find max weight
+    const byExercise: Record<number, { exerciseId: number; exerciseName: string; targetMuscle: string; maxWeight: number; maxReps: number; date: string; totalSets: number }> = {};
+    for (const l of logs) {
+      const w = parseFloat(l.weight) || 0;
+      if (!byExercise[l.exerciseId]) {
+        byExercise[l.exerciseId] = { exerciseId: l.exerciseId, exerciseName: l.exerciseName, targetMuscle: l.targetMuscle, maxWeight: w, maxReps: l.reps, date: l.date, totalSets: 1 };
+      } else {
+        byExercise[l.exerciseId].totalSets++;
+        if (w > byExercise[l.exerciseId].maxWeight) {
+          byExercise[l.exerciseId].maxWeight = w;
+          byExercise[l.exerciseId].maxReps = l.reps;
+          byExercise[l.exerciseId].date = l.date;
+        }
+      }
+    }
+    const prs = Object.values(byExercise).sort((a, b) => b.maxWeight - a.maxWeight);
+    res.json(prs);
+  } catch {
+    res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الأرقام الشخصية" });
   }
 });
 
@@ -248,6 +305,68 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
     res.status(201).json({ ...checkin, userName: user?.name ?? "" });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تسجيل الحضور" });
+  }
+});
+
+// ─── Progress photos ──────────────────────────────────────────────────────────
+
+const progressPhotoSchema = z.object({
+  photoUrl: z.string().min(1),
+  category: z.enum(["front", "side", "back"]).default("front"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  note: z.string().max(500).nullable().optional(),
+});
+
+router.get("/progress-photos", authenticate, async (req, res) => {
+  const targetUserId = req.query.userId
+    ? parseUserId(String(req.query.userId), res)
+    : req.user!.userId;
+  if (targetUserId === null) return;
+  if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  try {
+    const photos = await db.select().from(progressPhotosTable)
+      .where(eq(progressPhotosTable.userId, targetUserId))
+      .orderBy(desc(progressPhotosTable.date));
+    res.json(photos);
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/progress-photos", authenticate, async (req, res) => {
+  const body = progressPhotoSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  try {
+    const [photo] = await db.insert(progressPhotosTable).values({
+      userId: req.user!.userId,
+      photoUrl: body.data.photoUrl,
+      category: body.data.category,
+      date: body.data.date,
+      note: body.data.note ?? null,
+    }).returning();
+    res.status(201).json(photo);
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/progress-photos/:id", authenticate, async (req, res) => {
+  const id = parseId(req.params.id, res, "photo id");
+  if (!id) return;
+  try {
+    await db.delete(progressPhotosTable).where(and(
+      eq(progressPhotosTable.id, id),
+      eq(progressPhotosTable.userId, req.user!.userId),
+    ));
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

@@ -380,6 +380,25 @@ export async function runMigrations(): Promise<void> {
       await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN rest_seconds INTEGER DEFAULT 90`);
     }
 
+    // ── progress_photos table ────────────────────────────────────────────
+    const { rows: hasProgressPhotos } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'progress_photos'`
+    );
+    if (hasProgressPhotos.length === 0) {
+      logger.info("Creating progress_photos table");
+      await client.query(`
+        CREATE TABLE progress_photos (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          photo_url TEXT NOT NULL,
+          category TEXT NOT NULL DEFAULT 'front',
+          date DATE NOT NULL,
+          note TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+    }
+
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`

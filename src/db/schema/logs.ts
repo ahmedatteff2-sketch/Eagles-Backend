@@ -31,6 +31,20 @@ export const checkinsTable = pgTable("CheckIn", {
   method: text("method").notNull().default("MANUAL"),
 });
 
+export const progressPhotosTable = pgTable("progress_photos", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  photoUrl: text("photo_url").notNull(),
+  category: text("category").notNull().default("front"),
+  date: date("date").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertProgressPhotoSchema = createInsertSchema(progressPhotosTable).omit({ id: true, createdAt: true });
+export type InsertProgressPhoto = z.infer<typeof insertProgressPhotoSchema>;
+export type ProgressPhoto = typeof progressPhotosTable.$inferSelect;
+
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogsTable).omit({ id: true });
 export const insertBodyStatSchema = createInsertSchema(bodyStatsTable).omit({ id: true });
 export const insertCheckinSchema = createInsertSchema(checkinsTable).omit({ id: true });

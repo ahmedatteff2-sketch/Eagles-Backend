@@ -127,6 +127,38 @@ function ExerciseCard({
   );
 }
 
+function PRCelebration({ exerciseName, weight, prevMax, onClose }: { exerciseName: string; weight: number; prevMax: number; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="text-center px-6" onClick={e => e.stopPropagation()}>
+        <div className="text-6xl mb-4 animate-bounce">🏆</div>
+        <h2 className="text-2xl font-black text-foreground mb-1">رقم شخصي جديد!</h2>
+        <p className="text-lg font-bold mb-2" style={{ color: "hsl(40 65% 52%)" }}>{exerciseName}</p>
+        <div className="flex items-center justify-center gap-4 mb-4">
+          {prevMax > 0 && (
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">السابق</p>
+              <p className="text-lg text-muted-foreground line-through">{prevMax} كجم</p>
+            </div>
+          )}
+          <div className="text-center">
+            <p className="text-xs" style={{ color: "hsl(40 65% 52%)" }}>الجديد</p>
+            <p className="text-3xl font-black" style={{ color: "hsl(40 65% 52%)" }}>{weight} كجم</p>
+          </div>
+        </div>
+        {prevMax > 0 && (
+          <p className="text-sm text-green-400 font-bold">↑ +{(weight - prevMax).toFixed(1)} كجم</p>
+        )}
+        <button onClick={onClose} className="mt-4 px-6 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground">تمام 💪</button>
+      </div>
+    </div>
+  );
+}
+
 function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
@@ -234,6 +266,7 @@ export default function MemberLog() {
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [loaded, setLoaded] = useState(false);
   const [restTimer, setRestTimer] = useState<number | null>(null);
+  const [prCelebration, setPrCelebration] = useState<{ exerciseName: string; weight: number; prevMax: number } | null>(null);
 
   useEffect(() => {
     customFetch<AssignedTemplate[]>("/api/my-workouts")
@@ -338,11 +371,16 @@ export default function MemberLog() {
     logExercise.mutate(
       { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate } },
       {
-        onSuccess: () => {
-          toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
+        onSuccess: (data: any) => {
           queryClient.invalidateQueries({ queryKey: getListExerciseLogsQueryKey({ userId }) });
+          if (data?.isPR) {
+            setPrCelebration({ exerciseName: quickLog.exerciseName, weight: quickLog.weight, prevMax: data.previousMax ?? 0 });
+            toast({ title: `🏆 رقم شخصي جديد! ${quickLog.weight} كجم` });
+          } else {
+            toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
+          }
           setQuickLog(null);
-          if (!isLastSet && restSecs > 0) {
+          if (!isLastSet && restSecs > 0 && !data?.isPR) {
             setRestTimer(restSecs);
           }
         },
@@ -567,6 +605,9 @@ export default function MemberLog() {
         );
       })()}
 
+      {prCelebration && (
+        <PRCelebration {...prCelebration} onClose={() => setPrCelebration(null)} />
+      )}
       {quickLog && (
         <QuickLogPanel state={quickLog} onChange={setQuickLog} onSubmit={handleLog} onClose={() => setQuickLog(null)} isPending={logExercise.isPending} />
       )}

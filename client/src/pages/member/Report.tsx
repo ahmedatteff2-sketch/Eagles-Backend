@@ -2,6 +2,8 @@ import { useAuthStore } from "@/store/auth";
 import { useListExerciseLogs, getListExerciseLogsQueryKey } from "@workspace/api-client-react";
 import { customFetch } from "@/api-client/custom-fetch";
 import { useState, useEffect, useMemo } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const GOLD = "hsl(40 65% 52%)";
 
@@ -93,11 +95,63 @@ export default function MemberReport() {
     { key: "all", label: "الكل" },
   ];
 
+  function exportPDF() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const periodLabel = periods.find(p => p.key === period)?.label ?? "";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text(`Training Report - ${user?.name ?? ""}`, 105, 20, { align: "center" });
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(periodLabel, 105, 28, { align: "center" });
+
+    // Summary table
+    autoTable(doc, {
+      startY: 35,
+      head: [["Metric", "Value"]],
+      body: [
+        ["Sessions", String(uniqueDays)],
+        ["Total Sets", String(totalSets)],
+        ["Total Volume (kg x reps)", totalVolume.toLocaleString()],
+        ["Unique Exercises", String(uniqueExercises)],
+        ["Attendance Days", String(attendanceDays)],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [180, 140, 50] },
+    });
+
+    // Exercise breakdown
+    if (byExercise.length > 0) {
+      const finalY = (doc as any).lastAutoTable?.finalY ?? 80;
+      autoTable(doc, {
+        startY: finalY + 10,
+        head: [["Exercise", "Sets", "Max Weight (kg)", "Last Weight (kg)", "Change"]],
+        body: byExercise.map(ex => {
+          const firstW = parseFloat(ex.logs[ex.logs.length - 1].weight) || 0;
+          const lastW = parseFloat(ex.logs[0].weight) || 0;
+          const diff = lastW - firstW;
+          return [ex.name, String(ex.logs.length), String(ex.maxWeight), String(lastW), diff !== 0 ? `${diff > 0 ? "+" : ""}${diff.toFixed(1)}` : "-"];
+        }),
+        theme: "grid",
+        headStyles: { fillColor: [180, 140, 50] },
+      });
+    }
+
+    doc.save(`training-report-${new Date().toISOString().split("T")[0]}.pdf`);
+  }
+
   return (
     <div className="p-4 space-y-4 pb-8">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">التقرير التدريبي</h1>
-        <p className="text-muted-foreground text-sm">ملخص أدائك وتطور أوزانك</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">التقرير التدريبي</h1>
+          <p className="text-muted-foreground text-sm">ملخص أدائك وتطور أوزانك</p>
+        </div>
+        <button onClick={exportPDF}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-muted text-muted-foreground hover:bg-muted/80">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF
+        </button>
       </div>
 
       {/* Period tabs */}
