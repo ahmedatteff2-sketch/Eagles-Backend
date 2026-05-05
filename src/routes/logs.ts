@@ -14,6 +14,7 @@ const exerciseLogSchema = z.object({
   reps: z.number().int().min(1).max(10000),
   weight: z.number().min(0).max(10000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
+  note: z.string().max(500).nullable().optional(),
 });
 
 const bodyStatSchema = z.object({
@@ -58,6 +59,7 @@ router.get("/exercise-logs", authenticate, async (req, res) => {
         reps: exerciseLogsTable.reps,
         weight: exerciseLogsTable.weight,
         date: exerciseLogsTable.date,
+        note: exerciseLogsTable.note,
         exercise: {
           id: exercisesTable.id,
           name: exercisesTable.name,
@@ -99,6 +101,7 @@ router.post("/exercise-logs", authenticate, async (req, res) => {
       reps: body.data.reps,
       weight: String(body.data.weight),
       date: body.data.date,
+      note: body.data.note ?? null,
     }).returning();
     const [exercise] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, log.exerciseId)).limit(1);
     const isPR = body.data.weight > 0 && body.data.weight > prevMax;

@@ -12,6 +12,7 @@ export const exerciseLogsTable = pgTable("exercise_logs", {
   reps: integer("reps").notNull(),
   weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
   date: date("date").notNull(),
+  note: text("note"),
 });
 
 export const bodyStatsTable = pgTable("body_stats", {

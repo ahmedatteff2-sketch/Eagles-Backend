@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/store/auth";
 import { customFetch } from "@/api-client/custom-fetch";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { haptic } from "@/hooks/use-pull-refresh";
 
 const GOLD = "hsl(40 65% 52%)";
 
@@ -18,13 +19,21 @@ export default function MemberChat() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const prevMsgCount = useRef(0);
 
-  useEffect(() => {
+  const refreshContacts = useCallback(() => {
     customFetch<Contact[]>("/api/chat-contacts")
       .then(d => setContacts(Array.isArray(d) ? d : []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshContacts();
+    setLoading(false);
+    // Poll contacts for unread badges every 10s
+    const contactPoll = setInterval(refreshContacts, 10000);
+    return () => clearInterval(contactPoll);
+  }, [refreshContacts]);
 
   function loadMessages(contact: Contact) {
     setActiveContact(contact);
@@ -35,13 +44,24 @@ export default function MemberChat() {
 
   useEffect(() => {
     if (!activeContact) return;
+    prevMsgCount.current = messages.length;
     pollRef.current = setInterval(() => {
       customFetch<Message[]>(`/api/chat/${activeContact.id}`)
-        .then(d => setMessages(Array.isArray(d) ? d : []))
+        .then(d => {
+          const arr = Array.isArray(d) ? d : [];
+          if (arr.length > prevMsgCount.current) {
+            // New message arrived — auto-scroll + haptic
+            const newMsg = arr[arr.length - 1];
+            if (newMsg?.senderId !== myId) haptic(15);
+            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          }
+          prevMsgCount.current = arr.length;
+          setMessages(arr);
+        })
         .catch(() => {});
-    }, 5000);
+    }, 3000);
     return () => clearInterval(pollRef.current);
-  }, [activeContact]);
+  }, [activeContact, myId]);
 
   async function send() {
     if (!input.trim() || !activeContact) return;
@@ -53,7 +73,9 @@ export default function MemberChat() {
       });
       setInput("");
       const msgs = await customFetch<Message[]>(`/api/chat/${activeContact.id}`);
-      setMessages(Array.isArray(msgs) ? msgs : []);
+      const arr = Array.isArray(msgs) ? msgs : [];
+      prevMsgCount.current = arr.length;
+      setMessages(arr);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch {}
     setSending(false);

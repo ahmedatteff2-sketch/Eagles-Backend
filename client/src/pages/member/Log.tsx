@@ -41,6 +41,7 @@ interface QuickLogState {
   weight: number;
   reps: number;
   setNumber: number;
+  note: string;
 }
 
 function getDayName(t: AssignedTemplate, dayNum: number): string {
@@ -165,7 +166,23 @@ function PRCelebration({ exerciseName, weight, prevMax, onClose }: { exerciseNam
 function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
-    if (left <= 0) { onDone(); return; }
+    if (left <= 0) {
+      // Vibrate + beep when timer ends
+      haptic(200);
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.3;
+        osc.start(); osc.stop(ctx.currentTime + 0.3);
+      } catch {}
+      onDone();
+      return;
+    }
+    // Short vibration at 3 seconds warning
+    if (left === 3) haptic(50);
     const t = setTimeout(() => setLeft(l => l - 1), 1000);
     return () => clearTimeout(t);
   }, [left, onDone]);
@@ -178,15 +195,24 @@ function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
         <div className="relative w-32 h-32 mx-auto mb-4">
           <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
             <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(0 0% 20%)" strokeWidth="6" />
-            <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(40 65% 52%)" strokeWidth="6"
+            <circle cx="50" cy="50" r="42" fill="none" stroke={left <= 3 ? "hsl(0 72% 55%)" : "hsl(40 65% 52%)"} strokeWidth="6"
               strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - pct / 100)}
               strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s linear" }} />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-3xl font-black text-foreground tabular-nums">{mins}:{secs.toString().padStart(2, '0')}</span>
+            <span className={`text-3xl font-black tabular-nums ${left <= 3 ? "text-red-400" : "text-foreground"}`}>{mins}:{secs.toString().padStart(2, '0')}</span>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mb-3">راحة بين المجموعات</p>
+        <p className="text-sm text-muted-foreground mb-1">راحة بين المجموعات</p>
+        <div className="flex items-center justify-center gap-2 mb-3">
+          {[30, 60, 90, 120].map(s => (
+            <button key={s} onClick={() => setLeft(s)}
+              className="px-2 py-1 rounded-lg text-xs font-medium"
+              style={left === s || (s === seconds && left === seconds) ? { background: "hsl(40 65% 48% / 0.2)", color: "hsl(40 65% 52%)" } : { background: "hsl(0 0% 15%)", color: "hsl(0 0% 50%)" }}>
+              {s}s
+            </button>
+          ))}
+        </div>
         <button onClick={onDone} className="px-6 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground">تخطي</button>
       </div>
     </div>
@@ -245,6 +271,16 @@ function QuickLogPanel({
               <button onClick={() => adjust("reps", 1)} className="w-10 h-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg transition-colors">+</button>
             </div>
           </div>
+        </div>
+
+        <div className="mb-4">
+          <input
+            value={state.note}
+            onChange={e => onChange({ ...state, note: e.target.value })}
+            placeholder="ملاحظة (اختياري)... مثلاً: حسيت بسهولة"
+            maxLength={500}
+            className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
         </div>
 
         <button onClick={onSubmit} disabled={isPending}
@@ -397,6 +433,7 @@ export default function MemberLog() {
       weight: lastW,
       reps: ex.reps,
       setNumber: Math.min(nextSet, ex.sets),
+      note: "",
     });
   }
 
@@ -406,7 +443,7 @@ export default function MemberLog() {
     const restSecs = currentEx?.restSeconds ?? 90;
     const isLastSet = quickLog.setNumber >= quickLog.totalSets;
     logExercise.mutate(
-      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate } },
+      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate, note: quickLog.note || undefined } as any },
       {
         onSuccess: (data: any) => {
           haptic(data?.isPR ? 50 : 15);
@@ -588,9 +625,10 @@ export default function MemberLog() {
                             {wLogs.length > 0 && (
                               <div className="mt-1.5 space-y-0.5">
                                 {wLogs.map((l: any, li: number) => (
-                                  <p key={li} className="text-xs text-muted-foreground tabular-nums">
-                                    {parseFloat(l.weight)}×{l.reps}
-                                  </p>
+                                  <div key={li} className="text-xs text-muted-foreground tabular-nums">
+                                    <span>{parseFloat(l.weight)}×{l.reps}</span>
+                                    {l.note && <span title={l.note} className="mr-0.5 cursor-help">📝</span>}
+                                  </div>
                                 ))}
                               </div>
                             )}

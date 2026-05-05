@@ -41,6 +41,70 @@ router.post("/water", authenticate, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ATTENDANCE STREAK
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/streak", authenticate, async (req, res) => {
+  try {
+    const checkins = await db
+      .select({ timestamp: checkinsTable.timestamp })
+      .from(checkinsTable)
+      .where(eq(checkinsTable.userId, req.user!.userId))
+      .orderBy(desc(checkinsTable.timestamp));
+
+    // Get unique dates
+    const dates = [...new Set(
+      checkins.map(c => new Date(c.timestamp).toISOString().split("T")[0])
+    )].sort((a, b) => b.localeCompare(a)); // newest first
+
+    if (dates.length === 0) {
+      res.json({ streak: 0, longestStreak: 0, totalDays: 0 });
+      return;
+    }
+
+    // Calculate current streak
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    let streak = 0;
+
+    // Streak starts only if user checked in today or yesterday
+    if (dates[0] === today || dates[0] === yesterday) {
+      streak = 1;
+      for (let i = 1; i < dates.length; i++) {
+        const prev = new Date(dates[i - 1]);
+        const curr = new Date(dates[i]);
+        const diffDays = Math.round((prev.getTime() - curr.getTime()) / 86400000);
+        if (diffDays === 1) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Calculate longest streak ever
+    let longestStreak = 1;
+    let currentRun = 1;
+    const sorted = [...dates].sort(); // oldest first
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1]);
+      const curr = new Date(sorted[i]);
+      const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+      if (diffDays === 1) {
+        currentRun++;
+        if (currentRun > longestStreak) longestStreak = currentRun;
+      } else {
+        currentRun = 1;
+      }
+    }
+
+    res.json({ streak, longestStreak, totalDays: dates.length });
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SESSION RATINGS
 // ═══════════════════════════════════════════════════════════════════════════════
 
