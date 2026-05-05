@@ -48,8 +48,8 @@ export default function AdminPayments() {
     });
   }
 
-  const payList = (payments as any)?.payments ?? (Array.isArray(payments) ? payments : []);
-  const userList = Array.isArray(users) ? users : (users as any)?.users ?? [];
+  const payList = Array.isArray(payments) ? payments : (payments as any)?.data ?? [];
+  const userList = Array.isArray(users) ? users : (users as any)?.data ?? [];
 
   return (
     <div className="p-6 space-y-4">

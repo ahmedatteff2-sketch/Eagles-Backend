@@ -195,6 +195,13 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
+    if (body.data.phone) {
+      const existingPhone = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.phone)).limit(1);
+      if (existingPhone.length > 0 && existingPhone[0].id !== userId) {
+        res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
+        return;
+      }
+    }
     if (body.data.membershipNumber) {
       const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
       if (existingCode.length > 0 && existingCode[0].id !== userId) {

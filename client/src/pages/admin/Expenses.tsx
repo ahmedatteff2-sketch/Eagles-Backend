@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { customFetch } from "@/api-client/custom-fetch";
 
 const CATEGORIES: Record<string, { label: string; color: string }> = {
   rent: { label: "إيجار", color: "#C9A84C" },
@@ -30,26 +31,6 @@ type ExpenseForm = {
   notes: string;
 };
 
-function useExpenses(from?: string, to?: string) {
-  const [data, setData] = useState<{ data: Expense[]; totalAmount: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refetch = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (from) params.set("from", from);
-      if (to) params.set("to", to);
-      const res = await fetch(`/api/expenses?${params}`);
-      const json = await res.json();
-      setData(json);
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  return { data, loading, refetch };
-}
-
 export default function AdminExpenses() {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -75,15 +56,14 @@ export default function AdminExpenses() {
       const params = new URLSearchParams();
       if (filterFrom) params.set("from", filterFrom);
       if (filterTo) params.set("to", filterTo);
-      const res = await fetch(`/api/expenses?${params}`);
-      const json = await res.json();
+      const json = await customFetch<{ data: Expense[]; totalAmount: number }>(`/api/expenses?${params}`);
       setExpenses(json.data ?? []);
       setTotalAmount(json.totalAmount ?? 0);
     } catch { /* ignore */ }
     setLoading(false);
   };
 
-  useState(() => { fetchExpenses(); });
+  useEffect(() => { fetchExpenses(); }, [filterFrom, filterTo]);
 
   const handleSave = async () => {
     if (!form.description || !form.amount || !form.date) {
@@ -94,20 +74,17 @@ export default function AdminExpenses() {
     try {
       const url = editingId ? `/api/expenses/${editingId}` : "/api/expenses";
       const method = editingId ? "PUT" : "POST";
-      const res = await fetch(url, {
+      await customFetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, amount: Number(form.amount) }),
       });
-      if (res.ok) {
-        toast({ title: editingId ? "تم تحديث المصروف" : "تم إضافة المصروف" });
-        setShowForm(false);
-        setEditingId(null);
-        setForm({ description: "", amount: "", date: new Date().toISOString().split("T")[0]!, category: "other", notes: "" });
-        fetchExpenses();
-      } else {
-        toast({ title: "فشل في الحفظ", variant: "destructive" });
-      }
+      toast({ title: editingId ? "تم تحديث المصروف" : "تم إضافة المصروف" });
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ description: "", amount: "", date: new Date().toISOString().split("T")[0]!, category: "other", notes: "" });
+      fetchExpenses();
+    } catch {
+      toast({ title: "فشل في الحفظ", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -115,9 +92,13 @@ export default function AdminExpenses() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("تأكيد حذف المصروف؟")) return;
-    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    toast({ title: "تم الحذف" });
-    fetchExpenses();
+    try {
+      await customFetch(`/api/expenses/${id}`, { method: "DELETE" });
+      toast({ title: "تم الحذف" });
+      fetchExpenses();
+    } catch {
+      toast({ title: "فشل في الحذف", variant: "destructive" });
+    }
   };
 
   const handleEdit = (e: Expense) => {

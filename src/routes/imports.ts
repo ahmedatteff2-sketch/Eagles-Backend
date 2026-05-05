@@ -41,7 +41,7 @@ router.post("/imports/members", authenticate, requireAdmin, async (req, res) => 
       const phone = row["phone"] || row["رقم الهاتف"] || row["الهاتف"] || "";
       const password = row["password"] || row["كلمة المرور"] || randomBytes(8).toString("base64url");
       const rawRole = (row["role"] || row["الدور"] || "member").toLowerCase();
-      const role: "admin" | "trainer" | "member" = rawRole === "admin" ? "admin" : rawRole === "trainer" ? "trainer" : "member";
+      const role: "admin" | "member" = rawRole === "admin" ? "admin" : "member";
 
       if (!name.trim() || !phone.trim()) {
         results.errors.push(`صف مفقود البيانات: ${JSON.stringify(row)}`);

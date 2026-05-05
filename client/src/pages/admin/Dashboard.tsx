@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { customFetch } from "@/api-client/custom-fetch";
 
 const GOLD = "hsl(40 65% 52%)";
 const TIP = { background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 10, color: "hsl(0 0% 90%)" };
@@ -54,8 +55,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/analytics/monthly-revenue")
-      .then(r => r.json())
+    customFetch<any[]>("/api/analytics/monthly-revenue")
       .then(d => setMonthlyData(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);

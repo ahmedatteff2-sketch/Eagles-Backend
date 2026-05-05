@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@/api-client/custom-fetch";
 
 const DAYS: Record<string, string> = {
   saturday: "السبت", sunday: "الأحد", monday: "الاثنين",
@@ -31,8 +32,10 @@ export default function AdminSchedule() {
 
   const fetchSchedule = async () => {
     setLoading(true);
-    try { const res = await fetch("/api/schedule"); const json = await res.json(); setSchedule(Array.isArray(json) ? json : []); }
-    catch { /* ignore */ }
+    try {
+      const json = await customFetch<ScheduleEntry[]>("/api/schedule");
+      setSchedule(Array.isArray(json) ? json : []);
+    } catch { /* ignore */ }
     setLoading(false);
   };
 
@@ -49,16 +52,26 @@ export default function AdminSchedule() {
       if (form.capacity) body.capacity = Number(form.capacity);
       if (form.location) body.location = form.location;
       const url = editingId ? `/api/schedule/${editingId}` : "/api/schedule";
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (res.ok) { toast({ title: editingId ? "تم التحديث" : "تمت الإضافة" }); setShowForm(false); setEditingId(null); fetchSchedule(); }
-      else toast({ title: "فشل في الحفظ", variant: "destructive" });
+      try {
+        await customFetch(url, { method: editingId ? "PUT" : "POST", body: JSON.stringify(body) });
+        toast({ title: editingId ? "تم التحديث" : "تمت الإضافة" });
+        setShowForm(false);
+        setEditingId(null);
+        fetchSchedule();
+      } catch {
+        toast({ title: "فشل في الحفظ", variant: "destructive" });
+      }
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("تأكيد حذف الحصة؟")) return;
-    await fetch(`/api/schedule/${id}`, { method: "DELETE" });
-    fetchSchedule();
+    try {
+      await customFetch(`/api/schedule/${id}`, { method: "DELETE" });
+      fetchSchedule();
+    } catch {
+      toast({ title: "فشل في الحذف", variant: "destructive" });
+    }
   };
 
   const handleEdit = (e: ScheduleEntry) => {

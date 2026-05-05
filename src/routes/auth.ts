@@ -185,6 +185,11 @@ router.post("/auth/update-phone", authenticate, async (req, res) => {
     res.status(400).json({ error: "Bad request", message: "كلمة المرور غير صحيحة" });
     return;
   }
+  const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.newPhone)).limit(1);
+  if (existing.length > 0 && existing[0].id !== req.user!.userId) {
+    res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
+    return;
+  }
   await db.update(usersTable).set({ phone: body.data.newPhone }).where(eq(usersTable.id, req.user!.userId));
   res.json({ success: true, message: "تم تحديث رقم الهاتف بنجاح" });
 });
