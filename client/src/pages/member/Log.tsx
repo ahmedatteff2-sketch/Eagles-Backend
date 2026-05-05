@@ -226,13 +226,12 @@ export default function MemberLog() {
   const userId = user?.id ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const today = new Date().toISOString().split("T")[0];
 
   const [templates, setTemplates] = useState<AssignedTemplate[]>([]);
   const [activeTemplateIdx, setActiveTemplateIdx] = useState(0);
   const [activeDay, setActiveDay] = useState(1);
   const [quickLog, setQuickLog] = useState<QuickLogState | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [loaded, setLoaded] = useState(false);
   const [restTimer, setRestTimer] = useState<number | null>(null);
 
@@ -251,20 +250,83 @@ export default function MemberLog() {
     { userId },
     { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } }
   );
-  const logList = Array.isArray(logs) ? logs : [];
-  const todayLogs = logList.filter((l: any) => l.date === today);
+  const logList: any[] = Array.isArray(logs) ? logs : [];
   const logExercise = useLogExercise();
   const deleteLog = useDeleteExerciseLog();
 
-  function openQuickLog(ex: TemplateExercise, nextSet: number, lastWeight: number) {
+  // ── Month & week helpers ────────────────────────────────────────────────
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+  const monthName = monthStart.toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
+
+  // 4 weeks of the current month
+  function getWeekRanges() {
+    const weeks: { label: string; start: Date; end: Date; num: number }[] = [];
+    const d = new Date(monthStart);
+    let wn = 1;
+    while (d <= monthEnd && wn <= 5) {
+      const wStart = new Date(d);
+      const wEnd = new Date(d);
+      wEnd.setDate(wEnd.getDate() + 6);
+      if (wEnd > monthEnd) wEnd.setTime(monthEnd.getTime());
+      weeks.push({ label: `أسبوع ${wn}`, start: wStart, end: wEnd, num: wn });
+      d.setDate(d.getDate() + 7);
+      wn++;
+    }
+    return weeks;
+  }
+  const weeks = getWeekRanges();
+
+  // Current week number
+  const todayDate = new Date();
+  const currentWeekIdx = weeks.findIndex(w => todayDate >= w.start && todayDate <= w.end);
+
+  // Logs for current month
+  const monthLogs = logList.filter((l: any) => {
+    const ld = new Date(l.date);
+    return ld >= monthStart && ld <= monthEnd;
+  });
+
+  // Get logs for a specific exercise in a specific week
+  function getWeekLogs(exerciseId: number, week: typeof weeks[0]) {
+    const ws = week.start.toISOString().split("T")[0];
+    const we = week.end.toISOString().split("T")[0];
+    return monthLogs.filter((l: any) => l.exerciseId === exerciseId && l.date >= ws && l.date <= we);
+  }
+
+  // Best weight for an exercise in a week
+  function getWeekBestWeight(exerciseId: number, week: typeof weeks[0]): number | null {
+    const wl = getWeekLogs(exerciseId, week);
+    if (wl.length === 0) return null;
+    return Math.max(...wl.map((l: any) => parseFloat(l.weight) || 0));
+  }
+
+  function getWeekSetsCount(exerciseId: number, week: typeof weeks[0]): number {
+    return getWeekLogs(exerciseId, week).length;
+  }
+
+  function openQuickLog(ex: TemplateExercise, weekIdx: number) {
+    const week = weeks[weekIdx];
+    const wLogs = getWeekLogs(ex.exerciseId, week);
+    const nextSet = wLogs.length + 1;
+    const lastW = wLogs.length > 0 ? parseFloat(wLogs[wLogs.length - 1].weight) || 0 : 0;
+    // Pick a date within this week for logging
+    const today = new Date().toISOString().split("T")[0];
+    const ws = week.start.toISOString().split("T")[0];
+    const we = week.end.toISOString().split("T")[0];
+    const dateForLog = today >= ws && today <= we ? today : ws;
+    setLogDate(dateForLog);
     setQuickLog({
       exerciseId: ex.exerciseId,
       exerciseName: ex.exerciseName,
       totalSets: ex.sets,
       targetReps: ex.reps,
-      weight: lastWeight || 0,
+      weight: lastW,
       reps: ex.reps,
-      setNumber: nextSet,
+      setNumber: Math.min(nextSet, ex.sets),
     });
   }
 
@@ -274,7 +336,7 @@ export default function MemberLog() {
     const restSecs = currentEx?.restSeconds ?? 90;
     const isLastSet = quickLog.setNumber >= quickLog.totalSets;
     logExercise.mutate(
-      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: today } },
+      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate } },
       {
         onSuccess: () => {
           toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
@@ -295,12 +357,6 @@ export default function MemberLog() {
     });
   }
 
-  const todayDoneCount = new Set(todayLogs.map((l: any) => l.exerciseId)).size;
-  const sessionComplete = exList.length > 0 && exList.every((ex) => {
-    const done = todayLogs.filter((l: any) => l.exerciseId === ex.exerciseId).length;
-    return done >= ex.sets;
-  });
-
   if (loaded && templates.length === 0) {
     return (
       <div className="p-6">
@@ -319,151 +375,197 @@ export default function MemberLog() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">جلسة التدريب</h1>
-          <p className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString("ar-EG", { weekday: "long", month: "long", day: "numeric" })}
-          </p>
-        </div>
-        <button onClick={() => setShowHistory(!showHistory)}
-          className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${showHistory ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-          {showHistory ? "الجلسة" : "السجل"}
-        </button>
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-foreground">سجل التمرين الشهري</h1>
+        <p className="text-muted-foreground text-sm">{monthName} · سجّل أوزانك كل أسبوع</p>
       </div>
 
-      {!showHistory ? (
-        <>
-          {sessionComplete ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
-              <p className="text-green-400 font-bold text-base">أحسنت! أتممت كل التمارين</p>
-              <p className="text-green-400/70 text-sm mt-0.5">تم إكمال {exList.length} تمرين</p>
-            </div>
-          ) : todayLogs.length > 0 ? (
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center justify-between">
-              <p className="text-sm text-foreground"><span className="font-bold text-primary">{todayDoneCount}</span> تمارين تمت اليوم</p>
-              <span className="text-xs text-muted-foreground">{exList.length - todayDoneCount} متبقية</span>
-            </div>
-          ) : null}
+      {/* Template selector */}
+      {templates.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {templates.map((t, i) => (
+            <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveDay(1); }}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                i === activeTemplateIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}>{t.name}</button>
+          ))}
+        </div>
+      )}
 
-          {/* Template selector */}
-          {templates.length > 0 && (
-            <div className="bg-card border border-card-border rounded-xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">القالب الحالي</p>
-              <p className="font-bold text-foreground mb-3">{activeTemplate?.name}</p>
-              {templates.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
-                  {templates.map((t, i) => (
-                    <button key={t.id} onClick={() => { setActiveTemplateIdx(i); setActiveDay(1); }}
-                      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        i === activeTemplateIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}>{t.name}</button>
-                  ))}
-                </div>
-              )}
-              {(activeTemplate?.daysCount ?? 1) > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {Array.from({ length: activeTemplate!.daysCount }).map((_, i) => {
-                    const day = i + 1;
-                    const count = allExercises.filter((ex) => ex.dayNumber === day).length;
-                    return (
-                      <button key={day} onClick={() => setActiveDay(day)}
-                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          activeDay === day ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                        }`}>
-                        {activeTemplate ? getDayName(activeTemplate, day) : `يوم ${day}`} <span className="opacity-70">({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+      {/* Day tabs */}
+      {activeTemplate && (activeTemplate.daysCount > 1 ? (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {Array.from({ length: activeTemplate.daysCount }).map((_, i) => {
+            const day = i + 1;
+            return (
+              <button key={day} onClick={() => setActiveDay(day)}
+                className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeDay === day ? "text-primary-foreground shadow-lg" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+                style={activeDay === day ? { background: "hsl(40 65% 48%)", color: "#000" } : {}}>
+                {getDayName(activeTemplate, day)}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="bg-card border border-card-border rounded-xl px-4 py-2.5">
+          <p className="text-sm font-bold text-foreground">{activeTemplate.name}</p>
+        </div>
+      ))}
 
-          {exList.length === 0 ? (
-            <div className="bg-card border border-card-border rounded-xl p-8 text-center">
-              <p className="text-muted-foreground text-sm">لا توجد تمارين في هذا اليوم</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground px-1">اضغط على التمرين لتسجيل المجموعة</p>
-              {exList.map((ex) => {
-                const loggedSets = todayLogs.filter((l: any) => l.exerciseId === ex.exerciseId);
-                return <ExerciseCard key={ex.id} ex={ex} loggedSets={loggedSets} onLog={openQuickLog} />;
-              })}
-            </div>
-          )}
-        </>
+      {/* Template notes */}
+      {activeTemplate?.notes && (
+        <div className="rounded-lg px-3 py-2" style={{ background: "hsl(40 65% 48% / 0.08)", border: "1px solid hsl(40 65% 48% / 0.15)" }}>
+          <p className="text-xs" style={{ color: "hsl(40 65% 60%)" }}>💡 {activeTemplate.notes}</p>
+        </div>
+      )}
+
+      {/* ═══ Monthly Table: Exercises × Weeks ═══ */}
+      {exList.length === 0 ? (
+        <div className="bg-card border border-card-border rounded-xl p-8 text-center">
+          <p className="text-muted-foreground text-sm">لا توجد تمارين في هذا اليوم</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {/* Weight progression per exercise */}
-          {logList.length > 0 && (() => {
-            const byEx: Record<string, any[]> = {};
-            logList.forEach((l: any) => {
-              const name = l.exercise?.name ?? "—";
-              if (!byEx[name]) byEx[name] = [];
-              byEx[name].push(l);
-            });
+          {exList.map((ex) => {
+            const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
             return (
-              <div className="bg-card border border-card-border rounded-xl p-4">
-                <h2 className="text-sm font-semibold text-foreground mb-3">تطور الأوزان</h2>
-                <div className="space-y-2">
-                  {Object.entries(byEx).slice(0, 10).map(([name, logs]) => {
-                    const maxW = Math.max(...logs.map((l: any) => parseFloat(l.weight)));
-                    const lastW = parseFloat(logs[0].weight);
-                    const firstW = parseFloat(logs[logs.length - 1].weight);
-                    const diff = lastW - firstW;
+              <div key={ex.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
+                {/* Exercise header */}
+                <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid hsl(0 0% 13%)" }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{ background: `${color}20`, color }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                      <path d="M6.5 6.5h11M6.5 17.5h11M3 12h18" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">{ex.exerciseName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-muted-foreground">{ex.sets}×{ex.reps}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${color}15`, color }}>{ex.targetMuscle}</span>
+                      {ex.restSeconds ? <span className="text-xs text-muted-foreground">⏱ {ex.restSeconds}ث</span> : null}
+                    </div>
+                  </div>
+                  {ex.videoUrl && (
+                    <a href={ex.videoUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs flex-shrink-0"
+                      style={{ background: `${color}15`, color }}>
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                    </a>
+                  )}
+                </div>
+                {ex.notes && (
+                  <div className="px-4 py-1.5" style={{ background: "hsl(0 0% 7%)", borderBottom: "1px solid hsl(0 0% 13%)" }}>
+                    <p className="text-xs text-muted-foreground italic">💡 {ex.notes}</p>
+                  </div>
+                )}
+                {/* Weeks grid */}
+                <div className="grid" style={{ gridTemplateColumns: `repeat(${weeks.length}, 1fr)` }}>
+                  {weeks.map((week, wi) => {
+                    const bestW = getWeekBestWeight(ex.exerciseId, week);
+                    const setsCount = getWeekSetsCount(ex.exerciseId, week);
+                    const isDone = setsCount >= ex.sets;
+                    const isCurrent = wi === currentWeekIdx;
+                    const wLogs = getWeekLogs(ex.exerciseId, week);
+
                     return (
-                      <div key={name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{name}</p>
-                          <p className="text-xs text-muted-foreground">{logs.length} سجل · أقصى: {maxW} كجم</p>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-primary">{lastW} كجم</p>
-                          {diff !== 0 && (
-                            <p className={`text-xs font-medium ${diff > 0 ? "text-green-400" : "text-red-400"}`}>
-                              {diff > 0 ? "↑" : "↓"} {Math.abs(diff).toFixed(1)} كجم
+                      <div key={wi}
+                        className={`text-center py-3 px-1 cursor-pointer transition-all hover:bg-white/5 ${wi > 0 ? "border-r" : ""}`}
+                        style={{
+                          borderColor: "hsl(0 0% 13%)",
+                          background: isCurrent ? "hsl(40 65% 48% / 0.04)" : "transparent",
+                        }}
+                        onClick={() => !isDone && openQuickLog(ex, wi)}>
+                        {/* Week label */}
+                        <p className={`text-xs font-bold mb-1.5 ${isCurrent ? "text-primary" : "text-muted-foreground"}`}>
+                          {week.label}
+                        </p>
+                        {/* Weight display */}
+                        {bestW !== null ? (
+                          <>
+                            <p className={`text-lg font-black tabular-nums ${isDone ? "text-green-400" : "text-foreground"}`}>
+                              {bestW}
                             </p>
-                          )}
-                        </div>
+                            <p className="text-xs text-muted-foreground">كجم</p>
+                            <div className="flex justify-center gap-0.5 mt-1.5">
+                              {Array.from({ length: ex.sets }).map((_, si) => (
+                                <div key={si} className={`w-2 h-2 rounded-full ${si < setsCount ? "bg-green-400" : "bg-muted"}`} />
+                              ))}
+                            </div>
+                            {/* Show per-set details */}
+                            {wLogs.length > 0 && (
+                              <div className="mt-1.5 space-y-0.5">
+                                {wLogs.map((l: any, li: number) => (
+                                  <p key={li} className="text-xs text-muted-foreground tabular-nums">
+                                    {parseFloat(l.weight)}×{l.reps}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="py-2">
+                            <div className="w-8 h-8 mx-auto rounded-full flex items-center justify-center"
+                              style={{ border: isCurrent ? "2px dashed hsl(40 65% 48% / 0.5)" : "2px dashed hsl(0 0% 20%)" }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke={isCurrent ? "hsl(40 65% 48%)" : "hsl(0 0% 25%)"} strokeWidth={2} className="w-3.5 h-3.5">
+                                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">سجّل</p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
             );
-          })()}
-
-          {/* Raw log entries */}
-          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-border"><h2 className="text-sm font-semibold text-foreground">آخر التسجيلات</h2></div>
-            {logList.length === 0 ? (
-              <div className="p-8 text-center"><p className="text-muted-foreground text-sm">لا يوجد سجل بعد</p></div>
-            ) : (
-              <div className="divide-y divide-border">
-                {logList.slice(0, 30).map((l: any) => (
-                  <div key={l.id} className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{l.exercise?.name ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">سيت {l.setNumber} · {l.reps} تكرار · {parseFloat(l.weight)} كجم</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</p>
-                      <button onClick={() => handleDelete(l.id)} className="text-destructive/60 hover:text-destructive transition-colors">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6M14 11v6M9 6V4h6v2" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          })}
         </div>
       )}
+
+      {/* ═══ Weight Progression Summary ═══ */}
+      {exList.length > 0 && (() => {
+        const progressData = exList.map(ex => {
+          const weekWeights = weeks.map(w => getWeekBestWeight(ex.exerciseId, w));
+          const filled = weekWeights.filter(w => w !== null) as number[];
+          const progression = filled.length >= 2 ? filled[filled.length - 1] - filled[0] : 0;
+          return { name: ex.exerciseName, weekWeights, progression };
+        }).filter(d => d.weekWeights.some(w => w !== null));
+
+        if (progressData.length === 0) return null;
+        return (
+          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid hsl(0 0% 13%)" }}>
+              <p className="text-sm font-bold text-foreground">📈 تطور الأوزان هذا الشهر</p>
+            </div>
+            <div className="divide-y" style={{ borderColor: "hsl(0 0% 13%)" }}>
+              {progressData.map(d => (
+                <div key={d.name} className="px-4 py-3 flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground truncate">{d.name}</p>
+                    <div className="flex gap-2 mt-1">
+                      {d.weekWeights.map((w, i) => (
+                        <span key={i} className={`text-xs tabular-nums ${w !== null ? "text-foreground font-bold" : "text-muted-foreground"}`}>
+                          {w !== null ? `${w}` : "—"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {d.progression !== 0 && (
+                    <span className={`text-xs font-bold flex-shrink-0 ${d.progression > 0 ? "text-green-400" : "text-red-400"}`}>
+                      {d.progression > 0 ? "↑" : "↓"}{Math.abs(d.progression).toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {quickLog && (
         <QuickLogPanel state={quickLog} onChange={setQuickLog} onSubmit={handleLog} onClose={() => setQuickLog(null)} isPending={logExercise.isPending} />
