@@ -34,7 +34,6 @@ export const workoutTemplateExercisesTable = pgTable("workout_template_exercises
   sortOrder: integer("sort_order").notNull().default(0),
   notes: text("notes"),
   restSeconds: integer("rest_seconds").default(90),
-  supersetGroup: text("superset_group"),
 });
 
 // ── Assign a template to a member ───────────────────────────────────────────

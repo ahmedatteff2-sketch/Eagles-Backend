@@ -122,13 +122,10 @@ export default function AdminAttendance() {
         const uid = extractUserId(code.data);
         if (uid) {
           const result = await doCheckin(uid);
-          if (result.ok) {
-            toast({ title: "✅ تم تسجيل الحضور بنجاح" });
-          } else if (result.conflict) {
-            toast({ title: "⚠️ تم تسجيل الحضور مسبقاً اليوم", variant: "destructive" });
-          } else {
-            toast({ title: "❌ خطأ في تسجيل الحضور", variant: "destructive" });
-          }
+          toast({
+            title: result.ok ? "✅ تم تسجيل الحضور" : result.conflict ? "⚠️ تم تسجيل الحضور مسبقاً اليوم" : "❌ فشل تسجيل الحضور",
+            variant: result.ok ? undefined : "destructive",
+          });
           setTimeout(() => setLastScanned(null), 3000);
         }
       }
@@ -172,13 +169,10 @@ export default function AdminAttendance() {
       const uid = extractUserId(code.data);
       if (!uid) { toast({ title: "QR غير صالح", variant: "destructive" }); return; }
       const result = await doCheckin(uid);
-      if (result.ok) {
-        toast({ title: "✅ تم تسجيل الزيارة بنجاح" });
-      } else if (result.conflict) {
-        toast({ title: "⚠️ تم تسجيل الحضور مسبقاً اليوم", variant: "destructive" });
-      } else {
-        toast({ title: "❌ خطأ في تسجيل الحضور", variant: "destructive" });
-      }
+      toast({
+        title: result.ok ? "✅ تم تسجيل الزياره بنجاح" : result.conflict ? "⚠️ تم تسجيل الحضور مسبقاً اليوم" : "❌ فشل تسجيل الحضور",
+        variant: result.ok ? undefined : "destructive",
+      });
     };
     img.src = URL.createObjectURL(file);
   }

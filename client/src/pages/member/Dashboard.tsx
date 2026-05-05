@@ -51,7 +51,6 @@ export default function MemberDashboard() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [water, setWater] = useState(0);
   const [notifCount, setNotifCount] = useState(0);
-  const [streak, setStreak] = useState(0);
   const WATER_GOAL = 8;
   useEffect(() => {
     customFetch<any[]>("/api/my-workouts")
@@ -61,8 +60,6 @@ export default function MemberDashboard() {
       .then(d => setWater(d?.glasses ?? 0)).catch(() => {});
     customFetch<any[]>("/api/notifications")
       .then(d => { const arr = Array.isArray(d) ? d : []; setNotifCount(arr.filter((n: any) => !n.read).length); }).catch(() => {});
-    customFetch<any>("/api/streak")
-      .then(d => setStreak(d?.streak ?? 0)).catch(() => {});
   }, []);
 
   function addWater(delta: number) {
@@ -132,7 +129,7 @@ export default function MemberDashboard() {
       </div>
 
       {/* ── Stats row ── */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
           <p className="text-lg font-black" style={{ color: GOLD }}>{todayExercises}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">تمارين</p>
@@ -140,10 +137,6 @@ export default function MemberDashboard() {
         <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
           <p className="text-lg font-black" style={{ color: "hsl(142 60% 55%)" }}>{thisWeek}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">حضور</p>
-        </div>
-        <div className="rounded-xl p-2.5 text-center" style={{ background: streak > 0 ? "hsl(30 90% 50% / 0.08)" : "hsl(0 0% 9%)", border: streak > 0 ? "1px solid hsl(30 90% 50% / 0.2)" : "1px solid hsl(0 0% 14%)" }}>
-          <p className="text-lg font-black" style={{ color: "hsl(30 90% 58%)" }}>{streak}🔥</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">streak</p>
         </div>
         <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
           <p className="text-lg font-black" style={{ color: "hsl(220 70% 65%)" }}>{logList.length}</p>

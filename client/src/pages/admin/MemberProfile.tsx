@@ -282,38 +282,6 @@ export default function AdminMemberProfile() {
       });
     }
 
-    // Body stats table
-    if (statsList.length > 0) {
-      const prev3 = (doc as any).lastAutoTable?.finalY ?? 80;
-      autoTable(doc, {
-        startY: prev3 + 8,
-        head: [["Date", "Weight (kg)", "Body Fat (%)", "Chest", "Waist", "Arm", "Thigh"]],
-        body: [...statsList].reverse().slice(0, 15).map((s: any) => [
-          s.date ? new Date(s.date).toLocaleDateString("en-GB") : "—",
-          s.weight ?? "—", s.bodyFat ?? "—",
-          s.chest ?? "—", s.waist ?? "—", s.arm ?? "—", s.thigh ?? "—",
-        ]),
-        styles: { fontSize: 8 }, headStyles: { fillColor: [30,30,30], textColor: [201,164,60] },
-        bodyStyles: { fillColor: [14,14,14], textColor: [200,200,200] }, theme: "plain",
-      });
-    }
-
-    // Exercise logs table
-    if (recentLogs.length > 0) {
-      const prev4 = (doc as any).lastAutoTable?.finalY ?? 80;
-      autoTable(doc, {
-        startY: prev4 + 8,
-        head: [["Date", "Exercise", "Set", "Weight (kg)", "Reps", "Note"]],
-        body: recentLogs.map((l: any) => [
-          l.date ? new Date(l.date).toLocaleDateString("en-GB") : "—",
-          l.exercise?.name ?? "—", l.setNumber ?? "—",
-          l.weight ?? "—", l.reps ?? "—", l.note ?? "",
-        ]),
-        styles: { fontSize: 8 }, headStyles: { fillColor: [30,30,30], textColor: [201,164,60] },
-        bodyStyles: { fillColor: [14,14,14], textColor: [200,200,200] }, theme: "plain",
-      });
-    }
-
     const notesText = localStorage.getItem(`member-notes-${userId}`) ?? "";
     if (notesText) {
       const prev2 = (doc as any).lastAutoTable?.finalY ?? 140;

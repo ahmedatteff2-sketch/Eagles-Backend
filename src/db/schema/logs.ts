@@ -12,7 +12,6 @@ export const exerciseLogsTable = pgTable("exercise_logs", {
   reps: integer("reps").notNull(),
   weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
   date: date("date").notNull(),
-  note: text("note"),
 });
 
 export const bodyStatsTable = pgTable("body_stats", {
@@ -21,14 +20,6 @@ export const bodyStatsTable = pgTable("body_stats", {
   date: date("date").notNull(),
   weight: numeric("weight", { precision: 6, scale: 2 }),
   bodyFat: numeric("body_fat", { precision: 5, scale: 2 }),
-  chest: numeric("chest", { precision: 5, scale: 1 }),
-  waist: numeric("waist", { precision: 5, scale: 1 }),
-  hips: numeric("hips", { precision: 5, scale: 1 }),
-  arm: numeric("arm", { precision: 5, scale: 1 }),
-  thigh: numeric("thigh", { precision: 5, scale: 1 }),
-  calf: numeric("calf", { precision: 5, scale: 1 }),
-  shoulders: numeric("shoulders", { precision: 5, scale: 1 }),
-  neck: numeric("neck", { precision: 5, scale: 1 }),
   dietNote: text("diet_note"),
   performanceNote: text("performance_note"),
 });

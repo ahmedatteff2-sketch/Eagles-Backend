@@ -34,7 +34,6 @@ const templateExerciseSchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
   notes: z.string().nullable().optional(),
   restSeconds: z.number().int().min(0).max(600).optional(),
-  supersetGroup: z.string().max(50).nullable().optional(),
 });
 
 const assignSchema = z.object({
@@ -161,7 +160,6 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
     sortOrder: body.data.sortOrder ?? ((maxOrder[0]?.sortOrder ?? -1) + 1),
     notes: body.data.notes ?? null,
     restSeconds: body.data.restSeconds ?? 90,
-    supersetGroup: body.data.supersetGroup ?? null,
   }).returning();
 
   res.status(201).json(row);

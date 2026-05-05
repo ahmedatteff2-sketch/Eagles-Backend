@@ -147,24 +147,13 @@ export default function AdminDashboard() {
             {today.toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={async () => {
-            try {
-              const r = await customFetch<any>("/api/notifications/expiring", { method: "POST", body: JSON.stringify({ days: 3 }) });
-              alert(`تم إرسال ${r.notified} إشعار من أصل ${r.total} عضو`);
-            } catch { alert("حدث خطأ"); }
-          }} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold"
-            style={{ background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 58%)", border: "1px solid hsl(30 90% 55% / 0.2)" }}>
-            🔔 تنبيه المنتهين
-          </button>
-          <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
-            style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            تصدير PDF
-          </button>
-        </div>
+        <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+          style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          تصدير PDF
+        </button>
       </div>
 
       {/* KPI cards */}

@@ -4,9 +4,8 @@ import {
   waterLogsTable, sessionRatingsTable, chatMessagesTable,
   notificationsTable, mealPlansTable, mealPlanItemsTable, usersTable,
   exerciseLogsTable, checkinsTable, bodyStatsTable,
-  memberSubscriptionsTable,
 } from "@workspace/db/schema";
-import { eq, and, or, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { z } from "zod";
 
@@ -39,70 +38,6 @@ router.post("/water", authenticate, async (req, res) => {
       res.status(201).json(created);
     }
   } catch { res.status(500).json({ error: "Internal server error" }); }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ATTENDANCE STREAK
-// ═══════════════════════════════════════════════════════════════════════════════
-
-router.get("/streak", authenticate, async (req, res) => {
-  try {
-    const checkins = await db
-      .select({ timestamp: checkinsTable.timestamp })
-      .from(checkinsTable)
-      .where(eq(checkinsTable.userId, req.user!.userId))
-      .orderBy(desc(checkinsTable.timestamp));
-
-    // Get unique dates
-    const dates = [...new Set(
-      checkins.map(c => new Date(c.timestamp).toISOString().split("T")[0])
-    )].sort((a, b) => b.localeCompare(a)); // newest first
-
-    if (dates.length === 0) {
-      res.json({ streak: 0, longestStreak: 0, totalDays: 0 });
-      return;
-    }
-
-    // Calculate current streak
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-    let streak = 0;
-
-    // Streak starts only if user checked in today or yesterday
-    if (dates[0] === today || dates[0] === yesterday) {
-      streak = 1;
-      for (let i = 1; i < dates.length; i++) {
-        const prev = new Date(dates[i - 1]);
-        const curr = new Date(dates[i]);
-        const diffDays = Math.round((prev.getTime() - curr.getTime()) / 86400000);
-        if (diffDays === 1) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-    }
-
-    // Calculate longest streak ever
-    let longestStreak = 1;
-    let currentRun = 1;
-    const sorted = [...dates].sort(); // oldest first
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = new Date(sorted[i - 1]);
-      const curr = new Date(sorted[i]);
-      const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
-      if (diffDays === 1) {
-        currentRun++;
-        if (currentRun > longestStreak) longestStreak = currentRun;
-      } else {
-        currentRun = 1;
-      }
-    }
-
-    res.json({ streak, longestStreak, totalDays: dates.length });
-  } catch {
-    res.status(500).json({ error: "Internal server error" });
-  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -236,47 +171,6 @@ router.post("/notifications/send", authenticate, requireAdmin, async (req, res) 
       userId: body.data.userId, title: body.data.title, body: body.data.body ?? null, type: body.data.type ?? "general",
     }).returning();
     res.status(201).json(n);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
-});
-
-// Admin: auto-create notifications for members whose subscription expires in ≤ N days
-router.post("/notifications/expiring", authenticate, requireAdmin, async (req, res) => {
-  const days = Number(req.body.days) || 3;
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const cutoff = new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
-
-    const expiring = await db
-      .select({ userId: memberSubscriptionsTable.userId, endDate: memberSubscriptionsTable.endDate, name: usersTable.name })
-      .from(memberSubscriptionsTable)
-      .innerJoin(usersTable, eq(memberSubscriptionsTable.userId, usersTable.id))
-      .where(and(
-        eq(memberSubscriptionsTable.status, "active"),
-        gte(memberSubscriptionsTable.endDate, today),
-        lte(memberSubscriptionsTable.endDate, cutoff),
-      ));
-
-    let created = 0;
-    for (const m of expiring) {
-      const daysLeft = Math.ceil((new Date(m.endDate).getTime() - Date.now()) / 86400000);
-      // Check if already notified today
-      const [existing] = await db.select({ id: notificationsTable.id }).from(notificationsTable)
-        .where(and(
-          eq(notificationsTable.userId, m.userId),
-          eq(notificationsTable.type, "subscription_expiry"),
-          gte(notificationsTable.createdAt, new Date(today)),
-        )).limit(1);
-      if (existing) continue;
-
-      await db.insert(notificationsTable).values({
-        userId: m.userId,
-        title: daysLeft <= 0 ? "⚠️ اشتراكك انتهى اليوم!" : `⚠️ اشتراكك ينتهي خلال ${daysLeft} ${daysLeft === 1 ? "يوم" : "أيام"}`,
-        body: "جدد اشتراكك للاستمرار في التمرين",
-        type: "subscription_expiry",
-      });
-      created++;
-    }
-    res.json({ success: true, notified: created, total: expiring.length });
   } catch { res.status(500).json({ error: "Internal server error" }); }
 });
 

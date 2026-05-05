@@ -21,7 +21,6 @@ interface TemplateExercise {
   videoUrl: string | null;
   notes: string | null;
   restSeconds: number | null;
-  supersetGroup: string | null;
 }
 
 interface AssignedTemplate {
@@ -42,7 +41,6 @@ interface QuickLogState {
   weight: number;
   reps: number;
   setNumber: number;
-  note: string;
 }
 
 function getDayName(t: AssignedTemplate, dayNum: number): string {
@@ -167,23 +165,7 @@ function PRCelebration({ exerciseName, weight, prevMax, onClose }: { exerciseNam
 function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
-    if (left <= 0) {
-      // Vibrate + beep when timer ends
-      haptic(200);
-      try {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        osc.start(); osc.stop(ctx.currentTime + 0.3);
-      } catch {}
-      onDone();
-      return;
-    }
-    // Short vibration at 3 seconds warning
-    if (left === 3) haptic(50);
+    if (left <= 0) { onDone(); return; }
     const t = setTimeout(() => setLeft(l => l - 1), 1000);
     return () => clearTimeout(t);
   }, [left, onDone]);
@@ -196,24 +178,15 @@ function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
         <div className="relative w-32 h-32 mx-auto mb-4">
           <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
             <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(0 0% 20%)" strokeWidth="6" />
-            <circle cx="50" cy="50" r="42" fill="none" stroke={left <= 3 ? "hsl(0 72% 55%)" : "hsl(40 65% 52%)"} strokeWidth="6"
+            <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(40 65% 52%)" strokeWidth="6"
               strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - pct / 100)}
               strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s linear" }} />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-3xl font-black tabular-nums ${left <= 3 ? "text-red-400" : "text-foreground"}`}>{mins}:{secs.toString().padStart(2, '0')}</span>
+            <span className="text-3xl font-black text-foreground tabular-nums">{mins}:{secs.toString().padStart(2, '0')}</span>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mb-1">راحة بين المجموعات</p>
-        <div className="flex items-center justify-center gap-2 mb-3">
-          {[30, 60, 90, 120].map(s => (
-            <button key={s} onClick={() => setLeft(s)}
-              className="px-2 py-1 rounded-lg text-xs font-medium"
-              style={left === s || (s === seconds && left === seconds) ? { background: "hsl(40 65% 48% / 0.2)", color: "hsl(40 65% 52%)" } : { background: "hsl(0 0% 15%)", color: "hsl(0 0% 50%)" }}>
-              {s}s
-            </button>
-          ))}
-        </div>
+        <p className="text-sm text-muted-foreground mb-3">راحة بين المجموعات</p>
         <button onClick={onDone} className="px-6 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground">تخطي</button>
       </div>
     </div>
@@ -272,16 +245,6 @@ function QuickLogPanel({
               <button onClick={() => adjust("reps", 1)} className="w-10 h-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg transition-colors">+</button>
             </div>
           </div>
-        </div>
-
-        <div className="mb-4">
-          <input
-            value={state.note}
-            onChange={e => onChange({ ...state, note: e.target.value })}
-            placeholder="ملاحظة (اختياري)... مثلاً: حسيت بسهولة"
-            maxLength={500}
-            className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-          />
         </div>
 
         <button onClick={onSubmit} disabled={isPending}
@@ -358,41 +321,6 @@ export default function MemberLog() {
     { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } }
   );
   const logList: any[] = Array.isArray(logs) ? logs : [];
-
-  // Auto-detect next workout day based on last logged exercises
-  useEffect(() => {
-    if (!activeTemplate || logList.length === 0) return;
-    const daysCount = activeTemplate.daysCount || 1;
-    if (daysCount <= 1) return;
-
-    // Get unique exercise IDs per day in the template
-    const dayExIds: Record<number, Set<number>> = {};
-    for (let d = 1; d <= daysCount; d++) {
-      dayExIds[d] = new Set(allExercises.filter(e => e.dayNumber === d).map(e => e.exerciseId));
-    }
-
-    // Find the most recent log date
-    const today = new Date().toISOString().split("T")[0];
-    const todayLogs = logList.filter((l: any) => l.date === today);
-    if (todayLogs.length === 0) {
-      // No logs today — find last day logged and suggest next
-      const sortedDates = [...new Set(logList.map((l: any) => l.date))].sort().reverse();
-      if (sortedDates.length > 0) {
-        const lastDate = sortedDates[0];
-        const lastDateLogs = logList.filter((l: any) => l.date === lastDate);
-        const lastExIds = new Set(lastDateLogs.map((l: any) => l.exerciseId));
-        // Find which day number was last logged
-        let lastDay = 1;
-        let maxMatch = 0;
-        for (let d = 1; d <= daysCount; d++) {
-          const match = [...dayExIds[d]].filter(id => lastExIds.has(id)).length;
-          if (match > maxMatch) { maxMatch = match; lastDay = d; }
-        }
-        const nextDay = lastDay >= daysCount ? 1 : lastDay + 1;
-        setActiveDay(nextDay);
-      }
-    }
-  }, [activeTemplate, logList.length]);
   const logExercise = useLogExercise();
   const deleteLog = useDeleteExerciseLog();
 
@@ -469,7 +397,6 @@ export default function MemberLog() {
       weight: lastW,
       reps: ex.reps,
       setNumber: Math.min(nextSet, ex.sets),
-      note: "",
     });
   }
 
@@ -479,7 +406,7 @@ export default function MemberLog() {
     const restSecs = currentEx?.restSeconds ?? 90;
     const isLastSet = quickLog.setNumber >= quickLog.totalSets;
     logExercise.mutate(
-      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate, note: quickLog.note || undefined } as any },
+      { data: { exerciseId: quickLog.exerciseId, setNumber: quickLog.setNumber, reps: quickLog.reps, weight: quickLog.weight, date: logDate } },
       {
         onSuccess: (data: any) => {
           haptic(data?.isPR ? 50 : 15);
@@ -591,25 +518,10 @@ export default function MemberLog() {
         </div>
       ) : (
         <div className="space-y-3">
-          {exList.map((ex, idx) => {
+          {exList.map((ex) => {
             const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
-            const ssGroup = ex.supersetGroup;
-            const prevSs = idx > 0 ? exList[idx - 1].supersetGroup : null;
-            const nextSs = idx < exList.length - 1 ? exList[idx + 1].supersetGroup : null;
-            const isSuperset = !!ssGroup;
-            const isFirstInGroup = isSuperset && ssGroup !== prevSs;
-            const isLastInGroup = isSuperset && ssGroup !== nextSs;
             return (
-              <div key={ex.id}>
-                {isFirstInGroup && (
-                  <div className="flex items-center gap-2 mb-1 px-1">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "hsl(280 60% 50% / 0.15)", color: "hsl(280 60% 65%)", border: "1px solid hsl(280 60% 50% / 0.2)" }}>
-                      ⚡ Superset — {ssGroup}
-                    </span>
-                  </div>
-                )}
-              <div className="bg-card border border-card-border rounded-xl overflow-hidden"
-                style={isSuperset ? { borderRight: "3px solid hsl(280 60% 55%)", marginBottom: isLastInGroup ? undefined : "-4px", borderRadius: isFirstInGroup && !isLastInGroup ? "12px 12px 4px 4px" : !isFirstInGroup && isLastInGroup ? "4px 4px 12px 12px" : !isFirstInGroup && !isLastInGroup ? "4px" : undefined } : {}}>
+              <div key={ex.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
                 {/* Exercise header */}
                 <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid hsl(0 0% 13%)" }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -676,10 +588,9 @@ export default function MemberLog() {
                             {wLogs.length > 0 && (
                               <div className="mt-1.5 space-y-0.5">
                                 {wLogs.map((l: any, li: number) => (
-                                  <div key={li} className="text-xs text-muted-foreground tabular-nums">
-                                    <span>{parseFloat(l.weight)}×{l.reps}</span>
-                                    {l.note && <span title={l.note} className="mr-0.5 cursor-help">📝</span>}
-                                  </div>
+                                  <p key={li} className="text-xs text-muted-foreground tabular-nums">
+                                    {parseFloat(l.weight)}×{l.reps}
+                                  </p>
                                 ))}
                               </div>
                             )}
@@ -699,7 +610,6 @@ export default function MemberLog() {
                     );
                   })}
                 </div>
-              </div>
               </div>
             );
           })}
