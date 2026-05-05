@@ -10,6 +10,7 @@ import AdminMembers from "@/pages/admin/Members";
 import AdminMemberProfile from "@/pages/admin/MemberProfile";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
 import AdminTraining from "@/pages/admin/Training";
+import AdminTrainingProgram from "@/pages/admin/TrainingProgram";
 import AdminPayments from "@/pages/admin/Payments";
 import AdminExpenses from "@/pages/admin/Expenses";
 import AdminAttendance from "@/pages/admin/Attendance";
@@ -99,6 +100,9 @@ export default function App() {
         </Route>
         <Route path="/admin/training">
           <AdminRoute><AdminTraining /></AdminRoute>
+        </Route>
+        <Route path="/admin/training/:programId">
+          {() => <AdminRoute><AdminTrainingProgram /></AdminRoute>}
         </Route>
         <Route path="/admin/payments">
           <AdminRoute><AdminPayments /></AdminRoute>
