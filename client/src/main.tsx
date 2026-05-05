@@ -4,9 +4,28 @@ import App from "./App";
 import "./index.css";
 import { setAuthTokenGetter, setBaseUrl } from "./api-client";
 
-document.documentElement.classList.add("dark");
+const savedTheme = localStorage.getItem("theme") ?? "dark";
+document.documentElement.classList.add(savedTheme);
 document.documentElement.setAttribute("dir", "rtl");
 document.documentElement.setAttribute("lang", "ar");
+
+// Register service worker for PWA
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+// PWA install prompt
+let deferredPrompt: any = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  window.dispatchEvent(new CustomEvent("pwa-installable"));
+});
+(window as any).__pwaInstall = () => {
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+};
 
 // ─── API Base URL (set VITE_API_URL env var when frontend & backend are on different domains)
 const apiUrl = import.meta.env.VITE_API_URL as string | undefined;

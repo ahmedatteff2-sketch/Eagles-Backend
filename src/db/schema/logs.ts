@@ -45,6 +45,67 @@ export const insertProgressPhotoSchema = createInsertSchema(progressPhotosTable)
 export type InsertProgressPhoto = z.infer<typeof insertProgressPhotoSchema>;
 export type ProgressPhoto = typeof progressPhotosTable.$inferSelect;
 
+// ── Water tracking ────────────────────────────────────────────────────────────
+export const waterLogsTable = pgTable("water_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  glasses: integer("glasses").notNull().default(0),
+  date: date("date").notNull(),
+});
+
+// ── Session ratings ───────────────────────────────────────────────────────────
+export const sessionRatingsTable = pgTable("session_ratings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  note: text("note"),
+  date: date("date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ── Chat messages ─────────────────────────────────────────────────────────────
+export const chatMessagesTable = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  senderId: text("sender_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  receiverId: text("receiver_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  read: integer("read").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export const notificationsTable = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body"),
+  type: text("type").notNull().default("general"),
+  read: integer("read").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ── Meal plans ────────────────────────────────────────────────────────────────
+export const mealPlansTable = pgTable("meal_plans", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mealPlanItemsTable = pgTable("meal_plan_items", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => mealPlansTable.id, { onDelete: "cascade" }),
+  mealName: text("meal_name").notNull(),
+  time: text("time"),
+  calories: integer("calories"),
+  protein: integer("protein"),
+  carbs: integer("carbs"),
+  fats: integer("fats"),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogsTable).omit({ id: true });
 export const insertBodyStatSchema = createInsertSchema(bodyStatsTable).omit({ id: true });
 export const insertCheckinSchema = createInsertSchema(checkinsTable).omit({ id: true });

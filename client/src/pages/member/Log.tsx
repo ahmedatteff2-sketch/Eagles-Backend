@@ -49,6 +49,8 @@ function getDayName(t: AssignedTemplate, dayNum: number): string {
   return `يوم ${dayNum}`;
 }
 
+const GOLD = "hsl(40 65% 52%)";
+
 const MUSCLE_COLORS: Record<string, string> = {
   "صدر": "#e74c3c", "ظهر": "#3498db", "أكتاف": "#2ecc71",
   "بايسبس": "#f39c12", "ترايسبس": "#e67e22", "أرجل": "#9b59b6",
@@ -268,6 +270,40 @@ export default function MemberLog() {
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [prCelebration, setPrCelebration] = useState<{ exerciseName: string; weight: number; prevMax: number } | null>(null);
 
+  // Session timer
+  const [sessionStart, setSessionStart] = useState<number | null>(null);
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+  const [showRating, setShowRating] = useState(false);
+  const [sessionRating, setSessionRating] = useState(3);
+
+  useEffect(() => {
+    if (!sessionStart) return;
+    const t = setInterval(() => setSessionElapsed(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [sessionStart]);
+
+  function formatTimer(s: number) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+  }
+
+  function endSession() {
+    setShowRating(true);
+  }
+
+  function submitRating() {
+    customFetch("/api/session-rating", {
+      method: "POST",
+      body: JSON.stringify({ rating: sessionRating, date: logDate }),
+    }).catch(() => {});
+    toast({ title: "تم تقييم الجلسة" });
+    setShowRating(false);
+    setSessionStart(null);
+    setSessionElapsed(0);
+  }
+
   useEffect(() => {
     customFetch<AssignedTemplate[]>("/api/my-workouts")
       .then((data) => setTemplates(Array.isArray(data) ? data : []))
@@ -413,6 +449,19 @@ export default function MemberLog() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
+      {/* Session Timer Bar */}
+      <div className="flex items-center gap-2 rounded-xl p-3" style={{ background: sessionStart ? "hsl(40 65% 48% / 0.08)" : "hsl(0 0% 9%)", border: `1px solid ${sessionStart ? "hsl(40 65% 48% / 0.2)" : "hsl(0 0% 14%)"}` }}>
+        <div className="flex-1">
+          <p className="text-xs text-muted-foreground">{sessionStart ? "الجلسة جارية" : "ابدأ جلسة التمرين"}</p>
+          {sessionStart && <p className="text-lg font-black tabular-nums" style={{ color: GOLD }}>{formatTimer(sessionElapsed)}</p>}
+        </div>
+        {!sessionStart ? (
+          <button onClick={() => setSessionStart(Date.now())} className="px-4 py-2 rounded-xl text-xs font-bold transition-colors" style={{ background: GOLD, color: "#000" }}>▶ بدء</button>
+        ) : (
+          <button onClick={endSession} className="px-4 py-2 rounded-xl text-xs font-bold bg-red-500/15 text-red-400 hover:bg-red-500/20 transition-colors">■ إنهاء</button>
+        )}
+      </div>
+
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-foreground">سجل التمرين الشهري</h1>
@@ -613,6 +662,35 @@ export default function MemberLog() {
       )}
       {restTimer !== null && (
         <RestTimer seconds={restTimer} onDone={() => setRestTimer(null)} />
+      )}
+
+      {/* Session Rating Modal */}
+      {showRating && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowRating(false)}>
+          <div className="bg-card rounded-2xl p-6 w-[85vw] max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground text-center mb-1">كيف كانت الجلسة؟</h2>
+            <p className="text-xs text-muted-foreground text-center mb-4">
+              مدة الجلسة: <span className="font-bold" style={{ color: GOLD }}>{formatTimer(sessionElapsed)}</span>
+            </p>
+            <div className="flex justify-center gap-3 mb-4">
+              {[1, 2, 3, 4, 5].map(r => (
+                <button key={r} onClick={() => setSessionRating(r)}
+                  className={`w-11 h-11 rounded-xl text-lg font-bold transition-all ${
+                    r <= sessionRating ? "" : "bg-muted text-muted-foreground"
+                  }`}
+                  style={r <= sessionRating ? { background: GOLD, color: "#000" } : {}}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-center gap-2 text-xs text-muted-foreground mb-4">
+              <span>سهلة</span><span>·</span><span>متوسطة</span><span>·</span><span>صعبة</span>
+            </div>
+            <button onClick={submitRating} className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold transition-colors">
+              حفظ التقييم
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

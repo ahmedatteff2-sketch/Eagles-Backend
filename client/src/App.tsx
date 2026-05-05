@@ -30,6 +30,11 @@ import MemberQRCode from "@/pages/member/QRCode";
 import MemberSettings from "@/pages/member/Settings";
 import MemberReport from "@/pages/member/Report";
 import MemberProgressPhotos from "@/pages/member/ProgressPhotos";
+import MemberLeaderboard from "@/pages/member/Leaderboard";
+import MemberChat from "@/pages/member/Chat";
+import MemberNotifications from "@/pages/member/Notifications";
+import MemberMealPlan from "@/pages/member/MealPlan";
+import MemberBadges from "@/pages/member/Badges";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
@@ -188,6 +193,21 @@ export default function App() {
         </Route>
         <Route path="/member/photos">
           <MemberRoute><MemberProgressPhotos /></MemberRoute>
+        </Route>
+        <Route path="/member/leaderboard">
+          <MemberRoute><MemberLeaderboard /></MemberRoute>
+        </Route>
+        <Route path="/member/chat">
+          <MemberRoute><MemberChat /></MemberRoute>
+        </Route>
+        <Route path="/member/notifications">
+          <MemberRoute><MemberNotifications /></MemberRoute>
+        </Route>
+        <Route path="/member/meals">
+          <MemberRoute><MemberMealPlan /></MemberRoute>
+        </Route>
+        <Route path="/member/badges">
+          <MemberRoute><MemberBadges /></MemberRoute>
         </Route>
         <Route path="/member/stats">
           <MemberRoute><MemberStats /></MemberRoute>

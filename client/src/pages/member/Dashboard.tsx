@@ -49,11 +49,24 @@ export default function MemberDashboard() {
   );
 
   const [templates, setTemplates] = useState<any[]>([]);
+  const [water, setWater] = useState(0);
+  const [notifCount, setNotifCount] = useState(0);
+  const WATER_GOAL = 8;
   useEffect(() => {
     customFetch<any[]>("/api/my-workouts")
       .then(d => setTemplates(Array.isArray(d) ? d : []))
       .catch(() => {});
+    customFetch<any>(`/api/water?date=${today}`)
+      .then(d => setWater(d?.glasses ?? 0)).catch(() => {});
+    customFetch<any[]>("/api/notifications")
+      .then(d => { const arr = Array.isArray(d) ? d : []; setNotifCount(arr.filter((n: any) => !n.read).length); }).catch(() => {});
   }, []);
+
+  function addWater(delta: number) {
+    const g = Math.max(0, water + delta);
+    setWater(g);
+    customFetch("/api/water", { method: "POST", body: JSON.stringify({ glasses: g, date: today }) }).catch(() => {});
+  }
 
   const subData = sub as any;
   const isActive = subData?.status === "active";
@@ -116,18 +129,22 @@ export default function MemberDashboard() {
       </div>
 
       {/* ── Stats row ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl p-3 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
-          <p className="text-xl font-black" style={{ color: GOLD }}>{todayExercises}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">تمارين اليوم</p>
+      <div className="grid grid-cols-4 gap-2">
+        <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+          <p className="text-lg font-black" style={{ color: GOLD }}>{todayExercises}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">تمارين</p>
         </div>
-        <div className="rounded-xl p-3 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
-          <p className="text-xl font-black" style={{ color: "hsl(142 60% 55%)" }}>{thisWeek}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">حضور الأسبوع</p>
+        <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+          <p className="text-lg font-black" style={{ color: "hsl(142 60% 55%)" }}>{thisWeek}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">حضور</p>
         </div>
-        <div className="rounded-xl p-3 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
-          <p className="text-xl font-black" style={{ color: "hsl(220 70% 65%)" }}>{logList.length}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">إجمالي السجلات</p>
+        <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+          <p className="text-lg font-black" style={{ color: "hsl(220 70% 65%)" }}>{logList.length}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">سجلات</p>
+        </div>
+        <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(200 80% 50% / 0.15)" }}>
+          <p className="text-lg font-black" style={{ color: "hsl(200 80% 60%)" }}>{water}/{WATER_GOAL}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">💧 ماء</p>
         </div>
       </div>
 
@@ -222,6 +239,28 @@ export default function MemberDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Water widget ── */}
+      <div className="rounded-xl p-4" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(200 80% 50% / 0.15)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-bold text-foreground">💧 تتبع شرب الماء</h2>
+          <span className="text-xs" style={{ color: water >= WATER_GOAL ? "hsl(142 60% 55%)" : "hsl(200 80% 60%)" }}>{water >= WATER_GOAL ? "✓ أتممت الهدف!" : `${WATER_GOAL - water} أكواب متبقية`}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "hsl(0 0% 14%)" }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (water / WATER_GOAL) * 100)}%`, background: water >= WATER_GOAL ? "hsl(142 60% 50%)" : "hsl(200 80% 55%)" }} />
+          </div>
+          <div className="flex gap-1">
+            <button onClick={() => addWater(-1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors bg-muted text-muted-foreground hover:bg-muted/80">−</button>
+            <button onClick={() => addWater(1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors" style={{ background: "hsl(200 80% 50% / 0.2)", color: "hsl(200 80% 60%)" }}>+</button>
+          </div>
+        </div>
+        <div className="flex gap-0.5 mt-2">
+          {Array.from({ length: WATER_GOAL }).map((_, i) => (
+            <div key={i} className="flex-1 h-1.5 rounded-full transition-all" style={{ background: i < water ? "hsl(200 80% 55%)" : "hsl(0 0% 14%)" }} />
+          ))}
+        </div>
+      </div>
 
       {/* ── Quick links ── */}
       <div className="grid grid-cols-2 gap-3">

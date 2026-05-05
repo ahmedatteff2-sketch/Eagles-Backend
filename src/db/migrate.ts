@@ -399,6 +399,53 @@ export async function runMigrations(): Promise<void> {
       `);
     }
 
+    // ── water_logs table ─────────────────────────────────────────────────
+    const { rows: hasWaterLogs } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'water_logs'`
+    );
+    if (hasWaterLogs.length === 0) {
+      logger.info("Creating water_logs table");
+      await client.query(`CREATE TABLE water_logs (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, glasses INTEGER NOT NULL DEFAULT 0, date DATE NOT NULL)`);
+    }
+
+    // ── session_ratings table ─────────────────────────────────────────────
+    const { rows: hasSessionRatings } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'session_ratings'`
+    );
+    if (hasSessionRatings.length === 0) {
+      logger.info("Creating session_ratings table");
+      await client.query(`CREATE TABLE session_ratings (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, rating INTEGER NOT NULL, note TEXT, date DATE NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+    }
+
+    // ── chat_messages table ───────────────────────────────────────────────
+    const { rows: hasChatMessages } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'chat_messages'`
+    );
+    if (hasChatMessages.length === 0) {
+      logger.info("Creating chat_messages table");
+      await client.query(`CREATE TABLE chat_messages (id SERIAL PRIMARY KEY, sender_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, receiver_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, message TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+    }
+
+    // ── notifications table ───────────────────────────────────────────────
+    const { rows: hasNotifications } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications'`
+    );
+    if (hasNotifications.length === 0) {
+      logger.info("Creating notifications table");
+      await client.query(`CREATE TABLE notifications (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT, type TEXT NOT NULL DEFAULT 'general', read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+    }
+
+    // ── meal_plans + meal_plan_items tables ────────────────────────────────
+    const { rows: hasMealPlans } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'meal_plans'`
+    );
+    if (hasMealPlans.length === 0) {
+      logger.info("Creating meal_plans table");
+      await client.query(`CREATE TABLE meal_plans (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, name TEXT NOT NULL, notes TEXT, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      logger.info("Creating meal_plan_items table");
+      await client.query(`CREATE TABLE meal_plan_items (id SERIAL PRIMARY KEY, plan_id INTEGER NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE, meal_name TEXT NOT NULL, time TEXT, calories INTEGER, protein INTEGER, carbs INTEGER, fats INTEGER, description TEXT, sort_order INTEGER NOT NULL DEFAULT 0)`);
+    }
+
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`

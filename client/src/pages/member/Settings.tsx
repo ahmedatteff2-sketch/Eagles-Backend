@@ -2,6 +2,7 @@ import { useChangePassword } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/store/auth";
 
@@ -18,6 +19,23 @@ type FormData = z.infer<typeof schema>;
 export default function MemberSettings() {
   const { toast } = useToast();
   const { user } = useAuthStore();
+
+  const [canInstall, setCanInstall] = useState(false);
+  useEffect(() => {
+    const handler = () => setCanInstall(true);
+    window.addEventListener("pwa-installable", handler);
+    return () => window.removeEventListener("pwa-installable", handler);
+  }, []);
+
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("theme") as "dark" | "light") ?? "dark";
+    return "dark";
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
   const changePassword = useChangePassword();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
@@ -56,6 +74,22 @@ export default function MemberSettings() {
         </div>
       </div>
 
+      {/* Theme toggle */}
+      <div className="bg-card border border-card-border rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-foreground mb-3">المظهر</h2>
+        <div className="flex gap-3">
+          {(["dark", "light"] as const).map(t => (
+            <button key={t} onClick={() => setTheme(t)}
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+                theme === t ? "shadow-lg" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+              style={theme === t ? { background: "hsl(40 65% 52%)", color: "#000" } : {}}>
+              {t === "dark" ? "🌙 داكن" : "☀️ فاتح"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Change password */}
       <div className="bg-card border border-card-border rounded-xl p-5">
         <h2 className="text-sm font-semibold text-foreground mb-4">تغيير كلمة المرور</h2>
@@ -80,6 +114,18 @@ export default function MemberSettings() {
           </button>
         </form>
       </div>
+      {/* PWA Install */}
+      {canInstall && (
+        <div className="bg-card border border-card-border rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3">تثبيت التطبيق</h2>
+          <p className="text-xs text-muted-foreground mb-3">ثبّت التطبيق على جهازك للوصول السريع</p>
+          <button onClick={() => (window as any).__pwaInstall?.()}
+            className="w-full py-2.5 rounded-lg text-sm font-bold transition-colors"
+            style={{ background: "hsl(40 65% 52%)", color: "#000" }}>
+            📲 تثبيت التطبيق
+          </button>
+        </div>
+      )}
     </div>
   );
 }
