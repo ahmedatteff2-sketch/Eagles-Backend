@@ -21,10 +21,29 @@ const MUSCLE_COLORS: Record<string, string> = {
 
 interface PR { exerciseId: number; exerciseName: string; targetMuscle: string; maxWeight: number; maxReps: number; date: string; totalSets: number; }
 
+const MEASUREMENT_FIELDS = [
+  { key: "chest", label: "الصدر", icon: "💪" },
+  { key: "waist", label: "الوسط", icon: "📏" },
+  { key: "hips", label: "الأرداف", icon: "📐" },
+  { key: "arm", label: "الذراع", icon: "💪" },
+  { key: "thigh", label: "الفخذ", icon: "🦵" },
+  { key: "calf", label: "السمانة", icon: "🦵" },
+  { key: "shoulders", label: "الأكتاف", icon: "🔝" },
+  { key: "neck", label: "الرقبة", icon: "👤" },
+] as const;
+
 const statSchema = z.object({
   date: z.string().min(1),
   weight: z.coerce.number().optional(),
   bodyFat: z.coerce.number().optional(),
+  chest: z.coerce.number().optional(),
+  waist: z.coerce.number().optional(),
+  hips: z.coerce.number().optional(),
+  arm: z.coerce.number().optional(),
+  thigh: z.coerce.number().optional(),
+  calf: z.coerce.number().optional(),
+  shoulders: z.coerce.number().optional(),
+  neck: z.coerce.number().optional(),
   dietNote: z.string().optional(),
   performanceNote: z.string().optional(),
 });
@@ -207,6 +226,18 @@ export default function MemberStats() {
                   <input {...register("bodyFat")} type="number" step={0.1} placeholder="18.5" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
               </div>
+              <div className="border-t border-border pt-3 mt-1">
+                <p className="text-xs text-muted-foreground mb-2">📏 قياسات الجسم (سم) — اختياري</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MEASUREMENT_FIELDS.map(f => (
+                    <div key={f.key}>
+                      <label className="block text-xs text-muted-foreground mb-0.5">{f.icon} {f.label}</label>
+                      <input {...register(f.key as any)} type="number" step={0.1} placeholder="—"
+                        className="w-full bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">ملاحظات التغذية</label>
                 <textarea {...register("dietNote")} rows={2} placeholder="سعرات حرارية، وجبات..." className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
@@ -235,10 +266,22 @@ export default function MemberStats() {
                         <p className="text-sm font-medium text-foreground">{new Date(s.date).toLocaleDateString("ar-EG", { weekday: "short", month: "short", day: "numeric" })}</p>
                         <button onClick={() => handleDelete(s.id)} className="text-xs text-destructive hover:underline">حذف</button>
                       </div>
-                      <div className="flex gap-4">
+                      <div className="flex flex-wrap gap-3">
                         {s.weight && <span className="text-sm font-bold" style={{ color: GOLD }}>{s.weight} كجم</span>}
                         {s.bodyFat && <span className="text-red-400 text-sm font-bold">{s.bodyFat}% دهون</span>}
                       </div>
+                      {(s.chest || s.waist || s.hips || s.arm || s.thigh || s.calf || s.shoulders || s.neck) && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {s.chest && <span className="text-xs text-muted-foreground">صدر: {s.chest}</span>}
+                          {s.waist && <span className="text-xs text-muted-foreground">وسط: {s.waist}</span>}
+                          {s.hips && <span className="text-xs text-muted-foreground">أرداف: {s.hips}</span>}
+                          {s.arm && <span className="text-xs text-muted-foreground">ذراع: {s.arm}</span>}
+                          {s.thigh && <span className="text-xs text-muted-foreground">فخذ: {s.thigh}</span>}
+                          {s.calf && <span className="text-xs text-muted-foreground">سمانة: {s.calf}</span>}
+                          {s.shoulders && <span className="text-xs text-muted-foreground">أكتاف: {s.shoulders}</span>}
+                          {s.neck && <span className="text-xs text-muted-foreground">رقبة: {s.neck}</span>}
+                        </div>
+                      )}
                       {s.dietNote && <p className="text-muted-foreground text-xs mt-1">التغذية: {s.dietNote}</p>}
                       {s.performanceNote && <p className="text-muted-foreground text-xs">الأداء: {s.performanceNote}</p>}
                     </div>

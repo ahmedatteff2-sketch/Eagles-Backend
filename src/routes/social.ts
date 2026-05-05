@@ -4,8 +4,9 @@ import {
   waterLogsTable, sessionRatingsTable, chatMessagesTable,
   notificationsTable, mealPlansTable, mealPlanItemsTable, usersTable,
   exerciseLogsTable, checkinsTable, bodyStatsTable,
+  memberSubscriptionsTable,
 } from "@workspace/db/schema";
-import { eq, and, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, gte, lte } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { z } from "zod";
 
@@ -235,6 +236,47 @@ router.post("/notifications/send", authenticate, requireAdmin, async (req, res) 
       userId: body.data.userId, title: body.data.title, body: body.data.body ?? null, type: body.data.type ?? "general",
     }).returning();
     res.status(201).json(n);
+  } catch { res.status(500).json({ error: "Internal server error" }); }
+});
+
+// Admin: auto-create notifications for members whose subscription expires in ≤ N days
+router.post("/notifications/expiring", authenticate, requireAdmin, async (req, res) => {
+  const days = Number(req.body.days) || 3;
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const cutoff = new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
+
+    const expiring = await db
+      .select({ userId: memberSubscriptionsTable.userId, endDate: memberSubscriptionsTable.endDate, name: usersTable.name })
+      .from(memberSubscriptionsTable)
+      .innerJoin(usersTable, eq(memberSubscriptionsTable.userId, usersTable.id))
+      .where(and(
+        eq(memberSubscriptionsTable.status, "active"),
+        gte(memberSubscriptionsTable.endDate, today),
+        lte(memberSubscriptionsTable.endDate, cutoff),
+      ));
+
+    let created = 0;
+    for (const m of expiring) {
+      const daysLeft = Math.ceil((new Date(m.endDate).getTime() - Date.now()) / 86400000);
+      // Check if already notified today
+      const [existing] = await db.select({ id: notificationsTable.id }).from(notificationsTable)
+        .where(and(
+          eq(notificationsTable.userId, m.userId),
+          eq(notificationsTable.type, "subscription_expiry"),
+          gte(notificationsTable.createdAt, new Date(today)),
+        )).limit(1);
+      if (existing) continue;
+
+      await db.insert(notificationsTable).values({
+        userId: m.userId,
+        title: daysLeft <= 0 ? "⚠️ اشتراكك انتهى اليوم!" : `⚠️ اشتراكك ينتهي خلال ${daysLeft} ${daysLeft === 1 ? "يوم" : "أيام"}`,
+        body: "جدد اشتراكك للاستمرار في التمرين",
+        type: "subscription_expiry",
+      });
+      created++;
+    }
+    res.json({ success: true, notified: created, total: expiring.length });
   } catch { res.status(500).json({ error: "Internal server error" }); }
 });
 

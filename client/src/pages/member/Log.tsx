@@ -21,6 +21,7 @@ interface TemplateExercise {
   videoUrl: string | null;
   notes: string | null;
   restSeconds: number | null;
+  supersetGroup: string | null;
 }
 
 interface AssignedTemplate {
@@ -357,6 +358,41 @@ export default function MemberLog() {
     { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } }
   );
   const logList: any[] = Array.isArray(logs) ? logs : [];
+
+  // Auto-detect next workout day based on last logged exercises
+  useEffect(() => {
+    if (!activeTemplate || logList.length === 0) return;
+    const daysCount = activeTemplate.daysCount || 1;
+    if (daysCount <= 1) return;
+
+    // Get unique exercise IDs per day in the template
+    const dayExIds: Record<number, Set<number>> = {};
+    for (let d = 1; d <= daysCount; d++) {
+      dayExIds[d] = new Set(allExercises.filter(e => e.dayNumber === d).map(e => e.exerciseId));
+    }
+
+    // Find the most recent log date
+    const today = new Date().toISOString().split("T")[0];
+    const todayLogs = logList.filter((l: any) => l.date === today);
+    if (todayLogs.length === 0) {
+      // No logs today — find last day logged and suggest next
+      const sortedDates = [...new Set(logList.map((l: any) => l.date))].sort().reverse();
+      if (sortedDates.length > 0) {
+        const lastDate = sortedDates[0];
+        const lastDateLogs = logList.filter((l: any) => l.date === lastDate);
+        const lastExIds = new Set(lastDateLogs.map((l: any) => l.exerciseId));
+        // Find which day number was last logged
+        let lastDay = 1;
+        let maxMatch = 0;
+        for (let d = 1; d <= daysCount; d++) {
+          const match = [...dayExIds[d]].filter(id => lastExIds.has(id)).length;
+          if (match > maxMatch) { maxMatch = match; lastDay = d; }
+        }
+        const nextDay = lastDay >= daysCount ? 1 : lastDay + 1;
+        setActiveDay(nextDay);
+      }
+    }
+  }, [activeTemplate, logList.length]);
   const logExercise = useLogExercise();
   const deleteLog = useDeleteExerciseLog();
 
@@ -555,10 +591,25 @@ export default function MemberLog() {
         </div>
       ) : (
         <div className="space-y-3">
-          {exList.map((ex) => {
+          {exList.map((ex, idx) => {
             const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
+            const ssGroup = ex.supersetGroup;
+            const prevSs = idx > 0 ? exList[idx - 1].supersetGroup : null;
+            const nextSs = idx < exList.length - 1 ? exList[idx + 1].supersetGroup : null;
+            const isSuperset = !!ssGroup;
+            const isFirstInGroup = isSuperset && ssGroup !== prevSs;
+            const isLastInGroup = isSuperset && ssGroup !== nextSs;
             return (
-              <div key={ex.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
+              <div key={ex.id}>
+                {isFirstInGroup && (
+                  <div className="flex items-center gap-2 mb-1 px-1">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "hsl(280 60% 50% / 0.15)", color: "hsl(280 60% 65%)", border: "1px solid hsl(280 60% 50% / 0.2)" }}>
+                      ⚡ Superset — {ssGroup}
+                    </span>
+                  </div>
+                )}
+              <div className="bg-card border border-card-border rounded-xl overflow-hidden"
+                style={isSuperset ? { borderRight: "3px solid hsl(280 60% 55%)", marginBottom: isLastInGroup ? undefined : "-4px", borderRadius: isFirstInGroup && !isLastInGroup ? "12px 12px 4px 4px" : !isFirstInGroup && isLastInGroup ? "4px 4px 12px 12px" : !isFirstInGroup && !isLastInGroup ? "4px" : undefined } : {}}>
                 {/* Exercise header */}
                 <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid hsl(0 0% 13%)" }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -648,6 +699,7 @@ export default function MemberLog() {
                     );
                   })}
                 </div>
+              </div>
               </div>
             );
           })}
