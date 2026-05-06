@@ -78,7 +78,7 @@ export default function AdminReminders() {
   const activeCount = reminders.filter(r => r.isActive).length;
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-3 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

@@ -146,7 +146,7 @@ export default function AdminSettings() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 space-y-6 max-w-2xl mx-auto" dir="rtl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">الإعدادات</h1>
