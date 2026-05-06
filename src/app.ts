@@ -93,6 +93,7 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
 app.use("/api/auth/change-password", authLimiter);
 app.use("/api/auth/update-phone", authLimiter);
+app.use("/api/users/:id/reset-password", authLimiter);
 app.use("/api", router);
 
 // Serve frontend in production

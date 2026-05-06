@@ -5,7 +5,7 @@ import {
 } from "@workspace/api-client-react";
 import { customFetch } from "@/api-client/custom-fetch";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { haptic } from "@/hooks/use-pull-refresh";
 
@@ -164,11 +164,17 @@ function PRCelebration({ exerciseName, weight, prevMax, onClose }: { exerciseNam
 
 function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [left, setLeft] = useState(seconds);
+  const onDoneRef = React.useRef(onDone);
+  onDoneRef.current = onDone;
   useEffect(() => {
-    if (left <= 0) { onDone(); return; }
-    const t = setTimeout(() => setLeft(l => l - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left, onDone]);
+    const end = Date.now() + seconds * 1000;
+    const tick = setInterval(() => {
+      const remaining = Math.ceil((end - Date.now()) / 1000);
+      if (remaining <= 0) { clearInterval(tick); onDoneRef.current(); return; }
+      setLeft(remaining);
+    }, 200);
+    return () => clearInterval(tick);
+  }, [seconds]);
   const pct = ((seconds - left) / seconds) * 100;
   const mins = Math.floor(left / 60);
   const secs = left % 60;
@@ -402,7 +408,7 @@ export default function MemberLog() {
 
   function handleLog() {
     if (!quickLog) return;
-    const currentEx = exList.find(e => e.exerciseId === quickLog.exerciseId);
+    const currentEx = allExercises.find(e => e.exerciseId === quickLog.exerciseId);
     const restSecs = currentEx?.restSeconds ?? 90;
     const isLastSet = quickLog.setNumber >= quickLog.totalSets;
     logExercise.mutate(
@@ -418,7 +424,7 @@ export default function MemberLog() {
             toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
           }
           setQuickLog(null);
-          if (!isLastSet && restSecs > 0 && !data?.isPR) {
+          if (restSecs > 0 && !data?.isPR) {
             setRestTimer(restSecs);
           }
         },

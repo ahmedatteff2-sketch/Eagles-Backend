@@ -10,7 +10,7 @@ const router = Router();
 
 const exerciseLogSchema = z.object({
   exerciseId: z.number().int().min(1).max(2_147_483_647),
-  setNumber: z.number().int().min(1).max(10),
+  setNumber: z.number().int().min(1).max(50),
   reps: z.number().int().min(1).max(10000),
   weight: z.number().min(0).max(10000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
