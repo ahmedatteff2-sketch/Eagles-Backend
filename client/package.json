@@ -10,6 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "jsqr": "^1.4.0",
