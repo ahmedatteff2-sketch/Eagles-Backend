@@ -69,6 +69,9 @@ export default function AdminWorkoutTemplates() {
   const [addForm, setAddForm] = useState({ exerciseId: 0, sets: 3, reps: 10, notes: "", restSeconds: 90 });
   const [exSearch, setExSearch] = useState("");
 
+  // Edit exercise in template
+  const [editingExercise, setEditingExercise] = useState<{ id: number; sets: number; reps: number; restSeconds: number; notes: string; name: string } | null>(null);
+
   // Assign to member
   const [showAssign, setShowAssign] = useState<number | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
@@ -150,6 +153,21 @@ export default function AdminWorkoutTemplates() {
       fetchAll();
     } catch {
       toast({ title: "فشل", variant: "destructive" });
+    }
+  }
+
+  async function updateExerciseInTemplate() {
+    if (!editingExercise) return;
+    try {
+      await customFetch(`/api/workout-template-exercises/${editingExercise.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ sets: editingExercise.sets, reps: editingExercise.reps, restSeconds: editingExercise.restSeconds, notes: editingExercise.notes || null }),
+      });
+      toast({ title: "تم تحديث التمرين" });
+      setEditingExercise(null);
+      fetchAll();
+    } catch {
+      toast({ title: "فشل في التحديث", variant: "destructive" });
     }
   }
 
@@ -368,6 +386,10 @@ export default function AdminWorkoutTemplates() {
                                 <a href={te.videoUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex-shrink-0">فيديو</a>
                               )}
                               <button
+                                onClick={() => setEditingExercise({ id: te.id, sets: te.sets, reps: te.reps, restSeconds: te.restSeconds ?? 90, notes: te.notes ?? "", name: te.exerciseName })}
+                                className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                              >تعديل</button>
+                              <button
                                 onClick={() => removeExerciseFromTemplate(te.id)}
                                 className="text-xs text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                               >حذف</button>
@@ -545,6 +567,50 @@ export default function AdminWorkoutTemplates() {
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
                 >تعيين</button>
                 <button onClick={() => setShowAssign(null)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold">إلغاء</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit exercise modal */}
+      {editingExercise && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-lg font-bold text-foreground mb-1">تعديل تمرين</h2>
+            <p className="text-sm text-muted-foreground mb-4">{editingExercise.name}</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">المجموعات</label>
+                  <input type="number" min={1} max={20} value={editingExercise.sets}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, sets: Number(e.target.value) })}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">التكرارات</label>
+                  <input type="number" min={1} max={100} value={editingExercise.reps}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, reps: Number(e.target.value) })}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">راحة (ثانية)</label>
+                  <input type="number" min={0} max={600} value={editingExercise.restSeconds}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, restSeconds: Number(e.target.value) })}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">ملاحظات</label>
+                <input value={editingExercise.notes}
+                  onChange={(e) => setEditingExercise({ ...editingExercise, notes: e.target.value })}
+                  placeholder="مثلاً: slow tempo, pause at bottom..."
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={updateExerciseInTemplate}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold">حفظ</button>
+                <button onClick={() => setEditingExercise(null)}
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold">إلغاء</button>
               </div>
             </div>
           </div>
