@@ -35,7 +35,9 @@ app.use(
 
 app.use(
   cors({
-    origin: true,
+    origin: process.env.NODE_ENV === "production"
+      ? (process.env.CORS_ORIGIN || true)
+      : true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

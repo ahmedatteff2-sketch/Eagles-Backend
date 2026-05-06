@@ -124,7 +124,7 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
         return;
       }
     }
-    const hashed = await bcrypt.hash(body.data.password, 10);
+    const hashed = await bcrypt.hash(body.data.password, 12);
     const [user] = await db.insert(usersTable).values({
       id: crypto.randomUUID(),
       name: body.data.name,
@@ -244,7 +244,7 @@ router.post("/users/:userId/reset-password", authenticate, requireAdmin, async (
     return;
   }
   try {
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await db.update(usersTable).set({ passwordHash: hashed }).where(eq(usersTable.id, userId));
     res.json({ success: true, message: "تم إعادة تعيين كلمة المرور" });
   } catch {

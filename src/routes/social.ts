@@ -24,9 +24,16 @@ router.get("/water", authenticate, async (req, res) => {
   } catch { res.status(500).json({ error: "Internal server error" }); }
 });
 
+const waterSchema = z.object({
+  glasses: z.number().int().min(0).max(50),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 router.post("/water", authenticate, async (req, res) => {
-  const { glasses, date } = req.body;
-  const d = date || new Date().toISOString().split("T")[0];
+  const parsed = waterSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Validation error", message: "بيانات غير صالحة" }); return; }
+  const { glasses } = parsed.data;
+  const d = parsed.data.date || new Date().toISOString().split("T")[0];
   try {
     const [existing] = await db.select().from(waterLogsTable)
       .where(and(eq(waterLogsTable.userId, req.user!.userId), eq(waterLogsTable.date, d)));
@@ -70,7 +77,7 @@ router.get("/session-ratings", authenticate, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/chat/:otherId", authenticate, async (req, res) => {
-  const otherId = req.params.otherId;
+  const otherId = String(req.params.otherId);
   const myId = req.user!.userId;
   try {
     const messages = await db.select({
@@ -95,9 +102,11 @@ router.get("/chat/:otherId", authenticate, async (req, res) => {
 });
 
 router.post("/chat/:otherId", authenticate, async (req, res) => {
-  const otherId = req.params.otherId;
+  const otherId = String(req.params.otherId);
   const { message } = req.body;
-  if (!message?.trim()) { res.status(400).json({ error: "Message required" }); return; }
+  if (!message?.trim() || typeof message !== "string" || message.trim().length > 2000) {
+    res.status(400).json({ error: "Message required (max 2000 chars)" }); return;
+  }
   try {
     const [msg] = await db.insert(chatMessagesTable).values({
       senderId: req.user!.userId, receiverId: otherId, message: message.trim(),
