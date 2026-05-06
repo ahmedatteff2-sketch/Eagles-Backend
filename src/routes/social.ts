@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import {
   waterLogsTable, sessionRatingsTable, chatMessagesTable,
   notificationsTable, mealPlansTable, mealPlanItemsTable, usersTable,
-  exerciseLogsTable, checkinsTable, bodyStatsTable,
+  exerciseLogsTable, checkinsTable, bodyStatsTable, coachNotesTable,
 } from "@workspace/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -298,6 +298,41 @@ router.get("/badges", authenticate, async (req, res) => {
       { id: "track_body", name: "واعي", desc: "سجّل قياسات جسمك", icon: "📊", earned: stats >= 1 },
     ];
     res.json(badges);
+  } catch { res.status(500).json({ error: "Internal server error" }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COACH NOTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/coach-notes/:userId", authenticate, async (req, res) => {
+  const targetUserId = String(req.params.userId);
+  if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  try {
+    const notes = await db.select().from(coachNotesTable)
+      .where(eq(coachNotesTable.userId, targetUserId))
+      .orderBy(desc(coachNotesTable.createdAt)).limit(50);
+    res.json(notes);
+  } catch { res.status(500).json({ error: "Internal server error" }); }
+});
+
+router.post("/coach-notes", authenticate, requireAdmin, async (req, res) => {
+  const schema = z.object({ userId: z.string().min(1), note: z.string().min(1).max(2000) });
+  const body = schema.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  try {
+    const [n] = await db.insert(coachNotesTable).values({ userId: body.data.userId, note: body.data.note }).returning();
+    res.status(201).json(n);
+  } catch { res.status(500).json({ error: "Internal server error" }); }
+});
+
+router.delete("/coach-notes/:id", authenticate, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    await db.delete(coachNotesTable).where(eq(coachNotesTable.id, id));
+    res.json({ success: true });
   } catch { res.status(500).json({ error: "Internal server error" }); }
 });
 

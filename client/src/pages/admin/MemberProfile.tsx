@@ -106,6 +106,9 @@ export default function AdminMemberProfile() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
+  const [coachNotes, setCoachNotes] = useState<any[]>([]);
+  const [newCoachNote, setNewCoachNote] = useState("");
+  const [sendingNote, setSendingNote] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -144,6 +147,41 @@ export default function AdminMemberProfile() {
   }
 
   useEffect(() => { if (activeTab === "training") fetchMemberTemplates(); }, [activeTab, userId]);
+
+  function fetchCoachNotes() {
+    if (!userId) return;
+    customFetch<any[]>(`/api/coach-notes/${userId}`)
+      .then(d => setCoachNotes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }
+  useEffect(() => { if (activeTab === "notes") fetchCoachNotes(); }, [activeTab, userId]);
+
+  async function sendCoachNote() {
+    if (!newCoachNote.trim() || !userId) return;
+    setSendingNote(true);
+    try {
+      await customFetch("/api/coach-notes", { method: "POST", body: JSON.stringify({ userId, note: newCoachNote.trim() }) });
+      toast({ title: "تم إرسال الملاحظة" });
+      setNewCoachNote("");
+      fetchCoachNotes();
+    } catch { toast({ title: "فشل", variant: "destructive" }); }
+    setSendingNote(false);
+  }
+
+  async function deleteCoachNote(id: number) {
+    try {
+      await customFetch(`/api/coach-notes/${id}`, { method: "DELETE" });
+      setCoachNotes(prev => prev.filter(n => n.id !== id));
+    } catch {}
+  }
+
+  async function updateCategory(cat: string) {
+    try {
+      await customFetch(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify({ category: cat }) });
+      toast({ title: "تم تحديث فئة العضو" });
+      queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
+    } catch { toast({ title: "فشل", variant: "destructive" }); }
+  }
 
   const userData: any = user;
   const memberName = userData?.name ?? "—";
@@ -703,6 +741,49 @@ export default function AdminMemberProfile() {
               <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">{notes}</pre>
             </div>
           )}
+
+          {/* Member category */}
+          <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+            <h2 className="text-sm font-semibold text-foreground mb-3">🏷️ فئة العضو</h2>
+            <div className="flex gap-2">
+              {([["normal", "عادي", "hsl(0 0% 50%)"], ["vip", "VIP", "hsl(40 65% 52%)"], ["trial", "تجريبي", "hsl(220 70% 60%)"]] as const).map(([val, label, color]) => (
+                <button key={val} onClick={() => updateCategory(val)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${userData?.category === val ? "shadow-lg" : "bg-muted text-muted-foreground"}`}
+                  style={userData?.category === val ? { background: color, color: val === "vip" ? "#000" : "#fff" } : {}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Coach notes (visible to member) */}
+          <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+            <h2 className="text-sm font-semibold text-foreground mb-3">💬 ملاحظات المدرب <span className="text-xs text-muted-foreground font-normal">(مرئية للعضو)</span></h2>
+            <div className="flex gap-2 mb-3">
+              <input value={newCoachNote} onChange={e => setNewCoachNote(e.target.value)} placeholder="اكتب ملاحظة للعضو..."
+                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onKeyDown={e => e.key === "Enter" && sendCoachNote()} />
+              <button onClick={sendCoachNote} disabled={sendingNote || !newCoachNote.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}>
+                {sendingNote ? "..." : "إرسال"}
+              </button>
+            </div>
+            {coachNotes.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-3">لا توجد ملاحظات بعد</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {coachNotes.map((n: any) => (
+                  <div key={n.id} className="flex items-start gap-2 p-2.5 rounded-lg group" style={{ background: "hsl(0 0% 12%)" }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{n.note}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleDateString("ar-EG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                    <button onClick={() => deleteCoachNote(n.id)} className="text-xs text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">حذف</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

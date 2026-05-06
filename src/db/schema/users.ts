@@ -11,6 +11,7 @@ export const usersTable = pgTable("User", {
   membershipNumber: text("membershipNumber").unique(),
   passwordHash: text("passwordHash").notNull(),
   role: text("role").notNull().default("member"),
+  category: text("category").notNull().default("normal"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 

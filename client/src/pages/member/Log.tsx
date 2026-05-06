@@ -162,15 +162,45 @@ function PRCelebration({ exerciseName, weight, prevMax, onClose }: { exerciseNam
   );
 }
 
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.frequency.value = 1100;
+      osc2.type = "sine";
+      gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc2.start(ctx.currentTime);
+      osc2.stop(ctx.currentTime + 0.5);
+    }, 200);
+  } catch { /* silent fallback */ }
+}
+
 function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [left, setLeft] = useState(seconds);
   const onDoneRef = React.useRef(onDone);
   onDoneRef.current = onDone;
   useEffect(() => {
     const end = Date.now() + seconds * 1000;
+    let beeped = false;
     const tick = setInterval(() => {
       const remaining = Math.ceil((end - Date.now()) / 1000);
-      if (remaining <= 0) { clearInterval(tick); onDoneRef.current(); return; }
+      if (remaining <= 3 && !beeped) { beeped = true; playBeep(); }
+      if (remaining <= 0) { clearInterval(tick); playBeep(); onDoneRef.current(); return; }
       setLeft(remaining);
     }, 200);
     return () => clearInterval(tick);

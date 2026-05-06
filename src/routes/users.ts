@@ -15,6 +15,7 @@ const createUserSchema = z.object({
   membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
   role: z.enum(["admin", "member"]).default("member"),
+  category: z.enum(["normal", "vip", "trial"]).default("normal"),
 });
 
 const updateUserSchema = z.object({
@@ -22,6 +23,7 @@ const updateUserSchema = z.object({
   phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
   membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
   role: z.enum(["admin", "member"]).optional(),
+  category: z.enum(["normal", "vip", "trial"]).optional(),
 });
 
 router.get("/users", authenticate, requireAdmin, async (req, res) => {
@@ -132,6 +134,7 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       membershipNumber: body.data.membershipNumber,
       passwordHash: hashed,
       role: body.data.role,
+      category: body.data.category ?? "normal",
     }).returning();
     const { passwordHash: _, ...safe } = user;
     res.status(201).json(safe);

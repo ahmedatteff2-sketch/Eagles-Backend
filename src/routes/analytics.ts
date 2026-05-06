@@ -264,4 +264,45 @@ router.get("/analytics/attendance", authenticate, requireAdmin, async (req, res)
   res.json(rows);
 });
 
+// ── Monthly report for member ────────────────────────────────────────────────
+router.get("/analytics/monthly-report", authenticate, async (req, res) => {
+  const userId = req.user!.userId;
+  const m = parseInt(String(req.query.month)) || new Date().getMonth() + 1;
+  const y = parseInt(String(req.query.year)) || new Date().getFullYear();
+  const monthStart = `${y}-${String(m).padStart(2, "0")}-01`;
+  const monthEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
+
+  try {
+    const [setsRow] = await db.select({ c: count() }).from(exerciseLogsTable)
+      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+
+    const [checkinRow] = await db.select({ c: count() }).from(checkinsTable)
+      .where(and(eq(checkinsTable.userId, userId), gte(checkinsTable.timestamp, new Date(`${monthStart}T00:00:00Z`)), lte(checkinsTable.timestamp, new Date(`${monthEnd}T23:59:59Z`))));
+
+    const [uniqueDays] = await db.select({ c: sql<number>`count(DISTINCT date)::int` }).from(exerciseLogsTable)
+      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+
+    const [maxW] = await db.select({ w: sql<number>`COALESCE(MAX(CAST(weight AS NUMERIC)), 0)` }).from(exerciseLogsTable)
+      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+
+    const bodyStats = await db.select().from(bodyStatsTable)
+      .where(and(eq(bodyStatsTable.userId, userId), gte(bodyStatsTable.date, monthStart), lte(bodyStatsTable.date, monthEnd)))
+      .orderBy(bodyStatsTable.date);
+
+    const firstWeight = bodyStats.find(s => s.weight != null)?.weight;
+    const lastWeight = [...bodyStats].reverse().find(s => s.weight != null)?.weight;
+
+    res.json({
+      month: m, year: y,
+      totalSets: setsRow?.c ?? 0,
+      attendanceDays: checkinRow?.c ?? 0,
+      trainingDays: uniqueDays?.c ?? 0,
+      maxWeight: Number(maxW?.w ?? 0),
+      weightStart: firstWeight ? Number(firstWeight) : null,
+      weightEnd: lastWeight ? Number(lastWeight) : null,
+      weightChange: firstWeight && lastWeight ? Number(lastWeight) - Number(firstWeight) : null,
+    });
+  } catch { res.status(500).json({ error: "Internal server error" }); }
+});
+
 export default router;

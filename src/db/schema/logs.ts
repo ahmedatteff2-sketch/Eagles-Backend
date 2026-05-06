@@ -106,6 +106,14 @@ export const mealPlanItemsTable = pgTable("meal_plan_items", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+// ── Coach notes ──────────────────────────────────────────────────────────────
+export const coachNotesTable = pgTable("coach_notes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogsTable).omit({ id: true });
 export const insertBodyStatSchema = createInsertSchema(bodyStatsTable).omit({ id: true });
 export const insertCheckinSchema = createInsertSchema(checkinsTable).omit({ id: true });

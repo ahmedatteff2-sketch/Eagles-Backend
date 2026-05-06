@@ -114,6 +114,40 @@ export default function MemberSettings() {
           </button>
         </form>
       </div>
+      {/* Push Notifications */}
+      <div className="bg-card border border-card-border rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-foreground mb-3">الإشعارات</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground">تنبيهات المتصفح</p>
+              <p className="text-xs text-muted-foreground">استلم تنبيهات لموعد التمرين والتذكيرات</p>
+            </div>
+            <button
+              onClick={async () => {
+                if (!("Notification" in window)) {
+                  toast({ title: "المتصفح لا يدعم الإشعارات", variant: "destructive" });
+                  return;
+                }
+                const perm = await Notification.requestPermission();
+                if (perm === "granted") {
+                  toast({ title: "تم تفعيل الإشعارات" });
+                  localStorage.setItem("push-enabled", "1");
+                } else {
+                  toast({ title: "تم رفض الإشعارات", variant: "destructive" });
+                  localStorage.setItem("push-enabled", "0");
+                }
+              }}
+              className="px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+              style={typeof window !== "undefined" && Notification?.permission === "granted"
+                ? { background: "hsl(142 60% 45%)", color: "#fff" }
+                : { background: "hsl(40 65% 52%)", color: "#000" }}>
+              {typeof window !== "undefined" && Notification?.permission === "granted" ? "مفعّل ✓" : "تفعيل"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* PWA Install */}
       {canInstall && (
         <div className="bg-card border border-card-border rounded-xl p-5">
