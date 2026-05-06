@@ -1,5 +1,6 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import AdminLayout from "@/layouts/AdminLayout";
 import MemberLayout from "@/layouts/MemberLayout";
 import { useAuthStore } from "@/store/auth";
@@ -77,7 +78,6 @@ function GlobalKeyboardShortcuts() {
 }
 
 import { ReminderPopup } from "@/components/ReminderPopup";
-import { useState } from "react";
 
 function SplashScreen({ onDone }: { onDone: () => void }) {
   useEffect(() => { const t = setTimeout(onDone, 1800); return () => clearTimeout(t); }, [onDone]);
@@ -123,6 +123,7 @@ export default function App() {
     <>
       <ReminderPopup />
       <GlobalKeyboardShortcuts />
+      <PWAInstallPrompt />
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin">

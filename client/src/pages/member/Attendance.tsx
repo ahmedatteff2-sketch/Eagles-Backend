@@ -51,7 +51,17 @@ export default function MemberAttendance() {
       {/* Attendance list */}
       <div className="bg-card border border-card-border rounded-xl p-5">
         {isLoading ? (
-          <p className="text-muted-foreground text-center py-8">جاري التحميل...</p>
+          <div className="space-y-3 py-2">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-32 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : checkinList.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">لا يوجد سجل حضور</p>
         ) : (

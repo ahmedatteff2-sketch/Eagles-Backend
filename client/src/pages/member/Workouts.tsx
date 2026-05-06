@@ -136,7 +136,18 @@ export default function MemberWorkouts() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2].map(i => (
-            <div key={i} className="bg-card border border-card-border rounded-xl h-40 animate-pulse" />
+            <div key={i} className="rounded-xl p-5 space-y-3" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+              <div className="flex items-center justify-between">
+                <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-8 w-20 rounded-lg bg-muted animate-pulse" />
+              </div>
+              <div className="flex gap-2">
+                {[1,2,3].map(j => <div key={j} className="h-8 w-16 rounded-lg bg-muted animate-pulse" />)}
+              </div>
+              <div className="space-y-2">
+                {[1,2,3].map(j => <div key={j} className="h-4 rounded bg-muted animate-pulse" style={{ width: `${80 - j * 15}%` }} />)}
+              </div>
+            </div>
           ))}
         </div>
       ) : templates.length === 0 ? (

@@ -99,6 +99,26 @@ export default function MemberDashboard() {
   const weekAgo = new Date(now.getTime() - 7 * 86400000);
   const thisWeek = checkinList.filter((c: any) => new Date(c.timestamp ?? c.date ?? "").getTime() >= weekAgo.getTime()).length;
 
+  // Workout streak (consecutive attendance days)
+  const streak = (() => {
+    if (checkinList.length === 0) return 0;
+    const dates = [...new Set(checkinList.map((c: any) => {
+      const d = new Date(c.timestamp ?? c.date ?? "");
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }))].sort().reverse();
+    const todayStr = new Date().toISOString().split("T")[0];
+    const yestStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    if (dates[0] !== todayStr && dates[0] !== yestStr) return 0;
+    let count = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const curr = new Date(dates[i]);
+      if (prev.getTime() - curr.getTime() === 86400000) count++;
+      else break;
+    }
+    return count;
+  })();
+
   const quickLinks = [
     { label: "التمارين", desc: "قالب التمرين الحالي", href: "/member/workouts", icon: "🏋️" },
     { label: "سجّل أداء", desc: "سجل جلستك الحالية", href: "/member/log", icon: "✏️" },
@@ -138,9 +158,9 @@ export default function MemberDashboard() {
           <p className="text-lg font-black" style={{ color: "hsl(142 60% 55%)" }}>{thisWeek}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">حضور</p>
         </div>
-        <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
-          <p className="text-lg font-black" style={{ color: "hsl(220 70% 65%)" }}>{logList.length}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">سجلات</p>
+        <div className="rounded-xl p-2.5 text-center" style={{ background: streak >= 3 ? "hsl(25 90% 50% / 0.08)" : "hsl(0 0% 9%)", border: `1px solid ${streak >= 3 ? "hsl(25 90% 50% / 0.2)" : "hsl(0 0% 14%)"}` }}>
+          <p className="text-lg font-black" style={{ color: "hsl(25 90% 55%)" }}>{streak > 0 ? "🔥" : ""}{streak}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">streak</p>
         </div>
         <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(200 80% 50% / 0.15)" }}>
           <p className="text-lg font-black" style={{ color: "hsl(200 80% 60%)" }}>{water}/{WATER_GOAL}</p>

@@ -226,7 +226,20 @@ export default function MemberStats() {
             <div className="bg-card border border-card-border rounded-xl p-5">
               <h2 className="text-sm font-semibold text-foreground mb-3">سجل القياسات</h2>
               {isLoading ? (
-                <p className="text-muted-foreground text-sm">جاري التحميل...</p>
+                <div className="space-y-3">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="py-3 border-b border-border last:border-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                        <div className="h-3 w-10 rounded bg-muted animate-pulse" />
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                        <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-2">
                   {statList.slice().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((s: any) => (

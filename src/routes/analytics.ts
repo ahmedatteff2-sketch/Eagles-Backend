@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   usersTable, memberSubscriptionsTable, paymentsTable,
-  checkinsTable, exerciseLogsTable, bodyStatsTable, expensesTable
+  checkinsTable, exerciseLogsTable, bodyStatsTable, expensesTable, notificationsTable
 } from "@workspace/db/schema";
 import { eq, count, sum, gte, lte, desc, and, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -10,7 +10,44 @@ import { parseUserId } from "../lib/params.js";
 
 const router = Router();
 
+let lastRenewalCheck = 0;
+async function checkExpiringSubscriptions() {
+  const now = Date.now();
+  if (now - lastRenewalCheck < 86400000) return; // once per day
+  lastRenewalCheck = now;
+  try {
+    const today = new Date();
+    const in3days = new Date(today.getTime() + 3 * 86400000).toISOString().split("T")[0];
+    const in1day = new Date(today.getTime() + 1 * 86400000).toISOString().split("T")[0];
+    const todayStr = today.toISOString().split("T")[0];
+
+    const expiring = await db.select({
+      userId: memberSubscriptionsTable.userId,
+      endDate: memberSubscriptionsTable.endDate,
+    }).from(memberSubscriptionsTable).where(
+      and(eq(memberSubscriptionsTable.status, "active"), gte(memberSubscriptionsTable.endDate, todayStr), lte(memberSubscriptionsTable.endDate, in3days))
+    );
+
+    for (const sub of expiring) {
+      const daysLeft = Math.ceil((new Date(sub.endDate).getTime() - today.getTime()) / 86400000);
+      const title = daysLeft <= 0 ? "⚠️ اشتراكك ينتهي اليوم!" : daysLeft === 1 ? "⚠️ اشتراكك ينتهي غداً" : `⏰ اشتراكك ينتهي بعد ${daysLeft} أيام`;
+      const existing = await db.select({ id: notificationsTable.id }).from(notificationsTable)
+        .where(and(
+          eq(notificationsTable.userId, sub.userId),
+          eq(notificationsTable.type, "subscription_expiry"),
+          gte(notificationsTable.createdAt, new Date(todayStr)),
+        )).limit(1);
+      if (existing.length === 0) {
+        await db.insert(notificationsTable).values({
+          userId: sub.userId, title, body: "تواصل مع الإدارة لتجديد اشتراكك", type: "subscription_expiry",
+        });
+      }
+    }
+  } catch { /* silent */ }
+}
+
 router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) => {
+  checkExpiringSubscriptions();
   const today = new Date().toISOString().split("T")[0]!;
   const thisMonth = new Date();
   thisMonth.setDate(1);
@@ -69,6 +106,43 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     ))
     .orderBy(memberSubscriptionsTable.endDate);
 
+  // Top attendees this week
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
+  weekStart.setHours(0, 0, 0, 0);
+  const topAttendeesRaw = await db
+    .select({ userId: checkinsTable.userId, userName: usersTable.name, checkins: count() })
+    .from(checkinsTable)
+    .innerJoin(usersTable, eq(checkinsTable.userId, usersTable.id))
+    .where(gte(checkinsTable.timestamp, weekStart))
+    .groupBy(checkinsTable.userId, usersTable.name)
+    .orderBy(desc(count()))
+    .limit(5);
+  const topAttendees = topAttendeesRaw.map(r => ({ id: r.userId, name: r.userName, checkins: r.checkins }));
+
+  // Inactive members: active subscription but no check-in in 7+ days
+  const activeUserIds = await db
+    .select({ userId: memberSubscriptionsTable.userId })
+    .from(memberSubscriptionsTable)
+    .where(eq(memberSubscriptionsTable.status, "active"));
+  const activeIds = activeUserIds.map(r => r.userId);
+
+  const inactiveMembers: { id: string; name: string; phone: string; daysSince: number }[] = [];
+  if (activeIds.length > 0) {
+    for (const uid of activeIds.slice(0, 50)) {
+      const [lastCheckin] = await db.select({ ts: checkinsTable.timestamp }).from(checkinsTable)
+        .where(eq(checkinsTable.userId, uid)).orderBy(desc(checkinsTable.timestamp)).limit(1);
+      const daysSince = lastCheckin
+        ? Math.floor((Date.now() - new Date(lastCheckin.ts).getTime()) / 86400000)
+        : 999;
+      if (daysSince >= 7) {
+        const [u] = await db.select({ name: usersTable.name, phone: usersTable.phone }).from(usersTable).where(eq(usersTable.id, uid)).limit(1);
+        if (u) inactiveMembers.push({ id: uid, name: u.name, phone: u.phone, daysSince: Math.min(daysSince, 999) });
+      }
+    }
+    inactiveMembers.sort((a, b) => b.daysSince - a.daysSince);
+  }
+
   res.json({
     totalMembers,
     activeMembers,
@@ -81,6 +155,8 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     expiringThisWeek: expiringRow?.count ?? 0,
     expiringMembers,
     recentPayments,
+    topAttendees,
+    inactiveMembers: inactiveMembers.slice(0, 10),
   });
 });
 
