@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
@@ -148,6 +149,12 @@ const loginPerPhoneLimiter = rateLimit({
 app.use(globalLimiter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Parses Set-Cookie headers from incoming requests so /auth/refresh and
+// /auth/logout can read the `eg_refresh` httpOnly cookie. We deliberately
+// do NOT pass a secret here — the refresh-token cookie is opaque (a JWT
+// that's verified by /lib/jwt.ts), and the audit log doesn't sign cookies,
+// so nothing benefits from cookie-parser's signed-cookie mode.
+app.use(cookieParser());
 
 app.use(
   pinoHttp({

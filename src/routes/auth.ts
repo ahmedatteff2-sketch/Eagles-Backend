@@ -1,4 +1,4 @@
-import { Router, Request } from "express";
+import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import { authenticator } from "otplib";
@@ -20,6 +20,56 @@ import { normalizePhone } from "../lib/phone.js";
 import { z } from "zod";
 
 const router = Router();
+
+// httpOnly cookie carrying the refresh token. Scoped to /api/auth so the
+// browser only sends it on auth endpoints (refresh / logout) — every other
+// API call uses the Authorization: Bearer <accessToken> header. This keeps
+// the refresh token out of JavaScript reach (XSS-resistant) and limits its
+// blast radius on the network.
+const REFRESH_COOKIE_NAME = "eg_refresh";
+const REFRESH_COOKIE_PATH = "/api/auth";
+const REFRESH_TTL_DAYS = (() => {
+  const raw = Number(process.env.JWT_REFRESH_TTL_DAYS);
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 30;
+})();
+
+function setRefreshCookie(res: Response, token: string): void {
+  res.cookie(REFRESH_COOKIE_NAME, token, {
+    httpOnly: true,
+    // Production is always HTTPS (Render). Dev runs over http://localhost so
+    // we can't require Secure or the browser drops the cookie silently.
+    secure: process.env.NODE_ENV === "production",
+    // Lax is the right default for first-party flows (frontend served by the
+    // same backend, Capacitor WebView loading server.url). We deliberately
+    // avoid SameSite=None — that would require Secure everywhere AND opens
+    // CSRF surface for any cross-site POST that targets /api/auth.
+    sameSite: "lax",
+    path: REFRESH_COOKIE_PATH,
+    maxAge: REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearRefreshCookie(res: Response): void {
+  // Cookie attributes (path / sameSite / secure) MUST match the ones used
+  // when setting it — otherwise the browser keeps the original cookie.
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: REFRESH_COOKIE_PATH,
+  });
+}
+
+function readRefreshTokenFromRequest(req: Request): string | null {
+  // Cookies preferred (new clients); body kept as a fallback so legacy
+  // localStorage-based clients keep working until their refresh token
+  // rotates onto a cookie or expires.
+  const fromCookie = (req.cookies as Record<string, unknown> | undefined)?.[REFRESH_COOKIE_NAME];
+  if (typeof fromCookie === "string" && fromCookie.length > 0) return fromCookie;
+  const fromBody = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+  if (typeof fromBody === "string" && fromBody.length > 0) return fromBody;
+  return null;
+}
 
 // Pre-computed bcrypt hash used to keep login timing constant when the phone
 // does not exist. Generated once at startup with the same cost as production
@@ -237,6 +287,7 @@ router.post("/auth/login", async (req, res) => {
 
   const role = normalizeRole(user.role);
   const { accessToken, refreshToken } = await issueTokenPair(user.id, role, req);
+  setRefreshCookie(res, refreshToken);
 
   void recordAuditEvent(req, "auth.login.success", {
     status: 200,
@@ -244,6 +295,9 @@ router.post("/auth/login", async (req, res) => {
     payload: { role },
   });
 
+  // refreshToken is also returned in the body for one release as a
+  // backward-compat bridge: existing clients still read it from JSON.
+  // Frontend should ignore it once it migrates to cookie-based refresh.
   res.json({
     accessToken,
     refreshToken,
@@ -295,6 +349,7 @@ router.post("/auth/2fa/verify", async (req, res) => {
   await clearFailedAttempts(user.id);
   const role = normalizeRole(user.role);
   const { accessToken, refreshToken } = await issueTokenPair(user.id, role, req);
+  setRefreshCookie(res, refreshToken);
 
   void recordAuditEvent(req, "auth.login.success_2fa", {
     status: 200,
@@ -310,16 +365,18 @@ router.post("/auth/2fa/verify", async (req, res) => {
 });
 
 router.post("/auth/refresh", async (req, res) => {
-  const body = refreshSchema.safeParse(req.body);
-  if (!body.success) {
+  const refreshToken = readRefreshTokenFromRequest(req);
+  if (!refreshToken) {
     res.status(401).json({ error: "Unauthorized", message: "Refresh token required" });
     return;
   }
-  const { refreshToken } = body.data;
   let payload;
   try {
     payload = verifyRefreshToken(refreshToken);
   } catch {
+    // Bad signature → also clear any stale cookie so the client doesn't keep
+    // resending the same broken token on every page load.
+    clearRefreshCookie(res);
     res.status(401).json({ error: "Unauthorized", message: "Invalid refresh token" });
     return;
   }
@@ -341,6 +398,7 @@ router.post("/auth/refresh", async (req, res) => {
         actorIdOverride: payload.userId,
       });
       await revokeAllUserTokens(payload.userId);
+      clearRefreshCookie(res);
       res.status(401).json({ error: "Unauthorized", message: "Token expired or invalid" });
       return;
     }
@@ -351,11 +409,13 @@ router.post("/auth/refresh", async (req, res) => {
         actorIdOverride: payload.userId,
       });
       await revokeAllUserTokens(payload.userId);
+      clearRefreshCookie(res);
       res.status(401).json({ error: "Unauthorized", message: "Token expired or invalid" });
       return;
     }
     if (stored.expiresAt < new Date()) {
       await db.update(refreshTokensTable).set({ revoked: true }).where(eq(refreshTokensTable.tokenHash, tokenHash));
+      clearRefreshCookie(res);
       res.status(401).json({ error: "Unauthorized", message: "Token expired or invalid" });
       return;
     }
@@ -367,7 +427,11 @@ router.post("/auth/refresh", async (req, res) => {
       payload.role as Role,
       req,
     );
+    setRefreshCookie(res, newRefresh);
 
+    // refreshToken is included in the body so legacy clients (still reading
+    // the JSON response) keep working during the cookie rollout. Cookie-only
+    // clients can ignore it.
     res.json({ accessToken: newAccess, refreshToken: newRefresh, user: null });
   } catch (err) {
     logger.error({ err }, "Refresh token rotation failed");
@@ -376,14 +440,15 @@ router.post("/auth/refresh", async (req, res) => {
 });
 
 router.post("/auth/logout", async (req, res) => {
-  const body = refreshSchema.safeParse(req.body);
-  if (body.success) {
-    const tokenHash = hashRefreshToken(body.data.refreshToken);
+  const refreshToken = readRefreshTokenFromRequest(req);
+  if (refreshToken) {
+    const tokenHash = hashRefreshToken(refreshToken);
     await db
       .update(refreshTokensTable)
       .set({ revoked: true })
       .where(eq(refreshTokensTable.tokenHash, tokenHash));
   }
+  clearRefreshCookie(res);
   res.json({ success: true, message: "Logged out" });
 });
 
