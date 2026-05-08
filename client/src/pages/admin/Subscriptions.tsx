@@ -97,9 +97,34 @@ export default function AdminSubscriptions() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (
-          <p className="text-muted-foreground col-span-3 py-8 text-center">جاري التحميل...</p>
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-card border border-card-border rounded-xl p-5 animate-pulse">
+              <div className="flex items-start justify-between mb-3">
+                <div className="space-y-2">
+                  <div className="h-4 w-24 rounded bg-muted" />
+                  <div className="h-3 w-16 rounded bg-muted/60" />
+                </div>
+                <div className="h-5 w-14 rounded bg-muted" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <div className="flex-1 h-7 rounded-lg bg-muted/60" />
+                <div className="flex-1 h-7 rounded-lg bg-muted/60" />
+              </div>
+            </div>
+          ))
         ) : subList.length === 0 ? (
-          <p className="text-muted-foreground col-span-3 py-8 text-center">لا توجد خطط اشتراك</p>
+          <div className="col-span-3 flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: "hsl(40 65% 52% / 0.1)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7" style={{ color: "hsl(40 65% 60%)" }}>
+                <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+            </div>
+            <p className="text-foreground font-semibold mb-1">لا توجد خطط اشتراك</p>
+            <p className="text-muted-foreground text-sm mb-4">ابدأ بإضافة أول خطة لتتوفر للأعضاء</p>
+            <button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold">
+              + إضافة خطة جديدة
+            </button>
+          </div>
         ) : (
           subList.map((sub: any) => (
             <div key={sub.id} className="bg-card border border-card-border rounded-xl p-5">

@@ -111,6 +111,8 @@ export default function AdminMemberProfile() {
   const [coachNotes, setCoachNotes] = useState<any[]>([]);
   const [newCoachNote, setNewCoachNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
+  const [showQuickCheckin, setShowQuickCheckin] = useState(false);
+  const [savingCheckin, setSavingCheckin] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -392,6 +394,25 @@ export default function AdminMemberProfile() {
     }
   }
 
+  async function quickCheckin() {
+    if (!userId) return;
+    setSavingCheckin(true);
+    try {
+      await customFetch("/api/checkins", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      toast({ title: "✅ تم تسجيل الحضور" });
+      setShowQuickCheckin(false);
+      queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey({ userId }) });
+    } catch (err: any) {
+      const msg = err?.payload?.message ?? err?.response?.data?.message ?? "فشل في تسجيل الحضور";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setSavingCheckin(false);
+    }
+  }
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-5" dir="rtl">
       {/* Breadcrumb */}
@@ -422,6 +443,15 @@ export default function AdminMemberProfile() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowQuickCheckin(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all"
+            style={{ background: "hsl(142 60% 45% / 0.15)", color: "hsl(142 60% 60%)", border: "1px solid hsl(142 60% 45% / 0.35)" }}
+            title="تسجيل حضور الآن">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            سجّل حضور الآن
+          </button>
           <button onClick={exportPDF}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all"
             style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 65%)", border: "1px solid hsl(0 0% 20%)" }}>
@@ -853,6 +883,33 @@ export default function AdminMemberProfile() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Checkin Modal */}
+      {showQuickCheckin && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowQuickCheckin(false); }}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 16%)" }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "hsl(142 60% 45% / 0.15)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" style={{ color: "hsl(142 60% 60%)" }}>
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <h3 className="text-center font-bold mb-2">تسجيل حضور</h3>
+            <p className="text-center text-sm mb-5" style={{ color: "hsl(0 0% 60%)" }}>
+              تسجيل حضور <span style={{ color: GOLD, fontWeight: 600 }}>{memberName}</span> الآن؟
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowQuickCheckin(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)" }}>
+                إلغاء
+              </button>
+              <button onClick={quickCheckin} disabled={savingCheckin} className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "hsl(142 60% 45%)", color: "#fff", opacity: savingCheckin ? 0.6 : 1 }}>
+                {savingCheckin ? "..." : "تسجيل الآن"}
+              </button>
+            </div>
           </div>
         </div>
       )}

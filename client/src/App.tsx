@@ -23,6 +23,7 @@ import AdminExports from "@/pages/admin/Exports";
 import AdminImports from "@/pages/admin/Imports";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReminders from "@/pages/admin/Reminders";
+import AdminWhatsAppTemplates from "@/pages/admin/WhatsAppTemplates";
 import MemberDashboard from "@/pages/member/Dashboard";
 import MemberWorkouts from "@/pages/member/Workouts";
 import MemberLog from "@/pages/member/Log";
@@ -194,6 +195,9 @@ export default function App() {
         </Route>
         <Route path="/admin/reminders">
           <AdminRoute><AdminReminders /></AdminRoute>
+        </Route>
+        <Route path="/admin/wa-templates">
+          <AdminRoute><AdminWhatsAppTemplates /></AdminRoute>
         </Route>
         {/* Member routes */}
         <Route path="/member">

@@ -13,6 +13,7 @@ import expensesRouter from "./expenses.js";
 import scheduleRouter from "./schedule.js";
 import remindersRouter from "./reminders.js";
 import socialRouter from "./social.js";
+import waTemplatesRouter from "./wa-templates.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(expensesRouter);
 router.use(scheduleRouter);
 router.use(remindersRouter);
 router.use(socialRouter);
+router.use(waTemplatesRouter);
 
 export default router;
