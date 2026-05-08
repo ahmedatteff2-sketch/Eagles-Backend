@@ -1,0 +1,1 @@
+function n(r){return r==null?"":String(r).replace(/[&<>"']/g,t=>{switch(t){case"&":return"&amp;";case"<":return"&lt;";case">":return"&gt;";case'"':return"&quot;";case"'":return"&#39;";default:return t}})}export{n as e};
