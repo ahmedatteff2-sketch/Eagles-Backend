@@ -8,6 +8,11 @@ import { randomBytes, randomUUID } from "crypto";
 import Papa from "papaparse";
 import { logger } from "../lib/logger.js";
 import { normalizePhone } from "../lib/phone.js";
+import multer from "multer";
+import Database from "better-sqlite3";
+import { unlinkSync } from "fs";
+import path from "path";
+import os from "os";
 
 const router = Router();
 
@@ -240,5 +245,170 @@ router.post("/imports/payments", authenticate, requireAdmin, async (req, res) =>
     });
   }
 });
+
+// ── SQLite import ─────────────────────────────────────────────────────────────
+
+const MAX_SQLITE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+const upload = multer({
+  dest: path.join(os.tmpdir(), "eagle-uploads"),
+  limits: { fileSize: MAX_SQLITE_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === ".sqlite" || ext === ".db" || ext === ".sqlite3") {
+      cb(null, true);
+    } else {
+      cb(new Error("يجب رفع ملف SQLite (.sqlite, .db, .sqlite3)"));
+    }
+  },
+});
+
+interface SqliteRow {
+  name?: string;
+  phone?: string;
+  password?: string;
+  passwordHash?: string;
+  role?: string;
+  category?: string;
+  membershipNumber?: string;
+  [key: string]: unknown;
+}
+
+router.post(
+  "/imports/members/sqlite",
+  authenticate,
+  requireAdmin,
+  upload.single("file"),
+  async (req, res) => {
+    const filePath = req.file?.path;
+    try {
+      if (!req.file || !filePath) {
+        res.status(400).json({
+          error: "لا يوجد ملف",
+          message: "يرجى رفع ملف SQLite (.sqlite, .db, .sqlite3)",
+        });
+        return;
+      }
+
+      let sqliteDb: Database.Database;
+      try {
+        sqliteDb = new Database(filePath, { readonly: true });
+      } catch {
+        res.status(400).json({
+          error: "ملف غير صالح",
+          message: "لا يمكن فتح الملف كقاعدة بيانات SQLite",
+        });
+        return;
+      }
+
+      // Find the members/users table in the SQLite file
+      const tables = sqliteDb
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .all() as { name: string }[];
+
+      const targetNames = ["members", "users", "member", "user", "أعضاء", "الأعضاء"];
+      const tableName = tables.find((t) =>
+        targetNames.includes(t.name.toLowerCase()),
+      )?.name;
+
+      if (!tableName) {
+        sqliteDb.close();
+        res.status(400).json({
+          error: "جدول غير موجود",
+          message: `لم يتم العثور على جدول الأعضاء. الجداول الموجودة: ${tables.map((t) => t.name).join(", ")}`,
+        });
+        return;
+      }
+
+      const rows = sqliteDb.prepare(`SELECT * FROM "${tableName}"`).all() as SqliteRow[];
+      sqliteDb.close();
+
+      if (rows.length === 0) {
+        res.status(400).json({
+          error: "الجدول فارغ",
+          message: "جدول الأعضاء في ملف SQLite فارغ",
+        });
+        return;
+      }
+
+      // Delete all existing members (cascade handles related data)
+      const deletedRows = await db
+        .delete(usersTable)
+        .where(eq(usersTable.role, "member"))
+        .returning({ id: usersTable.id });
+
+      const results = { deleted: deletedRows.length, created: 0, errors: [] as string[] };
+
+      for (const row of rows) {
+        const name = String(row.name ?? row["الاسم"] ?? "").trim();
+        const rawPhone = String(row.phone ?? row["رقم الهاتف"] ?? row["الهاتف"] ?? "").trim();
+        const phone = normalizePhone(rawPhone);
+        const rawRole = String(row.role ?? row["الدور"] ?? "member").toLowerCase();
+        const role: "admin" | "member" = rawRole === "admin" ? "admin" : "member";
+        const category = String(row.category ?? "normal").toLowerCase();
+        const validCategory = ["normal", "vip", "trial"].includes(category) ? category : "normal";
+        const membershipNum = row.membershipNumber
+          ? String(row.membershipNumber).trim()
+          : null;
+
+        if (!name || !phone) {
+          results.errors.push(`صف مفقود البيانات: الاسم="${name}" الهاتف="${rawPhone}"`);
+          continue;
+        }
+
+        try {
+          // If the SQLite row already has a bcrypt hash, reuse it directly
+          let hashed: string;
+          const existingHash = row.passwordHash ?? row.password_hash;
+          if (typeof existingHash === "string" && existingHash.startsWith("$2")) {
+            hashed = existingHash;
+          } else {
+            const rawPassword = String(
+              row.password ?? row["كلمة المرور"] ?? "123456",
+            );
+            const password = rawPassword.length > 72 ? rawPassword.slice(0, 72) : rawPassword;
+            hashed = await bcrypt.hash(password, BCRYPT_COST);
+          }
+
+          await db.insert(usersTable).values({
+            id: randomUUID(),
+            name,
+            phone,
+            passwordHash: hashed,
+            role,
+            category: validCategory,
+            membershipNumber: membershipNum,
+          });
+          results.created++;
+        } catch (rowErr) {
+          const msg = rowErr instanceof Error ? rowErr.message : "خطأ غير معروف";
+          logger.error({ err: rowErr, name, phone }, "SQLite member import row failed");
+          results.errors.push(`خطأ في إضافة ${name} (${phone}): ${msg}`);
+        }
+      }
+
+      res.json({
+        message: `تم الاستيراد: حذف ${results.deleted} عضو قديم، إضافة ${results.created} عضو جديد، ${results.errors.length} خطأ`,
+        ...results,
+      });
+    } catch (err) {
+      logger.error({ err }, "SQLite members import failed");
+      res.status(500).json({
+        error: "خطأ في الاستيراد",
+        message: "حدث خطأ غير متوقع أثناء استيراد الأعضاء من SQLite",
+      });
+    } finally {
+      if (filePath) {
+        try {
+          unlinkSync(filePath);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
+  },
+);
 
 export default router;
