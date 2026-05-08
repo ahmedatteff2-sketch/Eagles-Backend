@@ -7,6 +7,8 @@ export type ErrorType<T = unknown> = ApiError<T>;
 export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
+export type AuthRefreshHandler = () => Promise<string | null>;
+export type UnauthorizedHandler = () => void;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
@@ -17,6 +19,8 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _authRefreshHandler: AuthRefreshHandler | null = null;
+let _unauthorizedHandler: UnauthorizedHandler | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +46,25 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a handler invoked once per failed request when the server responds
+ * with `401 Unauthorized`. The handler should refresh credentials and resolve
+ * to a fresh access token (or `null` to give up). The original request will
+ * be retried once with the new token.
+ */
+export function setAuthRefreshHandler(handler: AuthRefreshHandler | null): void {
+  _authRefreshHandler = handler;
+}
+
+/**
+ * Register a handler invoked when refresh fails (or no refresh handler is
+ * configured) and the request was 401. Typically clears local auth state and
+ * redirects to /login.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  _unauthorizedHandler = handler;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -326,6 +349,14 @@ export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
+  return customFetchWithRetry<T>(input, options, /* allowRefresh */ true);
+}
+
+async function customFetchWithRetry<T>(
+  input: RequestInfo | URL,
+  options: CustomFetchOptions,
+  allowRefresh: boolean,
+): Promise<T> {
   input = applyBaseUrl(input);
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
@@ -335,6 +366,41 @@ export async function customFetch<T = unknown>(
     throw new TypeError(`customFetch: ${method} requests cannot have a body.`);
   }
 
+  const callerProvidedAuth = mergeHeaders(
+    isRequest(input) ? input.headers : undefined,
+    headersInit,
+  ).has("authorization");
+
+  const headers = await buildHeaders(input, headersInit, init, responseType);
+
+  const requestInfo = { method, url: resolveUrl(input) };
+
+  const response = await fetch(input, { ...init, method, headers });
+
+  if (response.status === 401 && allowRefresh && !callerProvidedAuth) {
+    const refreshed = _authRefreshHandler ? await _authRefreshHandler() : null;
+    if (refreshed) {
+      // Retry once with the freshly minted token. The token getter will pick
+      // it up automatically since it reads from the same store.
+      return customFetchWithRetry<T>(requestInfo.url, options, /* allowRefresh */ false);
+    }
+    if (_unauthorizedHandler) _unauthorizedHandler();
+  }
+
+  if (!response.ok) {
+    const errorData = await parseErrorBody(response, method);
+    throw new ApiError(response, errorData, requestInfo);
+  }
+
+  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+}
+
+async function buildHeaders(
+  input: RequestInfo | URL,
+  headersInit: HeadersInit | undefined,
+  init: Omit<RequestInit, "headers">,
+  responseType: CustomFetchOptions["responseType"],
+): Promise<Headers> {
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
 
   if (
@@ -349,8 +415,6 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  // Attach bearer token when an auth getter is configured and no
-  // Authorization header has been explicitly provided.
   if (_authTokenGetter && !headers.has("authorization")) {
     const token = await _authTokenGetter();
     if (token) {
@@ -358,14 +422,5 @@ export async function customFetch<T = unknown>(
     }
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
-
-  const response = await fetch(input, { ...init, method, headers });
-
-  if (!response.ok) {
-    const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
-  }
-
-  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+  return headers;
 }

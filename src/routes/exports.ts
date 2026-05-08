@@ -12,15 +12,24 @@ const router = Router();
 
 // Simple native CSV generator — no external library needed
 function toCSV(fields: string[], rows: Record<string, unknown>[]): string {
+  // CSV-injection ("formula injection"): a value beginning with one of these
+  // characters is interpreted by Excel/Sheets/Numbers as a formula on open.
+  // Prefix a single quote to neutralize the formula while keeping the value
+  // visually identical when rendered.
+  const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r"];
   const escape = (v: unknown): string => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    if (s.length > 0 && FORMULA_TRIGGERS.includes(s[0])) {
+      s = "'" + s;
+    }
     return s.includes(",") || s.includes('"') || s.includes("\n")
       ? `"${s.replace(/"/g, '""')}"`
       : s;
   };
-  const header = fields.join(",");
+  const header = fields.map((f) => escape(f)).join(",");
   const lines = rows.map((r) => fields.map((f) => escape(r[f])).join(","));
-  return [header, ...lines].join("\n");
+  // CRLF is the canonical CSV line terminator and avoids Excel quirks.
+  return [header, ...lines].join("\r\n");
 }
 
 router.get("/exports/members-csv", authenticate, requireAdmin, async (_req, res) => {

@@ -4,7 +4,7 @@ import { usersTable } from "./users.js";
 export const refreshTokensTable = pgTable("refresh_tokens", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
+  tokenHash: text("token_hash").notNull().unique(),
   revoked: boolean("revoked").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),

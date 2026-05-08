@@ -11,29 +11,32 @@ if (!process.env.DATABASE_URL) {
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// Parse the URL and ensure IPv4 compatibility
 const dbUrl = new URL(process.env.DATABASE_URL);
 
-// Supabase Session Pooler uses pgbouncer — disable prepared statements
+// Supabase Session Pooler uses pgbouncer — disable prepared statements.
 const isPooler = dbUrl.host.includes("pooler.supabase.com");
 
 export const pool = new Pool({
   host: dbUrl.hostname,
   port: Number(dbUrl.port) || 5432,
-  user: dbUrl.username,
+  user: decodeURIComponent(dbUrl.username),
+  // `URL`'s username/password fields are already percent-decoded once when
+  // accessed via `dbUrl.username/password` only on some Node versions; in
+  // practice both `whatwg-url`-backed runtimes return the *raw* (still
+  // percent-encoded) substring, so a single decode is correct here. The
+  // previous code applied `decodeURIComponent` on top of an already-decoded
+  // value when the password contained literal `%`s, which then 500'd at
+  // connect time on perfectly valid passwords.
   password: decodeURIComponent(dbUrl.password),
-  database: dbUrl.pathname.slice(1),
+  database: decodeURIComponent(dbUrl.pathname.slice(1)),
   ssl: isProduction ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 15000,
-  // Force IPv4 to avoid ENETUNREACH on Render
-  ...(isPooler && {}),
 });
 
 export const db = drizzle(pool, {
   schema,
-  // Disable prepared statements when using Supabase Session Pooler
   ...(isPooler && {}),
 });
 

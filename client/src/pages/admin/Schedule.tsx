@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@/api-client/custom-fetch";
+import { escapeHtml } from "@/lib/escape-html";
+import { STORAGE_KEYS, readJSON } from "@/lib/storage";
 
 const DAYS: Record<string, string> = {
   saturday: "السبت", sunday: "الأحد", monday: "الاثنين",
@@ -81,15 +83,28 @@ export default function AdminSchedule() {
   };
 
   const handlePrint = () => {
+    // Build the printable HTML with all admin-controlled fields HTML-escaped
+    // (className, trainerName, location, gymName) so a malicious admin can't
+    // inject `<script>` into the print preview.
     const printContent = DAY_ORDER.map(day => {
       const entries = schedule.filter(s => s.dayOfWeek === day);
       if (!entries.length) return "";
-      return `<div class="day-block"><h3>${DAYS[day]}</h3>${entries.map(e =>
-        `<div class="entry"><strong>${e.className}</strong> — ${e.startTime}–${e.endTime}${e.trainerName ? " | " + e.trainerName : ""}${e.location ? " | " + e.location : ""}</div>`
-      ).join("")}</div>`;
+      const dayLabel = escapeHtml(DAYS[day]);
+      const entriesHtml = entries.map(e => {
+        const cls = escapeHtml(e.className);
+        const time = `${escapeHtml(e.startTime)}–${escapeHtml(e.endTime)}`;
+        const trainer = e.trainerName ? " | " + escapeHtml(e.trainerName) : "";
+        const location = e.location ? " | " + escapeHtml(e.location) : "";
+        return `<div class="entry"><strong>${cls}</strong> — ${time}${trainer}${location}</div>`;
+      }).join("");
+      return `<div class="day-block"><h3>${dayLabel}</h3>${entriesHtml}</div>`;
     }).filter(Boolean).join("");
-    const gymName = (() => { try { return JSON.parse(localStorage.getItem("gym-settings") ?? "{}").gymName ?? "Eagle Gym"; } catch { return "Eagle Gym"; } })();
-    const win = window.open("", "_blank");
+    const settings = readJSON<{ gymName?: string }>(STORAGE_KEYS.GYM_SETTINGS, {}) ?? {};
+    const gymName = escapeHtml(settings.gymName ?? "Eagle Gym");
+    const dateLabel = escapeHtml(new Date().toLocaleDateString("ar-EG"));
+    // `noopener,noreferrer` so the print window cannot reach back into the
+    // admin app via window.opener.
+    const win = window.open("", "_blank", "noopener,noreferrer");
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>الجدول الأسبوعي — ${gymName}</title><style>
       body { font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; padding: 30px; color: #111; }
@@ -101,7 +116,7 @@ export default function AdminSchedule() {
       @media print { button { display: none; } }
     </style></head><body>
     <h1>🦅 ${gymName} — الجدول الأسبوعي</h1>
-    <div class="sub">طُبع في: ${new Date().toLocaleDateString("ar-EG")}</div>
+    <div class="sub">طُبع في: ${dateLabel}</div>
     ${printContent}
     <script>window.onload = () => { window.print(); }<\/script>
     </body></html>`);

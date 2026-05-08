@@ -1,9 +1,11 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AdminLayout from "@/layouts/AdminLayout";
 import MemberLayout from "@/layouts/MemberLayout";
 import { useAuthStore } from "@/store/auth";
+import { STORAGE_KEYS } from "@/lib/storage";
 
 import Login from "@/pages/login";
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -21,6 +23,7 @@ import AdminExports from "@/pages/admin/Exports";
 import AdminImports from "@/pages/admin/Imports";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminReminders from "@/pages/admin/Reminders";
+import AdminWhatsAppTemplates from "@/pages/admin/WhatsAppTemplates";
 import MemberDashboard from "@/pages/member/Dashboard";
 import MemberWorkouts from "@/pages/member/Workouts";
 import MemberLog from "@/pages/member/Log";
@@ -57,6 +60,17 @@ function MemberRoute({ children }: { children: React.ReactNode }) {
 function RoleHomeRedirect() {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
+  // After re-login, restore the original location if we stashed one before
+  // forcing the user to the login page.
+  try {
+    const target = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+    if (target && !target.startsWith("/login")) {
+      sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+      return <Redirect to={target} />;
+    }
+  } catch {
+    /* ignore */
+  }
   return <Redirect to={user?.role === "admin" ? "/admin" : "/member"} />;
 }
 
@@ -124,7 +138,7 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={handleSplashDone} />;
 
   return (
-    <>
+    <ErrorBoundary>
       <ReminderPopup />
       <GlobalKeyboardShortcuts />
       <PWAInstallPrompt />
@@ -181,6 +195,9 @@ export default function App() {
         </Route>
         <Route path="/admin/reminders">
           <AdminRoute><AdminReminders /></AdminRoute>
+        </Route>
+        <Route path="/admin/wa-templates">
+          <AdminRoute><AdminWhatsAppTemplates /></AdminRoute>
         </Route>
         {/* Member routes */}
         <Route path="/member">
@@ -244,6 +261,6 @@ export default function App() {
           <RoleHomeRedirect />
         </Route>
       </Switch>
-    </>
+    </ErrorBoundary>
   );
 }

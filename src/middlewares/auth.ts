@@ -45,18 +45,3 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   }
   next();
 }
-
-export function requireOwnerOrAdmin(paramKey = "userId") {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-    const paramId = req.params[paramKey];
-    if (req.user.role === "admin" || req.user.userId === paramId) {
-      next();
-    } else {
-      res.status(403).json({ error: "Forbidden", message: "Access denied" });
-    }
-  };
-}

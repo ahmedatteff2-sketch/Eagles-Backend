@@ -6,6 +6,8 @@ import { useAuthStore } from "@/store/auth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { PHONE_INPUT_REGEX } from "@/lib/phone";
+import { STORAGE_KEYS } from "@/lib/storage";
 
 const cssAnimations = `
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
@@ -18,16 +20,27 @@ const cssAnimations = `
 `;
 
 const schema = z.object({
-  phone: z.string().min(1, "رقم الهاتف مطلوب"),
-  password: z.string().min(1, "كلمة المرور مطلوبة"),
+  phone: z.string()
+    .min(1, "رقم الهاتف مطلوب")
+    .regex(PHONE_INPUT_REGEX, "صيغة رقم الهاتف غير صحيحة (5 أرقام على الأقل)"),
+  password: z.string()
+    .min(1, "كلمة المرور مطلوبة")
+    .max(72, "كلمة المرور طويلة جداً (الحد الأقصى 72 حرفاً)"),
 });
 
 type FormData = z.infer<typeof schema>;
 
+interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: { role: "admin" | "member" | "trainer"; [k: string]: unknown };
+}
+
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { setAuth } = useAuthStore();
-  const { toast } = useToast();
+  // Toast hook is intentionally unused on login — errors render inline.
+  void useToast;
   const login = useLogin();
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -40,9 +53,21 @@ export default function LoginPage() {
   function onSubmit(data: FormData) {
     setLoginError("");
     login.mutate({ data }, {
-      onSuccess: (res: any) => {
-        setAuth(res.accessToken, res.refreshToken, res.user);
-        setLocation(res.user?.role === "admin" ? "/admin" : "/member");
+      onSuccess: (res) => {
+        const r = res as unknown as LoginResponse;
+        setAuth(r.accessToken, r.refreshToken, r.user as never);
+        // Restore the page the user was on before being booted to /login,
+        // if any. Otherwise fall back to role-based home.
+        let next: string | null = null;
+        try {
+          next = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+          if (next) sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+        } catch { /* ignore */ }
+        if (next && !next.startsWith("/login")) {
+          setLocation(next);
+          return;
+        }
+        setLocation(r.user?.role === "admin" ? "/admin" : "/member");
       },
       onError: () => {
         setLoginError("رقم الهاتف أو كلمة المرور غير صحيحة");

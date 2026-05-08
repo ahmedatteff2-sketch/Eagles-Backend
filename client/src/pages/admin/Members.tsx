@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useListUsers, useCreateUser, useUpdateUser, useResetUserPassword,
   getListUsersQueryKey, getGetUserQueryKey,
@@ -10,12 +10,17 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { PHONE_INPUT_REGEX, toInternationalPhone } from "@/lib/phone";
+import { Link as WLink } from "wouter";
+import { WaTemplate, getWaTemplates, applyTemplateVars } from "@/api-client/wa-templates";
+
+const PASSWORD_MSG = "كلمة المرور 8 أحرف على الأقل (والحد الأقصى 72)";
 
 const createSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
+  name: z.string().min(2, "الاسم مطلوب"),
+  phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
-  password: z.string().min(6),
+  password: z.string().min(8, PASSWORD_MSG).max(72, PASSWORD_MSG),
   role: z.enum(["admin", "member"]).default("member").optional(),
   subscriptionId: z.coerce.number().optional(),
   startDate: z.string().optional(),
@@ -25,22 +30,21 @@ const createSchema = z.object({
 type CreateForm = z.infer<typeof createSchema>;
 
 const editSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
+  name: z.string().min(2, "الاسم مطلوب"),
+  phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
 });
 type EditForm = z.infer<typeof editSchema>;
 
-const resetSchema = z.object({ newPassword: z.string().min(6) });
+const resetSchema = z.object({
+  newPassword: z.string().min(8, PASSWORD_MSG).max(72, PASSWORD_MSG),
+});
 type ResetForm = z.infer<typeof resetSchema>;
 
-const WA_TEMPLATES = [
-  { id: "welcome", label: "ترحيب بعضو جديد 👋", text: (n: string, e: string) => `أهلاً وسهلاً ${n} 🦅\nيسعدنا انضمامك لعائلة Eagle Gym!\nاشتراكك فعّال حتى ${e}.\nنتمنى لك رحلة رياضية موفقة 💪` },
-  { id: "expiring", label: "قرب انتهاء الاشتراك ⚠️", text: (n: string, e: string) => `مرحباً ${n} 👋\nاشتراكك في Eagle Gym سينتهي قريباً بتاريخ ${e}.\nجدد الآن واستمر في رحلتك 💪` },
-  { id: "renewal", label: "تجديد الاشتراك ✅", text: (n: string, e: string) => `أهلاً ${n} 🎉\nتم تجديد اشتراكك بنجاح!\nاشتراكك الجديد فعّال حتى ${e}.\nأبوابنا مفتوحة لك دائماً 🦅💪` },
-  { id: "reminder", label: "تذكير بالتمرين 🏋️", text: (n: string) => `هيا ${n}! 💪\nجسمك ينتظرك في Eagle Gym 🦅\nلا تترك أهدافك تنتظر — نراك قريباً!` },
-  { id: "custom", label: "رسالة مخصصة ✏️", text: () => "" },
-];
+// Templates are now fetched from `/api/wa-templates` and managed at
+// /admin/wa-templates. This page only consumes them for sending.
+const CUSTOM_TEMPLATE_ID = -1;
+const GYM_NAME = "Eagle Gym";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 0];
 const inputCls = "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
@@ -135,7 +139,14 @@ const WaIcon = () => (
 );
 
 export default function AdminMembers() {
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  // Debounce search input -> API query (250ms) to avoid hammering the server
+  // on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -143,8 +154,16 @@ export default function AdminMembers() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [resettingUser, setResettingUser] = useState<any>(null);
   const [waUser, setWaUser] = useState<any>(null);
-  const [waTemplateId, setWaTemplateId] = useState("welcome");
+  const [waTemplateId, setWaTemplateId] = useState<number>(CUSTOM_TEMPLATE_ID);
   const [waMsg, setWaMsg] = useState("");
+  const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([]);
+  useEffect(() => {
+    let alive = true;
+    getWaTemplates()
+      .then((rows) => { if (alive) setWaTemplates(rows.filter((r) => r.enabled)); })
+      .catch(() => { /* leaving the list empty falls back to a custom message */ });
+    return () => { alive = false; };
+  }, []);
   const [confirmReset, setConfirmReset] = useState<any>(null);
   const [showBulkWa, setShowBulkWa] = useState(false);
   const queryClient = useQueryClient();
@@ -198,22 +217,45 @@ export default function AdminMembers() {
     return u.currentSubscription?.endDate ? new Date(u.currentSubscription.endDate).toLocaleDateString("ar-EG") : "—";
   }
 
-  function openWa(u: any) {
-    setWaUser(u); setWaTemplateId("expiring");
-    setWaMsg(WA_TEMPLATES[1].text(u.name, getEndDate(u)));
+  function buildVars(u: any) {
+    return {
+      name: u.name ?? "",
+      phone: u.phone ?? "",
+      membership_number: u.membershipNumber ?? "",
+      end_date: getEndDate(u),
+      gym_name: GYM_NAME,
+    };
   }
-  function onTplChange(id: string) {
+  function openWa(u: any) {
+    setWaUser(u);
+    const first = waTemplates[0];
+    if (first) {
+      setWaTemplateId(first.id);
+      setWaMsg(applyTemplateVars(first.body, buildVars(u)));
+    } else {
+      setWaTemplateId(CUSTOM_TEMPLATE_ID);
+      setWaMsg("");
+    }
+  }
+  function onTplChange(idStr: string) {
+    const id = Number(idStr);
     setWaTemplateId(id);
     if (!waUser) return;
-    if (id === "custom") { setWaMsg(""); return; }
-    const t = WA_TEMPLATES.find(t => t.id === id)!;
-    setWaMsg(t.text(waUser.name, getEndDate(waUser)));
+    if (id === CUSTOM_TEMPLATE_ID) { setWaMsg(""); return; }
+    const t = waTemplates.find((tpl) => tpl.id === id);
+    if (t) setWaMsg(applyTemplateVars(t.body, buildVars(waUser)));
   }
   function sendWa() {
     if (!waUser || !waMsg.trim()) return;
-    const p = waUser.phone?.replace(/\D/g, "");
-    const intl = p?.startsWith("0") ? "2" + p : p;
-    window.open(`https://wa.me/${intl}?text=${encodeURIComponent(waMsg)}`, "_blank");
+    const intl = toInternationalPhone(waUser.phone ?? "");
+    if (!intl) return;
+    // `noopener,noreferrer` so the new tab cannot reach back into the admin app
+    // via `window.opener` (reverse-tabnabbing).
+    window.open(
+      `https://wa.me/${intl}?text=${encodeURIComponent(waMsg)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   function openEdit(u: any) {
@@ -306,7 +348,7 @@ export default function AdminMembers() {
             className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="بحث بالاسم أو الهاتف..."
+          <input value={searchInput} onChange={e => { setSearchInput(e.target.value); setPage(1); }} placeholder="بحث بالاسم أو الهاتف..."
             className="w-full rounded-lg pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
             style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 18%)" }}
             onFocus={e => { e.target.style.borderColor = "hsl(40 65% 48% / 0.5)"; }}
@@ -495,9 +537,17 @@ export default function AdminMembers() {
         <Modal title="رسالة واتساب" sub={waUser.name} onClose={() => setWaUser(null)} accentGreen>
           <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
             <Field label="نوع الرسالة">
-              <select value={waTemplateId} onChange={e => onTplChange(e.target.value)} className={inputCls} style={inputSt}>
-                {WA_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <select value={waTemplateId} onChange={e => onTplChange(e.target.value)} className={inputCls} style={inputSt}>
+                  {waTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  <option value={CUSTOM_TEMPLATE_ID}>رسالة مخصصة ✏️</option>
+                </select>
+                <WLink href="/admin/wa-templates">
+                  <button type="button" className="px-2.5 py-2.5 rounded-lg text-xs whitespace-nowrap" style={{ background: "hsl(0 0% 14%)", color: "hsl(40 65% 60%)", border: "1px solid hsl(0 0% 22%)" }} title="إدارة القوالب">
+                    إدارة القوالب
+                  </button>
+                </WLink>
+              </div>
             </Field>
             <Field label="نص الرسالة">
               <textarea value={waMsg} onChange={e => setWaMsg(e.target.value)} rows={5}

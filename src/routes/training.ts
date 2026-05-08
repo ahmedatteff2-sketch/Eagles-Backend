@@ -6,11 +6,18 @@ import {
   workoutTemplateExercisesTable,
   memberWorkoutAssignmentsTable,
 } from "@workspace/db/schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
+import { parseId, parseUserId } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
+
+// Mirror the table's row type so partial updates stay type-safe — using
+// `any` here historically swallowed typos like `daysCount` vs `daysCount` and
+// any future column rename would silently no-op.
+type WorkoutTemplateUpdate = Partial<typeof workoutTemplatesTable.$inferInsert>;
 
 const exerciseSchema = z.object({
   name: z.string().min(1),
@@ -57,7 +64,8 @@ router.post("/exercises", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   const body = exerciseSchema.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
   const [row] = await db.update(exercisesTable).set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle }).where(eq(exercisesTable.id, id)).returning();
@@ -66,7 +74,8 @@ router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.delete("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   await db.delete(exercisesTable).where(eq(exercisesTable.id, id));
   res.json({ success: true });
 });
@@ -76,11 +85,26 @@ router.delete("/exercises/:id", authenticate, requireAdmin, async (req, res) => 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/workout-templates", authenticate, async (_req, res) => {
-  const templates = await db.select().from(workoutTemplatesTable).orderBy(desc(workoutTemplatesTable.createdAt));
+  try {
+    const templates = await db
+      .select()
+      .from(workoutTemplatesTable)
+      .orderBy(desc(workoutTemplatesTable.createdAt));
 
-  const result = await Promise.all(templates.map(async (t) => {
-    const exercises = await db
+    if (templates.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    // Fan-in instead of fan-out: one query for every template's exercises and
+    // one for every template's assignments, then group in memory. The previous
+    // version issued 2 queries per template (O(2N)) and was a hot path on the
+    // admin dashboard.
+    const templateIds = templates.map((t) => t.id);
+
+    const allExercises = await db
       .select({
+        templateId: workoutTemplateExercisesTable.templateId,
         id: workoutTemplateExercisesTable.id,
         exerciseId: workoutTemplateExercisesTable.exerciseId,
         sets: workoutTemplateExercisesTable.sets,
@@ -95,18 +119,38 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
       })
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
-      .where(eq(workoutTemplateExercisesTable.templateId, t.id))
+      .where(inArray(workoutTemplateExercisesTable.templateId, templateIds))
       .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
-    const assignments = await db
-      .select()
+    const allAssignments = await db
+      .select({
+        templateId: memberWorkoutAssignmentsTable.templateId,
+        id: memberWorkoutAssignmentsTable.id,
+      })
       .from(memberWorkoutAssignmentsTable)
-      .where(eq(memberWorkoutAssignmentsTable.templateId, t.id));
+      .where(inArray(memberWorkoutAssignmentsTable.templateId, templateIds));
 
-    return { ...t, exercises, assignedCount: assignments.length };
-  }));
+    const exercisesByTemplate = new Map<number, typeof allExercises>();
+    for (const ex of allExercises) {
+      const arr = exercisesByTemplate.get(ex.templateId) ?? [];
+      arr.push(ex);
+      exercisesByTemplate.set(ex.templateId, arr);
+    }
+    const assignmentCounts = new Map<number, number>();
+    for (const a of allAssignments) {
+      assignmentCounts.set(a.templateId, (assignmentCounts.get(a.templateId) ?? 0) + 1);
+    }
 
-  res.json(result);
+    const result = templates.map((t) => ({
+      ...t,
+      exercises: exercisesByTemplate.get(t.id) ?? [],
+      assignedCount: assignmentCounts.get(t.id) ?? 0,
+    }));
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "GET /workout-templates failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.post("/workout-templates", authenticate, requireAdmin, async (req, res) => {
@@ -117,10 +161,11 @@ router.post("/workout-templates", authenticate, requireAdmin, async (req, res) =
 });
 
 router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   const body = templateSchema.partial().safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const updates: any = {};
+  const updates: WorkoutTemplateUpdate = {};
   if (body.data.name) updates.name = body.data.name;
   if (body.data.daysCount) updates.daysCount = body.data.daysCount;
   if (body.data.daysPerWeek) updates.daysPerWeek = body.data.daysPerWeek;
@@ -132,7 +177,8 @@ router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res
 });
 
 router.delete("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   await db.delete(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id));
   res.json({ success: true });
 });
@@ -140,7 +186,8 @@ router.delete("/workout-templates/:id", authenticate, requireAdmin, async (req, 
 // ── Template exercises ──────────────────────────────────────────────────────
 
 router.post("/workout-templates/:templateId/exercises", authenticate, requireAdmin, async (req, res) => {
-  const templateId = Number(req.params.templateId);
+  const templateId = parseId(req.params.templateId, res, "معرّف القالب");
+  if (templateId === null) return;
   const body = templateExerciseSchema.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
 
@@ -166,7 +213,8 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
 });
 
 router.put("/workout-template-exercises/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   const body = templateExerciseSchema.partial().safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
   const [row] = await db.update(workoutTemplateExercisesTable).set(body.data).where(eq(workoutTemplateExercisesTable.id, id)).returning();
@@ -175,7 +223,8 @@ router.put("/workout-template-exercises/:id", authenticate, requireAdmin, async 
 });
 
 router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   await db.delete(workoutTemplateExercisesTable).where(eq(workoutTemplateExercisesTable.id, id));
   res.json({ success: true });
 });
@@ -183,7 +232,8 @@ router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, asy
 // ── Duplicate template ──────────────────────────────────────────────────────
 
 router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   const [orig] = await db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id)).limit(1);
   if (!orig) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -218,21 +268,26 @@ router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, asyn
 // ── Member assignments ──────────────────────────────────────────────────────
 
 router.get("/workout-templates/:templateId/assignments", authenticate, requireAdmin, async (req, res) => {
-  const templateId = Number(req.params.templateId);
+  const templateId = parseId(req.params.templateId, res, "معرّف القالب");
+  if (templateId === null) return;
   const rows = await db.select().from(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.templateId, templateId));
   res.json(rows);
 });
 
 router.post("/workout-templates/:templateId/assign", authenticate, requireAdmin, async (req, res) => {
-  const templateId = Number(req.params.templateId);
+  const templateId = parseId(req.params.templateId, res, "معرّف القالب");
+  if (templateId === null) return;
   const body = assignSchema.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(memberWorkoutAssignmentsTable).values({ templateId, userId: body.data.userId }).returning();
+  const userId = parseUserId(body.data.userId, res);
+  if (userId === null) return;
+  const [row] = await db.insert(memberWorkoutAssignmentsTable).values({ templateId, userId }).returning();
   res.status(201).json(row);
 });
 
 router.delete("/workout-assignments/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   await db.delete(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.id, id));
   res.json({ success: true });
 });
@@ -241,14 +296,26 @@ router.delete("/workout-assignments/:id", authenticate, requireAdmin, async (req
 
 router.get("/my-workouts", authenticate, async (req, res) => {
   const userId = req.user!.userId;
-  const assignments = await db.select().from(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.userId, userId));
+  try {
+    const assignments = await db
+      .select()
+      .from(memberWorkoutAssignmentsTable)
+      .where(eq(memberWorkoutAssignmentsTable.userId, userId));
 
-  const result = await Promise.all(assignments.map(async (a) => {
-    const [template] = await db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, a.templateId)).limit(1);
-    if (!template) return null;
+    if (assignments.length === 0) {
+      res.json([]);
+      return;
+    }
 
-    const exercises = await db
+    const templateIds = assignments.map((a) => a.templateId);
+    const templates = await db
+      .select()
+      .from(workoutTemplatesTable)
+      .where(inArray(workoutTemplatesTable.id, templateIds));
+
+    const allExercises = await db
       .select({
+        templateId: workoutTemplateExercisesTable.templateId,
         id: workoutTemplateExercisesTable.id,
         exerciseId: workoutTemplateExercisesTable.exerciseId,
         sets: workoutTemplateExercisesTable.sets,
@@ -263,13 +330,34 @@ router.get("/my-workouts", authenticate, async (req, res) => {
       })
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
-      .where(eq(workoutTemplateExercisesTable.templateId, a.templateId))
+      .where(inArray(workoutTemplateExercisesTable.templateId, templateIds))
       .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
-    return { ...template, assignedAt: a.assignedAt, exercises };
-  }));
+    const exercisesByTemplate = new Map<number, typeof allExercises>();
+    for (const ex of allExercises) {
+      const arr = exercisesByTemplate.get(ex.templateId) ?? [];
+      arr.push(ex);
+      exercisesByTemplate.set(ex.templateId, arr);
+    }
+    const templatesById = new Map(templates.map((t) => [t.id, t]));
 
-  res.json(result.filter(Boolean));
+    const result = assignments
+      .map((a) => {
+        const template = templatesById.get(a.templateId);
+        if (!template) return null;
+        return {
+          ...template,
+          assignedAt: a.assignedAt,
+          exercises: exercisesByTemplate.get(a.templateId) ?? [],
+        };
+      })
+      .filter(Boolean);
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err, userId }, "GET /my-workouts failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;

@@ -143,9 +143,31 @@ export default function AdminExercises() {
 
       {/* Exercise Grid */}
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">جاري التحميل...</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-card border border-card-border rounded-xl p-4 animate-pulse">
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 rounded bg-muted" />
+                <div className="h-5 w-16 rounded bg-muted/60" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">لا توجد تمارين</div>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: "hsl(40 65% 52% / 0.1)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7" style={{ color: "hsl(40 65% 60%)" }}>
+              <path d="M6 18 18 6M6 6l12 12"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/>
+            </svg>
+          </div>
+          <p className="text-foreground font-semibold mb-1">{search || filterMuscle ? "لا توجد نتائج بهذه الفلاتر" : "لا توجد تمارين بعد"}</p>
+          <p className="text-muted-foreground text-sm mb-4">{search || filterMuscle ? "جرّب تغيير البحث أو الفلتر" : "ابدأ بإضافة تمارين لمكتبتك"}</p>
+          {!search && !filterMuscle && (
+            <button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold">
+              + إضافة تمرين جديد
+            </button>
+          )}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((ex) => {

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { expensesTable } from "@workspace/db/schema";
-import { eq, desc, sum, gte, lte, and } from "drizzle-orm";
+import { eq, desc, sum, gte, lte, and, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parsePagination } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
@@ -26,27 +27,36 @@ router.get("/expenses", authenticate, requireAdmin, async (req, res) => {
   if (to) conditions.push(lte(expensesTable.date, to));
 
   try {
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     const expenses = await db
       .select()
       .from(expensesTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .where(whereClause)
       .orderBy(desc(expensesTable.date))
       .limit(limit)
       .offset(offset);
 
-    const [totalAmountRow] = await db
-      .select({ total: sum(expensesTable.amount) })
+    // `total` reports the full filtered row count so the frontend can show
+    // accurate "page X of Y" — using `expenses.length` would clamp to the
+    // current page size and break pagination math.
+    const [counts] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        totalAmount: sum(expensesTable.amount),
+      })
       .from(expensesTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
+      .where(whereClause);
 
     res.json({
       data: expenses,
-      total: expenses.length,
-      totalAmount: Number(totalAmountRow?.total ?? 0),
+      total: counts?.total ?? 0,
+      totalAmount: Number(counts?.totalAmount ?? 0),
       page,
       limit,
     });
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /expenses failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب المصاريف" });
   }
 });

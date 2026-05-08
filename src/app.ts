@@ -2,7 +2,6 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
-import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,7 +19,9 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        // No inline scripts: the SPA bundles its scripts so 'unsafe-inline'
+        // would only weaken the policy without enabling any current usage.
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "blob:"],
@@ -28,22 +29,48 @@ app.use(
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
       },
     },
   }),
 );
 
-app.use(
-  cors({
-    origin: process.env.NODE_ENV === "production"
-      ? (process.env.CORS_ORIGIN || true)
-      : true,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
-  }),
-);
+function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
+  if (process.env.NODE_ENV !== "production") return true;
+  const raw = process.env.CORS_ORIGIN;
+  if (!raw) {
+    // No CORS_ORIGIN set in production. Don't crash — instead skip the CORS
+    // middleware entirely. Same-origin requests (frontend served from this
+    // same Express app) still work; cross-origin requests are blocked by the
+    // browser by default, which is the safe behavior. This is intentionally
+    // NOT a fallback to `origin: true` (reflective) — reflective + credentials
+    // is the footgun we are avoiding.
+    logger.warn(
+      "CORS_ORIGIN not set — same-origin only mode (set CORS_ORIGIN to a comma-separated list of allowed origins to enable cross-origin requests)",
+    );
+    return null;
+  }
+  const allowList = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  if (allowList.length === 0) {
+    logger.warn("CORS_ORIGIN is empty after parsing — running in same-origin only mode");
+    return null;
+  }
+  return allowList.length === 1 ? allowList[0] : allowList;
+}
+
+const corsOrigin = parseCorsOrigin();
+if (corsOrigin !== null) {
+  app.use(
+    cors({
+      origin: corsOrigin,
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+      maxAge: 86400,
+    }),
+  );
+}
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -71,7 +98,6 @@ const authLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -94,7 +120,15 @@ app.use("/api/auth/refresh", authLimiter);
 app.use("/api/auth/change-password", authLimiter);
 app.use("/api/auth/update-phone", authLimiter);
 app.use("/api/users/:id/reset-password", authLimiter);
+app.use("/api/imports", authLimiter);
 app.use("/api", router);
+
+// Any /api/* path that the router didn't match is genuinely unknown — return
+// JSON instead of falling through to the SPA index.html below (which would
+// confuse API clients with an HTML 200).
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found", message: "المسار غير موجود" });
+});
 
 // Serve frontend in production
 if (process.env.NODE_ENV === "production") {
