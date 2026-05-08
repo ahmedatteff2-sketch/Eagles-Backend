@@ -9,8 +9,9 @@ import Papa from "papaparse";
 import { logger } from "../lib/logger.js";
 import { normalizePhone } from "../lib/phone.js";
 import multer from "multer";
-import Database from "better-sqlite3";
-import { unlinkSync } from "fs";
+// @ts-expect-error sql.js has no type declarations
+import initSqlJs from "sql.js";
+import { readFileSync, unlinkSync } from "fs";
 import path from "path";
 import os from "os";
 
@@ -290,9 +291,11 @@ router.post(
         return;
       }
 
-      let sqliteDb: Database.Database;
+      const SQL = await initSqlJs();
+      let sqliteDb: InstanceType<typeof SQL.Database>;
       try {
-        sqliteDb = new Database(filePath, { readonly: true });
+        const fileBuffer = readFileSync(filePath);
+        sqliteDb = new SQL.Database(fileBuffer);
       } catch {
         res.status(400).json({
           error: "ملف غير صالح",
@@ -302,28 +305,36 @@ router.post(
       }
 
       // Find the members/users table in the SQLite file
-      const tables = sqliteDb
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-        )
-        .all() as { name: string }[];
+      const tablesResult = sqliteDb.exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+      );
+      const tableNames = (tablesResult[0]?.values ?? []).map((r: unknown[]) => String(r[0]));
 
       const targetNames = ["members", "users", "member", "user", "أعضاء", "الأعضاء"];
-      const tableName = tables.find((t) =>
-        targetNames.includes(t.name.toLowerCase()),
-      )?.name;
+      const tableName = tableNames.find((t: string) =>
+        targetNames.includes(t.toLowerCase()),
+      );
 
       if (!tableName) {
         sqliteDb.close();
         res.status(400).json({
           error: "جدول غير موجود",
-          message: `لم يتم العثور على جدول الأعضاء. الجداول الموجودة: ${tables.map((t) => t.name).join(", ")}`,
+          message: `لم يتم العثور على جدول الأعضاء. الجداول الموجودة: ${tableNames.join(", ")}`,
         });
         return;
       }
 
-      const rows = sqliteDb.prepare(`SELECT * FROM "${tableName}"`).all() as SqliteRow[];
+      const result = sqliteDb.exec(`SELECT * FROM "${tableName}"`);
       sqliteDb.close();
+
+      const columns = result[0]?.columns ?? [];
+      const rows: SqliteRow[] = (result[0]?.values ?? []).map((vals: unknown[]) => {
+        const row: SqliteRow = {};
+        for (let i = 0; i < columns.length; i++) {
+          row[columns[i]] = vals[i] != null ? String(vals[i]) : undefined;
+        }
+        return row;
+      });
 
       if (rows.length === 0) {
         res.status(400).json({
