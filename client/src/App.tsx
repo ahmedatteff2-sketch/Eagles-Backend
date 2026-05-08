@@ -1,61 +1,79 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AdminLayout from "@/layouts/AdminLayout";
 import MemberLayout from "@/layouts/MemberLayout";
 import { useAuthStore } from "@/store/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
+import { PageSkeleton } from "@/components/Skeleton";
 
+// Login is loaded eagerly: it's the entry point for unauthenticated users
+// and inlining it avoids a Suspense flash on the most common first paint.
 import Login from "@/pages/login";
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminMembers from "@/pages/admin/Members";
-import AdminMemberProfile from "@/pages/admin/MemberProfile";
-import AdminSubscriptions from "@/pages/admin/Subscriptions";
-import AdminExercises from "@/pages/admin/Exercises";
-import AdminWorkoutTemplates from "@/pages/admin/WorkoutTemplates";
-import AdminPayments from "@/pages/admin/Payments";
-import AdminExpenses from "@/pages/admin/Expenses";
-import AdminAttendance from "@/pages/admin/Attendance";
-import AdminSchedule from "@/pages/admin/Schedule";
-import AdminAnalytics from "@/pages/admin/Analytics";
-import AdminExports from "@/pages/admin/Exports";
-import AdminImports from "@/pages/admin/Imports";
-import AdminSettings from "@/pages/admin/Settings";
-import AdminReminders from "@/pages/admin/Reminders";
-import AdminWhatsAppTemplates from "@/pages/admin/WhatsAppTemplates";
-import AdminAuditLog from "@/pages/admin/AuditLog";
-import MemberDashboard from "@/pages/member/Dashboard";
-import MemberWorkouts from "@/pages/member/Workouts";
-import MemberLog from "@/pages/member/Log";
-import MemberStats from "@/pages/member/Stats";
-import MemberAttendance from "@/pages/member/Attendance";
-import MemberSchedule from "@/pages/member/Schedule";
-import MemberQRCode from "@/pages/member/QRCode";
-import MemberSettings from "@/pages/member/Settings";
-import MemberReport from "@/pages/member/Report";
-import MemberProgressPhotos from "@/pages/member/ProgressPhotos";
-import MemberLeaderboard from "@/pages/member/Leaderboard";
-import MemberNotifications from "@/pages/member/Notifications";
-import MemberMealPlan from "@/pages/member/MealPlan";
-import MemberBadges from "@/pages/member/Badges";
-import MemberPersonalRecords from "@/pages/member/PersonalRecords";
-import MemberCalendar from "@/pages/member/Calendar";
-import MemberCoachNotes from "@/pages/member/CoachNotes";
-import MemberMonthlyReport from "@/pages/member/MonthlyReport";
+
+// Every other page is route-split into its own JS chunk and fetched lazily
+// on first navigation. Admins don't pay for member pages and vice versa.
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminMembers = lazy(() => import("@/pages/admin/Members"));
+const AdminMemberProfile = lazy(() => import("@/pages/admin/MemberProfile"));
+const AdminSubscriptions = lazy(() => import("@/pages/admin/Subscriptions"));
+const AdminExercises = lazy(() => import("@/pages/admin/Exercises"));
+const AdminWorkoutTemplates = lazy(() => import("@/pages/admin/WorkoutTemplates"));
+const AdminPayments = lazy(() => import("@/pages/admin/Payments"));
+const AdminExpenses = lazy(() => import("@/pages/admin/Expenses"));
+const AdminAttendance = lazy(() => import("@/pages/admin/Attendance"));
+const AdminSchedule = lazy(() => import("@/pages/admin/Schedule"));
+const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
+const AdminExports = lazy(() => import("@/pages/admin/Exports"));
+const AdminImports = lazy(() => import("@/pages/admin/Imports"));
+const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
+const AdminReminders = lazy(() => import("@/pages/admin/Reminders"));
+const AdminWhatsAppTemplates = lazy(() => import("@/pages/admin/WhatsAppTemplates"));
+const AdminAuditLog = lazy(() => import("@/pages/admin/AuditLog"));
+const MemberDashboard = lazy(() => import("@/pages/member/Dashboard"));
+const MemberWorkouts = lazy(() => import("@/pages/member/Workouts"));
+const MemberLog = lazy(() => import("@/pages/member/Log"));
+const MemberStats = lazy(() => import("@/pages/member/Stats"));
+const MemberAttendance = lazy(() => import("@/pages/member/Attendance"));
+const MemberSchedule = lazy(() => import("@/pages/member/Schedule"));
+const MemberQRCode = lazy(() => import("@/pages/member/QRCode"));
+const MemberSettings = lazy(() => import("@/pages/member/Settings"));
+const MemberReport = lazy(() => import("@/pages/member/Report"));
+const MemberProgressPhotos = lazy(() => import("@/pages/member/ProgressPhotos"));
+const MemberLeaderboard = lazy(() => import("@/pages/member/Leaderboard"));
+const MemberNotifications = lazy(() => import("@/pages/member/Notifications"));
+const MemberMealPlan = lazy(() => import("@/pages/member/MealPlan"));
+const MemberBadges = lazy(() => import("@/pages/member/Badges"));
+const MemberPersonalRecords = lazy(() => import("@/pages/member/PersonalRecords"));
+const MemberCalendar = lazy(() => import("@/pages/member/Calendar"));
+const MemberCoachNotes = lazy(() => import("@/pages/member/CoachNotes"));
+const MemberMonthlyReport = lazy(() => import("@/pages/member/MonthlyReport"));
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
+}
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
   if (user && user.role !== "admin") return <Redirect to="/member" />;
-  return <AdminLayout>{children}</AdminLayout>;
+  return (
+    <AdminLayout>
+      <LazyPage>{children}</LazyPage>
+    </AdminLayout>
+  );
 }
 
 function MemberRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
   if (user && user.role === "admin") return <Redirect to="/admin" />;
-  return <MemberLayout>{children}</MemberLayout>;
+  return (
+    <MemberLayout>
+      <LazyPage>{children}</LazyPage>
+    </MemberLayout>
+  );
 }
 
 function RoleHomeRedirect() {
