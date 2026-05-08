@@ -24,9 +24,17 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        imgSrc: ["'self'", "data:", "blob:"],
+        // YouTube serves video thumbnails from i.ytimg.com / i9.ytimg.com.
+        imgSrc: ["'self'", "data:", "blob:", "https://i.ytimg.com", "https://i9.ytimg.com"],
         connectSrc: ["'self'"],
-        frameSrc: ["'none'"],
+        // Allow embedded YouTube + Vimeo players for the in-app exercise video
+        // library. Anything else (raw <video src>, etc.) is unaffected.
+        frameSrc: [
+          "'self'",
+          "https://www.youtube.com",
+          "https://www.youtube-nocookie.com",
+          "https://player.vimeo.com",
+        ],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

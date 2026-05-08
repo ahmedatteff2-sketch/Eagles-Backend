@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@/api-client/custom-fetch";
+import ExerciseVideoButton from "@/components/ExerciseVideoButton";
 
 interface Exercise {
   id: number;
@@ -188,10 +189,9 @@ export default function AdminExercises() {
                   </div>
                 </div>
                 {ex.videoUrl && (
-                  <a href={ex.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-primary hover:underline">
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    فيديو
-                  </a>
+                  <div className="mt-3">
+                    <ExerciseVideoButton url={ex.videoUrl} title={ex.name} variant="thumb" />
+                  </div>
                 )}
               </div>
             );

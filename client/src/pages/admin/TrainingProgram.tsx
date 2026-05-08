@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@/api-client/custom-fetch";
+import ExerciseVideoButton from "@/components/ExerciseVideoButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -392,17 +393,7 @@ function ExerciseCard({
               <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground">
                 {ex.repsMin}–{ex.repsMax} تكرار
               </span>
-              {ex.videoUrl && (
-                <a
-                  href={ex.videoUrl} target="_blank" rel="noreferrer"
-                  className="px-2 py-0.5 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                  فيديو
-                </a>
-              )}
+              <ExerciseVideoButton url={ex.videoUrl} title={ex.name} variant="chip" />
             </div>
           </div>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
