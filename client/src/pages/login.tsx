@@ -9,6 +9,45 @@ import { useState } from "react";
 import { PHONE_INPUT_REGEX } from "@/lib/phone";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { verify2FA } from "@/lib/auth-extras";
+import { ApiError } from "@/api-client/custom-fetch";
+
+/**
+ * Map the backend's HTTP status + JSON body to a precise Arabic error
+ * message. The server already returns localized strings via `message`, but
+ * we still pick our own copy per status so:
+ *   - 401 stays a generic "phone or password wrong" (don't leak which one)
+ *   - 423 surfaces the lockout duration prominently
+ *   - 429 nudges the user to wait, not to keep retrying
+ *   - 5xx + offline get distinct copy so the user knows the issue isn't them
+ */
+function loginErrorMessage(err: unknown): string {
+  // No response at all → almost always a connectivity problem.
+  if (err instanceof TypeError) {
+    return "تعذّر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مجدداً";
+  }
+  if (!(err instanceof ApiError)) {
+    return "حدث خطأ غير متوقع. حاول مجدداً";
+  }
+  const data = err.data as { message?: string; error?: string } | null;
+  const serverMsg = typeof data?.message === "string" ? data.message : null;
+
+  switch (err.status) {
+    case 400:
+      return serverMsg ?? "بيانات الدخول غير صالحة";
+    case 401:
+      return "رقم الهاتف أو كلمة المرور غير صحيحة";
+    case 423:
+      // Server already includes the remaining minutes — prefer its message.
+      return serverMsg ?? "الحساب مغلق مؤقتاً بسبب محاولات دخول فاشلة. حاول لاحقاً";
+    case 429:
+      return serverMsg ?? "تم تجاوز عدد المحاولات المسموح به. حاول بعد ١٥ دقيقة";
+    default:
+      if (err.status >= 500) {
+        return "خطأ في الخادم. حاول مجدداً بعد قليل";
+      }
+      return serverMsg ?? "تعذّر تسجيل الدخول. حاول مجدداً";
+  }
+}
 
 const cssAnimations = `
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
@@ -87,8 +126,8 @@ export default function LoginPage() {
         }
         completeLogin(r as LoginResponse);
       },
-      onError: () => {
-        setLoginError("رقم الهاتف أو كلمة المرور غير صحيحة");
+      onError: (err) => {
+        setLoginError(loginErrorMessage(err));
         setShaking(true);
         setTimeout(() => setShaking(false), 500);
       },
