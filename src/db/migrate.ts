@@ -305,20 +305,28 @@ export async function runMigrations(): Promise<void> {
     // Migrate legacy refresh_tokens.token (plaintext) → token_hash. Existing
     // plaintext rows can't be retroactively hashed without the original token,
     // so they're truncated; users will simply have to log in again.
+    //
+    // The schema check is scoped to the `public` schema because Postgres
+    // information_schema can return matches from other schemas (e.g. pg_temp)
+    // for the same table name, which previously caused a false positive and a
+    // failed `ALTER TABLE refresh_tokens DROP COLUMN token` against a table
+    // where the column was already gone. We also use `DROP COLUMN IF EXISTS`
+    // and `ADD COLUMN IF NOT EXISTS` to make the migration robust against any
+    // residual inconsistency between the metadata check and the actual table.
     const { rows: hasLegacyTokenCol } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='refresh_tokens' AND column_name='token'`
+      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token'`
     );
     const { rows: hasTokenHashCol } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='refresh_tokens' AND column_name='token_hash'`
+      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token_hash'`
     );
     if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length === 0) {
       logger.warn("Migrating refresh_tokens.token → token_hash (clearing existing rows)");
       await client.query(`TRUNCATE TABLE refresh_tokens`);
-      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN token`);
-      await client.query(`ALTER TABLE refresh_tokens ADD COLUMN token_hash TEXT NOT NULL UNIQUE`);
+      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN IF EXISTS token`);
+      await client.query(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS token_hash TEXT NOT NULL UNIQUE`);
     } else if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length > 0) {
       logger.warn("Dropping legacy refresh_tokens.token column");
-      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN token`);
+      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN IF EXISTS token`);
     }
 
     if ((await userIdType("member_subscriptions")) === "integer") {
