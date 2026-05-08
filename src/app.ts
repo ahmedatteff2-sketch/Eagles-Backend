@@ -36,33 +36,41 @@ app.use(
   }),
 );
 
-function parseCorsOrigin(): cors.CorsOptions["origin"] {
+function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
   if (process.env.NODE_ENV !== "production") return true;
   const raw = process.env.CORS_ORIGIN;
   if (!raw) {
-    // Fail-closed in production. Reflective `Access-Control-Allow-Origin: *`
-    // combined with credentials: true is a footgun, so refuse to start until
-    // the operator has set CORS_ORIGIN explicitly.
-    logger.error("CORS_ORIGIN must be set in production (comma-separated list of allowed origins)");
-    process.exit(1);
+    // No CORS_ORIGIN set in production. Don't crash — instead skip the CORS
+    // middleware entirely. Same-origin requests (frontend served from this
+    // same Express app) still work; cross-origin requests are blocked by the
+    // browser by default, which is the safe behavior. This is intentionally
+    // NOT a fallback to `origin: true` (reflective) — reflective + credentials
+    // is the footgun we are avoiding.
+    logger.warn(
+      "CORS_ORIGIN not set — same-origin only mode (set CORS_ORIGIN to a comma-separated list of allowed origins to enable cross-origin requests)",
+    );
+    return null;
   }
   const allowList = raw.split(",").map((o) => o.trim()).filter(Boolean);
   if (allowList.length === 0) {
-    logger.error("CORS_ORIGIN is empty after parsing");
-    process.exit(1);
+    logger.warn("CORS_ORIGIN is empty after parsing — running in same-origin only mode");
+    return null;
   }
   return allowList.length === 1 ? allowList[0] : allowList;
 }
 
-app.use(
-  cors({
-    origin: parseCorsOrigin(),
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
-  }),
-);
+const corsOrigin = parseCorsOrigin();
+if (corsOrigin !== null) {
+  app.use(
+    cors({
+      origin: corsOrigin,
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+      maxAge: 86400,
+    }),
+  );
+}
 
 const isDev = process.env.NODE_ENV !== "production";
 
