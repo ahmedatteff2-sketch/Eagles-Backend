@@ -28,7 +28,25 @@ const ACCESS_SECRET = getSecret("JWT_ACCESS_SECRET", "dev_access_secret_CHANGE_I
 const REFRESH_SECRET = getSecret("JWT_REFRESH_SECRET", "dev_refresh_secret_CHANGE_IN_PROD_32chars!!");
 
 const ACCESS_TTL: jwt.SignOptions["expiresIn"] = (process.env.JWT_ACCESS_TTL ?? "15m") as jwt.SignOptions["expiresIn"];
-const REFRESH_TTL_DAYS = Number(process.env.JWT_REFRESH_TTL_DAYS ?? 30);
+
+// `Number("30d")` is NaN, which would make `signRefreshToken` blow up at
+// runtime ("NaNd" expiry → jwt.sign throws → every login 500s). Guard with
+// a finite-positive check and fall back to the default rather than booting
+// the server in a broken state.
+const DEFAULT_REFRESH_TTL_DAYS = 30;
+function parseRefreshTtlDays(raw: string | undefined): number {
+  if (raw === undefined || raw === "") return DEFAULT_REFRESH_TTL_DAYS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    logger.warn(
+      { JWT_REFRESH_TTL_DAYS: raw, defaultDays: DEFAULT_REFRESH_TTL_DAYS },
+      "JWT_REFRESH_TTL_DAYS is not a positive number — falling back to default",
+    );
+    return DEFAULT_REFRESH_TTL_DAYS;
+  }
+  return Math.floor(parsed);
+}
+const REFRESH_TTL_DAYS = parseRefreshTtlDays(process.env.JWT_REFRESH_TTL_DAYS);
 
 export function signAccessToken(payload: AuthPayload): string {
   return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_TTL, algorithm: "HS256" });

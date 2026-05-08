@@ -7,6 +7,7 @@ import { eq, and, lt } from "drizzle-orm";
 import { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiry } from "../lib/jwt.js";
 import { authenticate } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+import { normalizePhone } from "../lib/phone.js";
 import { z } from "zod";
 
 const router = Router();
@@ -32,11 +33,6 @@ const refreshSchema = z.object({
 
 function hashRefreshToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
-}
-
-/** Strip every non-digit so "(010) 25-754947" and "01025754947" map to the same value. */
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "");
 }
 
 async function cleanExpiredTokens(userId: string) {

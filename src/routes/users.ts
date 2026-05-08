@@ -6,13 +6,28 @@ import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseUserId, parsePagination } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
+import { normalizePhone } from "../lib/phone.js";
 import { z } from "zod";
 
 const router = Router();
 
+// Phone fields are normalized to digits-only at parse time so every storage
+// path (create / update / import) lands the same canonical form, matching
+// what /auth/login looks up. Without this, a user created with
+// "010-257-54947" could never log in (the login route normalizes first).
+const phoneInput = z
+  .string()
+  .min(5)
+  .max(20)
+  .regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح")
+  .transform((s) => normalizePhone(s))
+  .refine((s) => s.length >= 5 && s.length <= 20, {
+    message: "رقم هاتف غير صالح",
+  });
+
 const createUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()),
-  phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()),
+  phone: phoneInput,
   membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
   role: z.enum(["admin", "member"]).default("member"),
@@ -21,7 +36,7 @@ const createUserSchema = z.object({
 
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
-  phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/).transform(s => s.trim()).optional(),
+  phone: phoneInput.optional(),
   membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
   role: z.enum(["admin", "member"]).optional(),
   category: z.enum(["normal", "vip", "trial"]).optional(),

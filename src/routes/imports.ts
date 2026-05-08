@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes, randomUUID } from "crypto";
 import Papa from "papaparse";
 import { logger } from "../lib/logger.js";
+import { normalizePhone } from "../lib/phone.js";
 
 const router = Router();
 
@@ -16,10 +17,6 @@ const router = Router();
 const MAX_CSV_BYTES = 2 * 1024 * 1024; // 2 MB raw text
 const MAX_CSV_ROWS = 5_000;
 const BCRYPT_COST = 12;
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "");
-}
 
 type Row = Record<string, string>;
 
