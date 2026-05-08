@@ -2,7 +2,6 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
-import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,7 +19,9 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        // No inline scripts: the SPA bundles its scripts so 'unsafe-inline'
+        // would only weaken the policy without enabling any current usage.
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "blob:"],
@@ -28,16 +29,34 @@ app.use(
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
       },
     },
   }),
 );
 
+function parseCorsOrigin(): cors.CorsOptions["origin"] {
+  if (process.env.NODE_ENV !== "production") return true;
+  const raw = process.env.CORS_ORIGIN;
+  if (!raw) {
+    // Fail-closed in production. Reflective `Access-Control-Allow-Origin: *`
+    // combined with credentials: true is a footgun, so refuse to start until
+    // the operator has set CORS_ORIGIN explicitly.
+    logger.error("CORS_ORIGIN must be set in production (comma-separated list of allowed origins)");
+    process.exit(1);
+  }
+  const allowList = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  if (allowList.length === 0) {
+    logger.error("CORS_ORIGIN is empty after parsing");
+    process.exit(1);
+  }
+  return allowList.length === 1 ? allowList[0] : allowList;
+}
+
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production"
-      ? (process.env.CORS_ORIGIN || true)
-      : true,
+    origin: parseCorsOrigin(),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -71,7 +90,6 @@ const authLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -94,7 +112,15 @@ app.use("/api/auth/refresh", authLimiter);
 app.use("/api/auth/change-password", authLimiter);
 app.use("/api/auth/update-phone", authLimiter);
 app.use("/api/users/:id/reset-password", authLimiter);
+app.use("/api/imports", authLimiter);
 app.use("/api", router);
+
+// Any /api/* path that the router didn't match is genuinely unknown — return
+// JSON instead of falling through to the SPA index.html below (which would
+// confuse API clients with an HTML 200).
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found", message: "المسار غير موجود" });
+});
 
 // Serve frontend in production
 if (process.env.NODE_ENV === "production") {

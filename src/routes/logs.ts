@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { exerciseLogsTable, bodyStatsTable, checkinsTable, exercisesTable, usersTable, progressPhotosTable } from "@workspace/db/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId, parseUserId } from "../lib/params.js";
+import { parseId, parseUserId, parsePagination } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
@@ -242,6 +243,7 @@ router.get("/checkins", authenticate, async (req, res) => {
   if (req.query.userId && targetUserId === null) return;
   const from = typeof req.query.from === "string" ? req.query.from : undefined;
   const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 200);
 
   try {
     const conditions = [];
@@ -255,6 +257,8 @@ router.get("/checkins", authenticate, async (req, res) => {
       conditions.push(lte(checkinsTable.timestamp, next));
     }
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     const checkins = await db
       .select({
         id: checkinsTable.id,
@@ -264,11 +268,19 @@ router.get("/checkins", authenticate, async (req, res) => {
       })
       .from(checkinsTable)
       .innerJoin(usersTable, eq(checkinsTable.userId, usersTable.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(checkinsTable.timestamp));
+      .where(whereClause)
+      .orderBy(desc(checkinsTable.timestamp))
+      .limit(limit)
+      .offset(offset);
 
-    res.json(checkins);
-  } catch {
+    const [{ total } = { total: 0 }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(checkinsTable)
+      .where(whereClause);
+
+    res.json({ data: checkins, page, limit, total });
+  } catch (err) {
+    logger.error({ err }, "GET /checkins failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الحضور" });
   }
 });
@@ -310,8 +322,21 @@ router.post("/checkins", authenticate, requireAdmin, async (req, res) => {
 
 // ─── Progress photos ──────────────────────────────────────────────────────────
 
+// Allow either an https:// URL or an inline base64 image (data:image/...).
+// Reject http:, javascript:, file:, anything else — the field is rendered
+// directly in <img src> so anything that isn't a known-safe scheme is a
+// stored-XSS / SSRF / phishing vector.
+const PROGRESS_PHOTO_URL = z
+  .string()
+  .min(1)
+  .max(500_000) // ~375 KB base64 → ~280 KB image, generous cap
+  .refine(
+    (v) => /^https:\/\//i.test(v) || /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v),
+    { message: "رابط الصورة غير صالح (https:// أو data:image/...)" },
+  );
+
 const progressPhotoSchema = z.object({
-  photoUrl: z.string().min(1),
+  photoUrl: PROGRESS_PHOTO_URL,
   category: z.enum(["front", "side", "back"]).default("front"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   note: z.string().max(500).nullable().optional(),

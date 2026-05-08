@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import { paymentsTable, usersTable } from "@workspace/db/schema";
 import { eq, desc, count, and } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
-import { parseId, parseUserId, parsePagination } from "../lib/params.js";
+import { parseUserId, parsePagination } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();

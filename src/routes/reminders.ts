@@ -4,6 +4,7 @@ import { remindersTable } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
@@ -14,20 +15,22 @@ const reminderSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
-router.get("/reminders/active", authenticate, async (req, res) => {
+router.get("/reminders/active", authenticate, async (_req, res) => {
   try {
     const reminders = await db.select().from(remindersTable).where(eq(remindersTable.isActive, true));
     res.json(reminders);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /reminders/active failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الأذكار" });
   }
 });
 
-router.get("/reminders", authenticate, requireAdmin, async (req, res) => {
+router.get("/reminders", authenticate, requireAdmin, async (_req, res) => {
   try {
     const reminders = await db.select().from(remindersTable).orderBy(desc(remindersTable.createdAt));
     res.json(reminders);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /reminders failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الأذكار" });
   }
 });
@@ -42,7 +45,7 @@ router.post("/reminders", authenticate, requireAdmin, async (req, res) => {
     const [reminder] = await db.insert(remindersTable).values(body.data).returning();
     res.status(201).json(reminder);
   } catch (err) {
-    console.error("POST /reminders error:", err);
+    logger.error({ err }, "POST /reminders failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة الذكر" });
   }
 });
@@ -63,7 +66,8 @@ router.put("/reminders/:id", authenticate, requireAdmin, async (req, res) => {
       return;
     }
     res.json(reminder);
-  } catch {
+  } catch (err) {
+    logger.error({ err, id }, "PUT /reminders failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء التحديث" });
   }
 });
@@ -75,7 +79,8 @@ router.delete("/reminders/:id", authenticate, requireAdmin, async (req, res) => 
   try {
     await db.delete(remindersTable).where(eq(remindersTable.id, id));
     res.json({ success: true, message: "تم حذف الذكر" });
-  } catch {
+  } catch (err) {
+    logger.error({ err, id }, "DELETE /reminders failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء الحذف" });
   }
 });
