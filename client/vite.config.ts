@@ -26,5 +26,11 @@ export default defineConfig({
   build: {
     outDir: "../public",
     emptyOutDir: true,
+    sourcemap: false,
+  },
+  // Strip `console.*` and `debugger` from production builds so logs don't
+  // leak member PII / auth flow details in the shipped bundle.
+  esbuild: {
+    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },
 });

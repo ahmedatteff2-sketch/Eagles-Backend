@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useListUsers, useCreateUser, useUpdateUser, useResetUserPassword,
   getListUsersQueryKey, getGetUserQueryKey,
@@ -10,12 +10,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { PHONE_INPUT_REGEX, toInternationalPhone } from "@/lib/phone";
+
+const PASSWORD_MSG = "كلمة المرور 8 أحرف على الأقل (والحد الأقصى 72)";
 
 const createSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
+  name: z.string().min(2, "الاسم مطلوب"),
+  phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
-  password: z.string().min(6),
+  password: z.string().min(8, PASSWORD_MSG).max(72, PASSWORD_MSG),
   role: z.enum(["admin", "member"]).default("member").optional(),
   subscriptionId: z.coerce.number().optional(),
   startDate: z.string().optional(),
@@ -25,13 +28,15 @@ const createSchema = z.object({
 type CreateForm = z.infer<typeof createSchema>;
 
 const editSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
+  name: z.string().min(2, "الاسم مطلوب"),
+  phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
 });
 type EditForm = z.infer<typeof editSchema>;
 
-const resetSchema = z.object({ newPassword: z.string().min(6) });
+const resetSchema = z.object({
+  newPassword: z.string().min(8, PASSWORD_MSG).max(72, PASSWORD_MSG),
+});
 type ResetForm = z.infer<typeof resetSchema>;
 
 const WA_TEMPLATES = [
@@ -135,7 +140,14 @@ const WaIcon = () => (
 );
 
 export default function AdminMembers() {
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  // Debounce search input -> API query (250ms) to avoid hammering the server
+  // on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -211,9 +223,15 @@ export default function AdminMembers() {
   }
   function sendWa() {
     if (!waUser || !waMsg.trim()) return;
-    const p = waUser.phone?.replace(/\D/g, "");
-    const intl = p?.startsWith("0") ? "2" + p : p;
-    window.open(`https://wa.me/${intl}?text=${encodeURIComponent(waMsg)}`, "_blank");
+    const intl = toInternationalPhone(waUser.phone ?? "");
+    if (!intl) return;
+    // `noopener,noreferrer` so the new tab cannot reach back into the admin app
+    // via `window.opener` (reverse-tabnabbing).
+    window.open(
+      `https://wa.me/${intl}?text=${encodeURIComponent(waMsg)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   function openEdit(u: any) {
@@ -306,7 +324,7 @@ export default function AdminMembers() {
             className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="بحث بالاسم أو الهاتف..."
+          <input value={searchInput} onChange={e => { setSearchInput(e.target.value); setPage(1); }} placeholder="بحث بالاسم أو الهاتف..."
             className="w-full rounded-lg pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
             style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 18%)" }}
             onFocus={e => { e.target.style.borderColor = "hsl(40 65% 48% / 0.5)"; }}

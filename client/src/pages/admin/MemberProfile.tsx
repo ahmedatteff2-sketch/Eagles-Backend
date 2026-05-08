@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { escapeHtml } from "@/lib/escape-html";
+import { memberNotesKey } from "@/lib/storage";
 
 const GOLD = "hsl(40 65% 52%)";
 const AVATAR_COLORS = ["hsl(40 65% 48%)","hsl(142 60% 45%)","hsl(220 70% 58%)","hsl(280 60% 55%)","hsl(0 60% 52%)","hsl(30 80% 52%)","hsl(180 60% 45%)"];
@@ -146,7 +148,11 @@ export default function AdminMemberProfile() {
     } catch { /* ignore */ }
   }
 
-  useEffect(() => { if (activeTab === "training") fetchMemberTemplates(); }, [activeTab, userId]);
+  useEffect(() => {
+    if (activeTab === "training") void fetchMemberTemplates();
+    // `fetchMemberTemplates` closes over `userId` so include it directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userId]);
 
   function fetchCoachNotes() {
     if (!userId) return;
@@ -154,7 +160,11 @@ export default function AdminMemberProfile() {
       .then(d => setCoachNotes(Array.isArray(d) ? d : []))
       .catch(() => {});
   }
-  useEffect(() => { if (activeTab === "notes") fetchCoachNotes(); }, [activeTab, userId]);
+  useEffect(() => {
+    if (activeTab === "notes") fetchCoachNotes();
+    // `fetchCoachNotes` closes over `userId` so include it directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userId]);
 
   async function sendCoachNote() {
     if (!newCoachNote.trim() || !userId) return;
@@ -197,19 +207,27 @@ export default function AdminMemberProfile() {
   const qrValue = JSON.stringify({ userId, name: memberName });
   const color = avatarColor(memberName);
 
-  // Notes from localStorage
+  // Notes from localStorage (per-admin private scratchpad). Wrapped in
+  // try/catch so disabled or full storage doesn't crash the page.
   useEffect(() => {
-    if (userId) {
-      const saved = localStorage.getItem(`member-notes-${userId}`) ?? "";
-      setNotes(saved);
+    if (!userId) return;
+    try {
+      setNotes(localStorage.getItem(memberNotesKey(userId)) ?? "");
+    } catch {
+      setNotes("");
     }
   }, [userId]);
 
   function saveNotes() {
-    localStorage.setItem(`member-notes-${userId}`, notes);
-    setNotesSaved(true);
-    setTimeout(() => setNotesSaved(false), 2000);
-    toast({ title: "✅ تم حفظ الملاحظات" });
+    if (!userId) return;
+    try {
+      localStorage.setItem(memberNotesKey(userId), notes);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+      toast({ title: "✅ تم حفظ الملاحظات" });
+    } catch {
+      toast({ title: "تعذر حفظ الملاحظات", variant: "destructive" });
+    }
   }
 
   // Checkin stats
@@ -267,11 +285,17 @@ export default function AdminMemberProfile() {
   function printQR() {
     const svgEl = qrRef.current?.querySelector("svg");
     if (!svgEl) return;
-    const win = window.open("", "_blank");
+    // `noopener,noreferrer` so the print window cannot reach back into the
+    // admin app via window.opener.
+    const win = window.open("", "_blank", "noopener,noreferrer");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>QR - ${memberName}</title>
+    // The QR is a trusted, app-generated SVG. All user-controlled values
+    // (memberName, userId) are HTML-escaped to defang admin-supplied XSS.
+    const safeName = escapeHtml(memberName);
+    const safeId = escapeHtml(userId);
+    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>QR - ${safeName}</title>
     <style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;direction:rtl;}h2{color:#C9A84C;}p{color:#666;font-size:13px;}@media print{button{display:none}}</style></head>
-    <body><h2>🦅 Eagle Gym</h2><h3>${memberName}</h3><p>رقم العضوية: #${userId}</p><div style="display:inline-block;padding:16px;background:#fff;border:2px solid #C9A84C;border-radius:12px;margin:16px 0">${svgEl.outerHTML}</div><p>امسح الكود لتسجيل الحضور</p><script>window.onload=()=>window.print()<\/script></body></html>`);
+    <body><h2>🦅 Eagle Gym</h2><h3>${safeName}</h3><p>رقم العضوية: #${safeId}</p><div style="display:inline-block;padding:16px;background:#fff;border:2px solid #C9A84C;border-radius:12px;margin:16px 0">${svgEl.outerHTML}</div><p>امسح الكود لتسجيل الحضور</p><script>window.onload=()=>window.print()<\/script></body></html>`);
     win.document.close();
   }
 
