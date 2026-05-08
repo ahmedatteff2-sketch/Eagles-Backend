@@ -599,6 +599,43 @@ export async function runMigrations(): Promise<void> {
       await client.query(`CREATE TABLE meal_plan_items (id SERIAL PRIMARY KEY, plan_id INTEGER NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE, meal_name TEXT NOT NULL, time TEXT, calories INTEGER, protein INTEGER, carbs INTEGER, fats INTEGER, description TEXT, sort_order INTEGER NOT NULL DEFAULT 0)`);
     }
 
+    // ── wa_templates table ────────────────────────────────────────────────
+    const { rows: hasWaTemplates } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'wa_templates'`
+    );
+    if (hasWaTemplates.length === 0) {
+      logger.info("Creating wa_templates table");
+      await client.query(`CREATE TABLE wa_templates (id SERIAL PRIMARY KEY, name TEXT NOT NULL, body TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      // Seed the three legacy templates the frontend used to ship hard-coded so
+      // upgrades are zero-touch for existing operators.
+      await client.query(
+        `INSERT INTO wa_templates (name, body, sort_order) VALUES
+          ($1, $2, 0),
+          ($3, $4, 1),
+          ($5, $6, 2)`,
+        [
+          "ترحيب بعضو جديد 👋",
+          "أهلاً وسهلاً {name} 🦅\nيسعدنا انضمامك لعائلة {gym_name}!\nاشتراكك فعّال حتى {end_date}.\nنتمنى لك رحلة رياضية موفقة 💪",
+          "قرب انتهاء الاشتراك ⚠️",
+          "مرحباً {name} 👋\nاشتراكك في {gym_name} سينتهي قريباً بتاريخ {end_date}.\nجدد الآن واستمر في رحلتك 💪",
+          "تجديد الاشتراك ✅",
+          "أهلاً {name} 🎉\nتم تجديد اشتراكك بنجاح!\nاشتراكك الجديد فعّال حتى {end_date}.\nأبوابنا مفتوحة لك دائماً 🦅💪",
+        ]
+      );
+    }
+
+    // ── User.category column ──────────────────────────────────────────────
+    // Schema declares this column but a previous migration version forgot to
+    // add it; without this every login 500s on databases provisioned before
+    // the column was introduced.
+    const { rows: hasUserCategory } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'User' AND column_name = 'category'`
+    );
+    if (hasUserCategory.length === 0) {
+      logger.info("Adding category to User");
+      await client.query(`ALTER TABLE "User" ADD COLUMN category TEXT NOT NULL DEFAULT 'normal'`);
+    }
+
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
