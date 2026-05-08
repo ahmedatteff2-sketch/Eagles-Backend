@@ -5,6 +5,8 @@ import { useAuthStore } from "@/store/auth";
 import { customFetch } from "@/api-client/custom-fetch";
 import { STORAGE_KEYS, readJSON, writeJSON, readString } from "@/lib/storage";
 import { PHONE_INPUT_REGEX } from "@/lib/phone";
+import TwoFactorSection from "@/components/security/TwoFactorSection";
+import SessionsSection from "@/components/security/SessionsSection";
 
 const GOLD = "hsl(40 65% 52%)";
 const inp = "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
@@ -246,6 +248,9 @@ export default function AdminSettings() {
           </button>
         </div>
       </Section>
+
+      <TwoFactorSection />
+      <SessionsSection />
 
       <Section title="هوية النادي">
         <div className="flex items-center gap-5">

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { PHONE_INPUT_REGEX } from "@/lib/phone";
 import { STORAGE_KEYS } from "@/lib/storage";
+import { verify2FA } from "@/lib/auth-extras";
 
 const cssAnimations = `
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
@@ -36,6 +37,11 @@ interface LoginResponse {
   user: { role: "admin" | "member" | "trainer"; [k: string]: unknown };
 }
 
+interface LoginRequires2FAResponse {
+  requires2FA: true;
+  partialToken: string;
+}
+
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { setAuth } = useAuthStore();
@@ -45,29 +51,41 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [shaking, setShaking] = useState(false);
+  const [partialToken, setPartialToken] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
+  function completeLogin(r: LoginResponse) {
+    setAuth(r.accessToken, r.refreshToken, r.user as never);
+    let next: string | null = null;
+    try {
+      next = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+      if (next) sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
+    } catch { /* ignore */ }
+    if (next && !next.startsWith("/login")) {
+      setLocation(next);
+      return;
+    }
+    setLocation(r.user?.role === "admin" ? "/admin" : "/member");
+  }
+
   function onSubmit(data: FormData) {
     setLoginError("");
     login.mutate({ data }, {
       onSuccess: (res) => {
-        const r = res as unknown as LoginResponse;
-        setAuth(r.accessToken, r.refreshToken, r.user as never);
-        // Restore the page the user was on before being booted to /login,
-        // if any. Otherwise fall back to role-based home.
-        let next: string | null = null;
-        try {
-          next = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
-          if (next) sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);
-        } catch { /* ignore */ }
-        if (next && !next.startsWith("/login")) {
-          setLocation(next);
+        // Backend returns either a full token pair OR a 2FA challenge with a
+        // short-lived partial token. We dispatch on which one we got.
+        const r = res as unknown as LoginResponse | LoginRequires2FAResponse;
+        if ("requires2FA" in r && r.requires2FA) {
+          setPartialToken(r.partialToken);
+          setTotpCode("");
           return;
         }
-        setLocation(r.user?.role === "admin" ? "/admin" : "/member");
+        completeLogin(r as LoginResponse);
       },
       onError: () => {
         setLoginError("رقم الهاتف أو كلمة المرور غير صحيحة");
@@ -75,6 +93,38 @@ export default function LoginPage() {
         setTimeout(() => setShaking(false), 500);
       },
     });
+  }
+
+  async function on2FASubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!partialToken) return;
+    if (!/^\d{6}$/.test(totpCode)) {
+      setLoginError("أدخل رمز من 6 أرقام");
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
+      return;
+    }
+    setVerifying(true);
+    setLoginError("");
+    try {
+      const r = await verify2FA(partialToken, totpCode);
+      completeLogin(r as unknown as LoginResponse);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "رمز التحقق غير صحيح";
+      // The partial token expires after 5 minutes — kick the user back to the
+      // password form when that happens so they can re-authenticate.
+      if (/انتهت/.test(msg) || /expired/i.test(msg)) {
+        setPartialToken(null);
+        setTotpCode("");
+        setLoginError("انتهت جلسة التحقق. يرجى تسجيل الدخول مجدداً");
+      } else {
+        setLoginError("رمز التحقق غير صحيح");
+      }
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
+    } finally {
+      setVerifying(false);
+    }
   }
 
   return (
@@ -138,7 +188,7 @@ export default function LoginPage() {
           <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, hsl(40 65% 48% / 0.8) 50%, transparent 100%)" }} />
 
           <h2 className="text-base font-bold mb-6" style={{ color: "hsl(0 0% 78%)" }}>
-            مرحباً بك 👋
+            {partialToken ? "🔐 التحقق بخطوتين" : "مرحباً بك 👋"}
           </h2>
 
           {loginError && (
@@ -148,6 +198,50 @@ export default function LoginPage() {
             </div>
           )}
 
+          {partialToken ? (
+            <form onSubmit={on2FASubmit} className="space-y-4">
+              <p className="text-xs" style={{ color: "hsl(0 0% 60%)" }}>
+                أدخل الرمز الحالي من تطبيق المصادقة (Google Authenticator / Authy):
+              </p>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "hsl(0 0% 55%)" }}>
+                  رمز التحقق
+                </label>
+                <input
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  autoFocus
+                  maxLength={6}
+                  placeholder="000000"
+                  className="w-full rounded-xl px-4 py-3 text-center text-lg font-mono tracking-[0.5em] transition-all focus:outline-none"
+                  style={{ background: "hsl(0 0% 12%)", border: "1px solid hsl(0 0% 18%)", color: "hsl(0 0% 90%)" }}
+                  onFocus={e => { e.target.style.borderColor = "hsl(40 65% 48% / 0.6)"; e.target.style.boxShadow = "0 0 0 3px hsl(40 65% 48% / 0.10)"; }}
+                  onBlur={e => { e.target.style.borderColor = "hsl(0 0% 18%)"; e.target.style.boxShadow = "none"; }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={verifying || totpCode.length !== 6}
+                className="w-full font-bold py-3.5 rounded-xl transition-all duration-200 mt-2 disabled:opacity-50 text-sm tracking-wide"
+                style={{
+                  background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 40%))",
+                  color: "hsl(0 0% 5%)",
+                  boxShadow: verifying ? "none" : "0 4px 24px hsl(40 65% 48% / 0.35), 0 2px 8px rgba(0,0,0,0.3)",
+                }}
+              >
+                {verifying ? "جاري التحقق..." : "تأكيد"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPartialToken(null); setTotpCode(""); setLoginError(""); }}
+                className="w-full text-xs py-2 transition-colors"
+                style={{ color: "hsl(0 0% 50%)" }}
+              >
+                ← العودة لتسجيل الدخول
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold mb-1.5" style={{ color: "hsl(0 0% 55%)" }}>
@@ -213,6 +307,7 @@ export default function LoginPage() {
               </span>
             </button>
           </form>
+          )}
         </div>
 
         <p className="text-center mt-6 text-xs" style={{ color: "hsl(0 0% 28%)" }}>

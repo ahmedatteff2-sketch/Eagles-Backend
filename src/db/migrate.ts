@@ -653,6 +653,63 @@ export async function runMigrations(): Promise<void> {
       await client.query(`DROP TABLE IF EXISTS checkins CASCADE`);
     }
 
+    // ── Security & permissions: account lockout, 2FA, trainer assignment ──
+    // All ALTERs below are additive and idempotent; safe to run on every boot.
+    await client.query(`
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "failedLoginAttempts" INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lockedUntil" TIMESTAMP;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totpSecret" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totpEnabled" BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "assignedTrainerId" TEXT;
+    `);
+    // Add the FK constraint on assignedTrainerId only if missing — using a
+    // separate DO-block so re-runs don't error on duplicate constraint.
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'User_assignedTrainerId_fkey'
+        ) THEN
+          ALTER TABLE "User"
+            ADD CONSTRAINT "User_assignedTrainerId_fkey"
+            FOREIGN KEY ("assignedTrainerId") REFERENCES "User"(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // ── refresh_tokens: session/device metadata for the sessions endpoint ──
+    await client.query(`
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT;
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS ip TEXT;
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS label TEXT;
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
+    `);
+
+    // ── audit_logs: append-only record of admin/trainer write actions ─────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id           SERIAL PRIMARY KEY,
+        actor_id     TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+        actor_role   TEXT,
+        actor_name   TEXT,
+        action       TEXT NOT NULL,
+        target_type  TEXT,
+        target_id    TEXT,
+        method       TEXT NOT NULL,
+        path         TEXT NOT NULL,
+        status_code  INTEGER NOT NULL,
+        ip           TEXT,
+        user_agent   TEXT,
+        payload      JSONB,
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    // Hot-path indexes: most queries filter by recency or by actor.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at DESC);
+      CREATE INDEX IF NOT EXISTS audit_logs_actor_id_idx   ON audit_logs (actor_id);
+      CREATE INDEX IF NOT EXISTS audit_logs_action_idx     ON audit_logs (action);
+    `);
+
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(
       `SELECT id FROM "User" WHERE phone = $1 LIMIT 1`,

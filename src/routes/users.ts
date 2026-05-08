@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { usersTable, memberSubscriptionsTable, subscriptionsTable, checkinsTable, paymentsTable, refreshTokensTable } from "@workspace/db/schema";
 import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
-import { authenticate, requireAdmin } from "../middlewares/auth.js";
+import { authenticate, requireAdmin, requireAdminOrTrainer } from "../middlewares/auth.js";
 import { parseUserId, parsePagination } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
 import { normalizePhone } from "../lib/phone.js";
@@ -30,42 +30,84 @@ const createUserSchema = z.object({
   phone: phoneInput,
   membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
   password: z.string().min(6).max(128),
-  role: z.enum(["admin", "member"]).default("member"),
+  role: z.enum(["admin", "trainer", "member"]).default("member"),
   category: z.enum(["normal", "vip", "trial"]).default("normal"),
+  // Optional trainer assignment. Empty string is treated as "unassign".
+  assignedTrainerId: z.string().min(1).max(64).nullable().optional(),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
   phone: phoneInput.optional(),
   membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
-  role: z.enum(["admin", "member"]).optional(),
+  role: z.enum(["admin", "trainer", "member"]).optional(),
   category: z.enum(["normal", "vip", "trial"]).optional(),
+  assignedTrainerId: z.string().min(1).max(64).nullable().optional(),
 });
 
-router.get("/users", authenticate, requireAdmin, async (req, res) => {
+/**
+ * Validate that a referenced trainer exists and has role="trainer". Required
+ * because Postgres FK constraints can't enforce "must point to a row whose
+ * role column is X" — we'd need a trigger or a separate trainers table for
+ * that. Cheaper to just check at the API boundary.
+ */
+async function ensureTrainerExists(
+  trainerId: string,
+  res: import("express").Response,
+): Promise<boolean> {
+  const [t] = await db
+    .select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, trainerId))
+    .limit(1);
+  if (!t || t.role.toLowerCase() !== "trainer") {
+    res.status(400).json({ error: "Validation error", message: "المدرب غير موجود" });
+    return false;
+  }
+  return true;
+}
+
+router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
   const rawSearch = typeof req.query.search === "string" ? req.query.search.slice(0, 100) : undefined;
   // Escape LIKE special characters to prevent wildcard injection
   const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
+  // Optional trainer filter (admins can pass ?trainerId=... explicitly to
+  // see only members assigned to one trainer). Trainers always see their
+  // own assigned members regardless of the query param.
+  const trainerFilterRaw = typeof req.query.trainerId === "string" ? req.query.trainerId.slice(0, 64) : undefined;
+  const isTrainer = req.user!.role === "trainer";
+  // Effective trainer filter: trainers see only their own; admins use the
+  // optional query param.
+  const effectiveTrainerId = isTrainer ? req.user!.userId : trainerFilterRaw;
 
   try {
-    let query = db.select().from(usersTable).where(eq(usersTable.role, "member"));
+    const baseFilters = [eq(usersTable.role, "member")];
+    if (effectiveTrainerId) baseFilters.push(eq(usersTable.assignedTrainerId, effectiveTrainerId));
+    let whereClause = and(...baseFilters);
     if (search) {
-      query = db.select().from(usersTable).where(
-        and(
-          eq(usersTable.role, "member"),
-          or(
-            ilike(usersTable.name, `%${search}%`),
-            ilike(usersTable.phone, `%${search}%`),
-            ilike(usersTable.membershipNumber, `%${search}%`),
-            eq(usersTable.id, search)
-          )
-        )
-      ) as typeof query;
+      whereClause = and(
+        ...baseFilters,
+        or(
+          ilike(usersTable.name, `%${search}%`),
+          ilike(usersTable.phone, `%${search}%`),
+          ilike(usersTable.membershipNumber, `%${search}%`),
+          eq(usersTable.id, search),
+        ),
+      );
     }
 
-    const users = await query.orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset);
-    const [totalRow] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, "member"));
+    const users = await db
+      .select()
+      .from(usersTable)
+      .where(whereClause)
+      .orderBy(desc(usersTable.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [totalRow] = await db
+      .select({ count: count() })
+      .from(usersTable)
+      .where(whereClause);
 
     // Single JOIN query for subscriptions (avoids N+1)
     const userIds = users.map(u => u.id);
@@ -142,6 +184,10 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
         return;
       }
     }
+    if (body.data.assignedTrainerId) {
+      const ok = await ensureTrainerExists(body.data.assignedTrainerId, res);
+      if (!ok) return;
+    }
     const hashed = await bcrypt.hash(body.data.password, 12);
     const [user] = await db.insert(usersTable).values({
       id: crypto.randomUUID(),
@@ -151,6 +197,7 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       passwordHash: hashed,
       role: body.data.role,
       category: body.data.category ?? "normal",
+      assignedTrainerId: body.data.assignedTrainerId ?? null,
     }).returning();
     const { passwordHash: _, ...safe } = user;
     res.status(201).json(safe);
@@ -163,9 +210,25 @@ router.get("/users/:userId", authenticate, async (req, res) => {
   const userId = parseUserId(req.params.userId, res);
   if (!userId) return;
 
+  // Access policy:
+  //   admin   → any user
+  //   trainer → self, or a member they are assigned to
+  //   member  → self only
   if (req.user!.role !== "admin" && req.user!.userId !== userId) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
+    if (req.user!.role !== "trainer") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [target] = await db
+      .select({ assignedTrainerId: usersTable.assignedTrainerId, role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    const allowed = target && target.role === "member" && target.assignedTrainerId === req.user!.userId;
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
   }
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -263,6 +326,10 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
         return;
       }
     }
+    if (body.data.assignedTrainerId) {
+      const ok = await ensureTrainerExists(body.data.assignedTrainerId, res);
+      if (!ok) return;
+    }
 
     const [user] = await db.update(usersTable).set(body.data).where(eq(usersTable.id, userId)).returning();
     if (!user) {
@@ -296,6 +363,20 @@ const resetPasswordSchema = z.object({
   // bcrypt's effective input is 72 bytes; reject longer values up-front so
   // an over-long password isn't silently truncated and accepted on login.
   newPassword: z.string().min(8).max(72),
+});
+
+/**
+ * List all users with role="trainer". Used by the admin members page to
+ * populate the "assign trainer" dropdown. Returns a minimal projection
+ * (id + name) since the dropdown doesn't need anything else.
+ */
+router.get("/trainers", authenticate, requireAdminOrTrainer, async (_req, res) => {
+  const trainers = await db
+    .select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone })
+    .from(usersTable)
+    .where(eq(usersTable.role, "trainer"))
+    .orderBy(usersTable.name);
+  res.json(trainers);
 });
 
 router.post("/users/:userId/reset-password", authenticate, requireAdmin, async (req, res) => {

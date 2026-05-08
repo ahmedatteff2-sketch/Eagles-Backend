@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PHONE_INPUT_REGEX, toInternationalPhone } from "@/lib/phone";
 import { Link as WLink } from "wouter";
 import { WaTemplate, getWaTemplates, applyTemplateVars } from "@/api-client/wa-templates";
+import { listTrainers, type TrainerOption } from "@/lib/auth-extras";
 
 const PASSWORD_MSG = "كلمة المرور 8 أحرف على الأقل (والحد الأقصى 72)";
 
@@ -21,7 +22,9 @@ const createSchema = z.object({
   phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
   password: z.string().min(8, PASSWORD_MSG).max(72, PASSWORD_MSG),
-  role: z.enum(["admin", "member"]).default("member").optional(),
+  role: z.enum(["admin", "trainer", "member"]).default("member").optional(),
+  // empty string when no trainer is selected — converted to null on submit
+  assignedTrainerId: z.string().optional(),
   subscriptionId: z.coerce.number().optional(),
   startDate: z.string().optional(),
   paymentAmount: z.coerce.number().optional(),
@@ -33,6 +36,7 @@ const editSchema = z.object({
   name: z.string().min(2, "الاسم مطلوب"),
   phone: z.string().regex(PHONE_INPUT_REGEX, "صيغة الهاتف غير صحيحة"),
   membershipNumber: z.string().optional(),
+  assignedTrainerId: z.string().optional(),
 });
 type EditForm = z.infer<typeof editSchema>;
 
@@ -148,12 +152,25 @@ export default function AdminMembers() {
     return () => clearTimeout(t);
   }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [trainerFilter, setTrainerFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [resettingUser, setResettingUser] = useState<any>(null);
   const [waUser, setWaUser] = useState<any>(null);
+  const [trainers, setTrainers] = useState<TrainerOption[]>([]);
+
+  // Trainers list — fetched once on mount and reused for create/edit dropdowns
+  // and the filter chip. Trainers can be created from the same form by setting
+  // role=trainer.
+  useEffect(() => {
+    let alive = true;
+    listTrainers()
+      .then((rows) => { if (alive) setTrainers(rows); })
+      .catch(() => { /* missing trainers list isn't fatal — UI gracefully hides */ });
+    return () => { alive = false; };
+  }, []);
   const [waTemplateId, setWaTemplateId] = useState<number>(CUSTOM_TEMPLATE_ID);
   const [waMsg, setWaMsg] = useState("");
   const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([]);
@@ -169,8 +186,17 @@ export default function AdminMembers() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const qp = { search: search || undefined, page, limit: pageSize === 0 ? 1000 : pageSize };
-  const { data: users, isLoading, isFetching, refetch } = useListUsers(qp, { query: { queryKey: getListUsersQueryKey(qp) } });
+  // Cast to `any` because `assignedTrainerId` isn't in the generated
+  // ListUsersParams type yet (OpenAPI spec wasn't updated for the trainer
+  // filter). The URL builder serializes any extra keys verbatim, so the
+  // backend filter still works.
+  const qp: Record<string, unknown> = { search: search || undefined, page, limit: pageSize === 0 ? 1000 : pageSize };
+  if (trainerFilter === "none") qp.assignedTrainerId = "none";
+  else if (trainerFilter) qp.assignedTrainerId = trainerFilter;
+  const { data: users, isLoading, isFetching, refetch } = useListUsers(
+    qp as never,
+    { query: { queryKey: getListUsersQueryKey(qp as never) } },
+  );
   const { data: subsData } = useListSubscriptions({ query: { queryKey: getListSubscriptionsQueryKey() } });
   const { data: allUsersData } = useListUsers({ limit: 500 }, { query: { queryKey: getListUsersQueryKey({ limit: 500 }) } });
 
@@ -260,11 +286,26 @@ export default function AdminMembers() {
 
   function openEdit(u: any) {
     setEditingUser(u);
-    editForm.reset({ name: u.name, phone: u.phone ?? "", membershipNumber: u.membershipNumber ?? "" });
+    editForm.reset({
+      name: u.name,
+      phone: u.phone ?? "",
+      membershipNumber: u.membershipNumber ?? "",
+      assignedTrainerId: u.assignedTrainerId ?? "",
+    });
   }
   function onSubmitEdit(data: EditForm) {
     if (!editingUser) return;
-    updateUser.mutate({ userId: editingUser.id, data }, {
+    // Empty string in the dropdown means "remove trainer" — send null so the
+    // backend clears the column. Otherwise the validator complains about
+    // "" not being a UUID.
+    const payload = {
+      ...data,
+      assignedTrainerId:
+        data.assignedTrainerId && data.assignedTrainerId.trim() !== ""
+          ? data.assignedTrainerId
+          : null,
+    };
+    updateUser.mutate({ userId: editingUser.id, data: payload as never }, {
       onSuccess: () => {
         toast({ title: "✅ تم تحديث بيانات العضو" });
         queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
@@ -275,8 +316,12 @@ export default function AdminMembers() {
     });
   }
   function onSubmitCreate(data: CreateForm) {
-    const { subscriptionId, startDate, paymentAmount, paymentMethod, ...payload } = data;
-    createUser.mutate({ data: payload }, {
+    const { subscriptionId, startDate, paymentAmount, paymentMethod, assignedTrainerId, ...rest } = data;
+    const payload: Record<string, unknown> = { ...rest };
+    if (assignedTrainerId && assignedTrainerId.trim() !== "") {
+      payload.assignedTrainerId = assignedTrainerId;
+    }
+    createUser.mutate({ data: payload as never }, {
       onSuccess: (newUser: any) => {
         const userId = newUser?.id ?? newUser?.user?.id;
         if (subscriptionId && startDate && userId) {
@@ -374,6 +419,25 @@ export default function AdminMembers() {
           </button>
         ))}
       </div>
+
+      {/* Trainer filter */}
+      {trainers.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">المدرب:</span>
+          <select
+            value={trainerFilter}
+            onChange={(e) => { setTrainerFilter(e.target.value); setPage(1); }}
+            className="rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none"
+            style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 18%)" }}
+          >
+            <option value="">— الكل —</option>
+            <option value="none">بدون مدرب</option>
+            {trainers.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Member list */}
       <div className="space-y-2">
@@ -600,6 +664,16 @@ export default function AdminMembers() {
             <Field label="رقم العضوية / ID (اختياري)" error={editForm.formState.errors.membershipNumber?.message}>
               <input {...editForm.register("membershipNumber")} className={inputCls} style={inputSt} placeholder="كود البحث أو الباركود" />
             </Field>
+            {trainers.length > 0 && (
+              <Field label="المدرب المسؤول">
+                <select {...editForm.register("assignedTrainerId")} className={inputCls} style={inputSt}>
+                  <option value="">— بدون مدرب —</option>
+                  {trainers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}{t.phone ? ` (${t.phone})` : ""}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={updateUser.isPending} className="flex-1 py-3 rounded-xl text-sm font-bold disabled:opacity-40"
@@ -628,6 +702,23 @@ export default function AdminMembers() {
             <Field label="كلمة المرور" error={createForm.formState.errors.password?.message}>
               <input {...createForm.register("password")} type="password" className={inputCls} style={inputSt} placeholder="6 أحرف على الأقل" />
             </Field>
+            <Field label="الدور" error={createForm.formState.errors.role?.message}>
+              <select {...createForm.register("role")} className={inputCls} style={inputSt} defaultValue="member">
+                <option value="member">عضو</option>
+                <option value="trainer">مدرب</option>
+                <option value="admin">إدارة</option>
+              </select>
+            </Field>
+            {trainers.length > 0 && (
+              <Field label="المدرب المسؤول (اختياري)">
+                <select {...createForm.register("assignedTrainerId")} className={inputCls} style={inputSt}>
+                  <option value="">— بدون مدرب —</option>
+                  {trainers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}{t.phone ? ` (${t.phone})` : ""}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             <div className="border-t pt-4" style={{ borderColor: "hsl(0 0% 16%)" }}>
               <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">اشتراك (اختياري)</p>

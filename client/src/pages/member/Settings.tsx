@@ -5,6 +5,8 @@ import { z } from "zod";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/store/auth";
+import TwoFactorSection from "@/components/security/TwoFactorSection";
+import SessionsSection from "@/components/security/SessionsSection";
 
 const schema = z.object({
   currentPassword: z.string().min(1, "كلمة المرور الحالية مطلوبة"),
@@ -89,6 +91,9 @@ export default function MemberSettings() {
           ))}
         </div>
       </div>
+
+      <TwoFactorSection />
+      <SessionsSection />
 
       {/* Change password */}
       <div className="bg-card border border-card-border rounded-xl p-5">

@@ -9,3 +9,4 @@ export * from "./expenses.js";
 export * from "./schedule.js";
 export * from "./reminders.js";
 export * from "./wa-templates.js";
+export * from "./audit-logs.js";
