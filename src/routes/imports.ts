@@ -366,7 +366,7 @@ router.post(
             hashed = existingHash;
           } else {
             const rawPassword = String(
-              row.password ?? row["كلمة المرور"] ?? randomBytes(12).toString("base64url"),
+              row.password ?? row["كلمة المرور"] ?? "123456",
             );
             const password = rawPassword.length > 72 ? rawPassword.slice(0, 72) : rawPassword;
             hashed = await bcrypt.hash(password, BCRYPT_COST);
