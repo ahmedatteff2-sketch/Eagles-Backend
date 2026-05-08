@@ -7,9 +7,41 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
+import { parseId, parseUserId, parsePagination } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
+
+/**
+ * Chat is intentionally only allowed between an admin and a member. Members
+ * messaging each other (or admins messaging admins) was never a product
+ * requirement and would let any logged-in user spam any other account.
+ */
+async function ensureChatAllowed(
+  myId: string,
+  myRole: string,
+  otherId: string,
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  if (myId === otherId) {
+    return { ok: false, status: 400, message: "لا يمكن إرسال رسالة لنفسك" };
+  }
+  const [other] = await db
+    .select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, otherId))
+    .limit(1);
+  if (!other) {
+    return { ok: false, status: 404, message: "المستخدم غير موجود" };
+  }
+  const otherRole = other.role.toLowerCase();
+  const meIsAdmin = myRole.toLowerCase() === "admin";
+  const otherIsAdmin = otherRole === "admin";
+  if (meIsAdmin === otherIsAdmin) {
+    return { ok: false, status: 403, message: "غير مسموح بإرسال رسائل لهذا المستخدم" };
+  }
+  return { ok: true };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WATER TRACKING
@@ -77,9 +109,16 @@ router.get("/session-ratings", authenticate, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/chat/:otherId", authenticate, async (req, res) => {
-  const otherId = String(req.params.otherId);
+  const otherId = parseUserId(req.params.otherId, res);
+  if (!otherId) return;
   const myId = req.user!.userId;
+  const myRole = req.user!.role;
   try {
+    const allowed = await ensureChatAllowed(myId, myRole, otherId);
+    if (!allowed.ok) {
+      res.status(allowed.status).json({ error: "Forbidden", message: allowed.message });
+      return;
+    }
     const messages = await db.select({
       id: chatMessagesTable.id,
       senderId: chatMessagesTable.senderId,
@@ -93,60 +132,88 @@ router.get("/chat/:otherId", authenticate, async (req, res) => {
         and(eq(chatMessagesTable.senderId, otherId), eq(chatMessagesTable.receiverId, myId)),
       )
     ).orderBy(chatMessagesTable.createdAt).limit(200);
-    // Mark as read
     await db.update(chatMessagesTable).set({ read: 1 }).where(
       and(eq(chatMessagesTable.senderId, otherId), eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0))
     );
     res.json(messages);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch (err) {
+    logger.error({ err, myId, otherId }, "GET /chat failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const chatPostSchema = z.object({
+  message: z.string().min(1).max(2000),
 });
 
 router.post("/chat/:otherId", authenticate, async (req, res) => {
-  const otherId = String(req.params.otherId);
-  const { message } = req.body;
-  if (!message?.trim() || typeof message !== "string" || message.trim().length > 2000) {
-    res.status(400).json({ error: "Message required (max 2000 chars)" }); return;
+  const otherId = parseUserId(req.params.otherId, res);
+  if (!otherId) return;
+  const parsed = chatPostSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation error", message: "الرسالة مطلوبة (حد أقصى 2000 حرف)" });
+    return;
+  }
+  const trimmed = parsed.data.message.trim();
+  if (!trimmed) {
+    res.status(400).json({ error: "Validation error", message: "الرسالة فارغة" });
+    return;
   }
   try {
+    const allowed = await ensureChatAllowed(req.user!.userId, req.user!.role, otherId);
+    if (!allowed.ok) {
+      res.status(allowed.status).json({ error: "Forbidden", message: allowed.message });
+      return;
+    }
     const [msg] = await db.insert(chatMessagesTable).values({
-      senderId: req.user!.userId, receiverId: otherId, message: message.trim(),
+      senderId: req.user!.userId, receiverId: otherId, message: trimmed,
     }).returning();
     res.status(201).json(msg);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch (err) {
+    logger.error({ err, otherId }, "POST /chat failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/chat-contacts", authenticate, async (req, res) => {
   const myId = req.user!.userId;
+  const targetRole = req.user!.role.toLowerCase() === "admin" ? "member" : "admin";
+  // Default to a generous page size so existing UI keeps working, but cap to
+  // 200 so a single admin doesn't hammer the DB if the gym has thousands of
+  // members.
+  const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 200);
   try {
-    // Get users who have chatted with me, or if admin, get all members
-    if (req.user!.role === "admin") {
-      const users = await db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
-        .from(usersTable).where(eq(usersTable.role, "member"));
-      // Count unread per user
-      const unread = await db.select({
+    const users = await db
+      .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.role, targetRole))
+      .orderBy(usersTable.name)
+      .limit(limit)
+      .offset(offset);
+    const [{ total } = { total: 0 }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(eq(usersTable.role, targetRole));
+    const unread = await db
+      .select({
         senderId: chatMessagesTable.senderId,
         count: sql<number>`count(*)::int`,
-      }).from(chatMessagesTable)
-        .where(and(eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0)))
-        .groupBy(chatMessagesTable.senderId);
-      const unreadMap: Record<string, number> = {};
-      unread.forEach(u => { unreadMap[u.senderId] = u.count; });
-      res.json(users.map(u => ({ ...u, unread: unreadMap[u.id] ?? 0 })));
-    } else {
-      // Member: get admins
-      const admins = await db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
-        .from(usersTable).where(eq(usersTable.role, "admin"));
-      const unread = await db.select({
-        senderId: chatMessagesTable.senderId,
-        count: sql<number>`count(*)::int`,
-      }).from(chatMessagesTable)
-        .where(and(eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0)))
-        .groupBy(chatMessagesTable.senderId);
-      const unreadMap: Record<string, number> = {};
-      unread.forEach(u => { unreadMap[u.senderId] = u.count; });
-      res.json(admins.map(u => ({ ...u, unread: unreadMap[u.id] ?? 0 })));
-    }
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+      })
+      .from(chatMessagesTable)
+      .where(and(eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0)))
+      .groupBy(chatMessagesTable.senderId);
+    const unreadMap: Record<string, number> = {};
+    unread.forEach((u) => { unreadMap[u.senderId] = u.count; });
+    res.json({
+      data: users.map((u) => ({ ...u, unread: unreadMap[u.id] ?? 0 })),
+      page,
+      limit,
+      total,
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /chat-contacts failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -188,19 +255,41 @@ router.post("/notifications/send", authenticate, requireAdmin, async (req, res) 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/meal-plans", authenticate, async (req, res) => {
-  const targetUserId = req.query.userId ? String(req.query.userId) : req.user!.userId;
+  const targetUserId = req.query.userId
+    ? parseUserId(String(req.query.userId), res)
+    : req.user!.userId;
+  if (!targetUserId) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   try {
-    const plans = await db.select().from(mealPlansTable).where(eq(mealPlansTable.userId, targetUserId)).orderBy(desc(mealPlansTable.createdAt));
-    const result = [];
-    for (const p of plans) {
-      const items = await db.select().from(mealPlanItemsTable).where(eq(mealPlanItemsTable.planId, p.id)).orderBy(mealPlanItemsTable.sortOrder);
-      result.push({ ...p, items });
+    const plans = await db
+      .select()
+      .from(mealPlansTable)
+      .where(eq(mealPlansTable.userId, targetUserId))
+      .orderBy(desc(mealPlansTable.createdAt));
+    if (plans.length === 0) {
+      res.json([]);
+      return;
     }
-    res.json(result);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+    // Single batched fetch instead of one query per plan.
+    const planIds = plans.map((p) => p.id);
+    const items = await db
+      .select()
+      .from(mealPlanItemsTable)
+      .where(sql`${mealPlanItemsTable.planId} = ANY(${planIds})`)
+      .orderBy(mealPlanItemsTable.sortOrder);
+    const itemsByPlan = new Map<number, typeof items>();
+    for (const item of items) {
+      const arr = itemsByPlan.get(item.planId) ?? [];
+      arr.push(item);
+      itemsByPlan.set(item.planId, arr);
+    }
+    res.json(plans.map((p) => ({ ...p, items: itemsByPlan.get(p.id) ?? [] })));
+  } catch (err) {
+    logger.error({ err, targetUserId }, "GET /meal-plans failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.post("/meal-plans", authenticate, requireAdmin, async (req, res) => {
@@ -234,12 +323,15 @@ router.post("/meal-plans", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.delete("/meal-plans/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   try {
     await db.delete(mealPlansTable).where(eq(mealPlansTable.id, id));
     res.json({ success: true });
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch (err) {
+    logger.error({ err, id }, "DELETE /meal-plans failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -248,20 +340,35 @@ router.delete("/meal-plans/:id", authenticate, requireAdmin, async (req, res) =>
 
 router.get("/leaderboard", authenticate, async (req, res) => {
   try {
-    const users = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(eq(usersTable.role, "member"));
-    const result = [];
-    for (const u of users) {
-      const [logCount] = await db.select({ count: sql<number>`count(DISTINCT date)::int` }).from(
-        sql`(SELECT DISTINCT date FROM exercise_logs WHERE user_id = ${u.id}) t`
-      );
-      const [totalVol] = await db.select({
-        vol: sql<number>`COALESCE(SUM(CAST(weight AS NUMERIC) * reps), 0)::int`,
-      }).from(sql`exercise_logs`).where(sql`user_id = ${u.id}`);
-      result.push({ id: u.id, name: u.name, sessions: logCount?.count ?? 0, volume: totalVol?.vol ?? 0 });
-    }
-    result.sort((a, b) => b.volume - a.volume);
-    res.json(result);
-  } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+    // Single aggregating query — the previous implementation issued 2 queries
+    // per user (O(2N) round trips), which became prohibitive once the gym had
+    // more than a few dozen members.
+    const rows = await db.execute(sql`
+      SELECT
+        u.id,
+        u.name,
+        COALESCE(s.sessions, 0)::int AS sessions,
+        COALESCE(v.volume, 0)::int  AS volume
+      FROM "User" u
+      LEFT JOIN (
+        SELECT user_id, COUNT(DISTINCT date) AS sessions
+          FROM exercise_logs
+          GROUP BY user_id
+      ) s ON s.user_id = u.id
+      LEFT JOIN (
+        SELECT user_id, COALESCE(SUM(CAST(weight AS NUMERIC) * reps), 0) AS volume
+          FROM exercise_logs
+          GROUP BY user_id
+      ) v ON v.user_id = u.id
+      WHERE u.role = 'member'
+      ORDER BY volume DESC, sessions DESC, u.name ASC
+      LIMIT 100
+    `);
+    res.json(rows.rows ?? rows);
+  } catch (err) {
+    logger.error({ err }, "GET /leaderboard failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -306,7 +413,8 @@ router.get("/badges", authenticate, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/coach-notes/:userId", authenticate, async (req, res) => {
-  const targetUserId = String(req.params.userId);
+  const targetUserId = parseUserId(req.params.userId, res);
+  if (!targetUserId) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
@@ -315,7 +423,10 @@ router.get("/coach-notes/:userId", authenticate, async (req, res) => {
       .where(eq(coachNotesTable.userId, targetUserId))
       .orderBy(desc(coachNotesTable.createdAt)).limit(50);
     res.json(notes);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch (err) {
+    logger.error({ err, targetUserId }, "GET /coach-notes failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.post("/coach-notes", authenticate, requireAdmin, async (req, res) => {
@@ -329,11 +440,15 @@ router.post("/coach-notes", authenticate, requireAdmin, async (req, res) => {
 });
 
 router.delete("/coach-notes/:id", authenticate, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
   try {
     await db.delete(coachNotesTable).where(eq(coachNotesTable.id, id));
     res.json({ success: true });
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch (err) {
+    logger.error({ err, id }, "DELETE /coach-notes failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;

@@ -25,5 +25,7 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
-      - key: SESSION_SECRET
-        generateValue: true
+      # CORS_ORIGIN must be set explicitly to your frontend's origin in
+      # production — leaving it unset will refuse to start by design.
+      # - key: CORS_ORIGIN
+      #   value: https://your-frontend-domain.com

@@ -29,9 +29,11 @@ npm run start
 | `DATABASE_URL` | PostgreSQL connection string |
 | `PORT` | Server port (default: 3000) |
 | `NODE_ENV` | `development` or `production` |
-| `JWT_ACCESS_SECRET` | JWT access token secret |
-| `JWT_REFRESH_SECRET` | JWT refresh token secret |
-| `SESSION_SECRET` | Session secret |
+| `JWT_ACCESS_SECRET` | JWT access token secret (≥32 chars in production) |
+| `JWT_REFRESH_SECRET` | JWT refresh token secret (≥32 chars in production) |
+| `JWT_ACCESS_TTL` | Access token TTL (default: `15m`) |
+| `JWT_REFRESH_TTL_DAYS` | Refresh token TTL in days (default: `30`) |
+| `CORS_ORIGIN` | **Required in production.** Comma-separated allowed origins |
 
 ## Render Deployment
 

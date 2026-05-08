@@ -4,9 +4,10 @@ import {
   usersTable, memberSubscriptionsTable, paymentsTable,
   checkinsTable, exerciseLogsTable, bodyStatsTable, expensesTable, notificationsTable
 } from "@workspace/db/schema";
-import { eq, count, sum, gte, lte, desc, and, sql } from "drizzle-orm";
+import { eq, count, sum, gte, lte, desc, and, sql, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseUserId } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -120,28 +121,31 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     .limit(5);
   const topAttendees = topAttendeesRaw.map(r => ({ id: r.userId, name: r.userName, checkins: r.checkins }));
 
-  // Inactive members: active subscription but no check-in in 7+ days
-  const activeUserIds = await db
-    .select({ userId: memberSubscriptionsTable.userId })
-    .from(memberSubscriptionsTable)
-    .where(eq(memberSubscriptionsTable.status, "active"));
-  const activeIds = activeUserIds.map(r => r.userId);
-
-  const inactiveMembers: { id: string; name: string; phone: string; daysSince: number }[] = [];
-  if (activeIds.length > 0) {
-    for (const uid of activeIds.slice(0, 50)) {
-      const [lastCheckin] = await db.select({ ts: checkinsTable.timestamp }).from(checkinsTable)
-        .where(eq(checkinsTable.userId, uid)).orderBy(desc(checkinsTable.timestamp)).limit(1);
-      const daysSince = lastCheckin
-        ? Math.floor((Date.now() - new Date(lastCheckin.ts).getTime()) / 86400000)
-        : 999;
-      if (daysSince >= 7) {
-        const [u] = await db.select({ name: usersTable.name, phone: usersTable.phone }).from(usersTable).where(eq(usersTable.id, uid)).limit(1);
-        if (u) inactiveMembers.push({ id: uid, name: u.name, phone: u.phone, daysSince: Math.min(daysSince, 999) });
-      }
-    }
-    inactiveMembers.sort((a, b) => b.daysSince - a.daysSince);
-  }
+  // Inactive members: active subscription but no check-in in 7+ days. The
+  // previous implementation issued 2 queries per active member (O(2N)) just
+  // to compute "last check-in" per user — replace with a single aggregated
+  // query joined to users.
+  const inactiveRaw = await db.execute(sql`
+    SELECT
+      u.id,
+      u.name,
+      u.phone,
+      MAX(c."timestamp") AS last_checkin
+    FROM "User" u
+    INNER JOIN member_subscriptions ms ON ms.user_id = u.id AND ms.status = 'active'
+    LEFT JOIN "CheckIn" c ON c."userId" = u.id
+    GROUP BY u.id, u.name, u.phone
+    HAVING MAX(c."timestamp") IS NULL
+       OR MAX(c."timestamp") < NOW() - INTERVAL '7 days'
+    ORDER BY last_checkin NULLS FIRST
+    LIMIT 10
+  `);
+  const inactiveMembers = (inactiveRaw.rows as Array<{ id: string; name: string; phone: string; last_checkin: string | null }>).map((r) => {
+    const days = r.last_checkin
+      ? Math.floor((Date.now() - new Date(r.last_checkin).getTime()) / 86400000)
+      : 999;
+    return { id: r.id, name: r.name, phone: r.phone, daysSince: Math.min(days, 999) };
+  });
 
   res.json({
     totalMembers,

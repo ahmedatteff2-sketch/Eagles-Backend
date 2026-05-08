@@ -4,6 +4,7 @@ import { subscriptionsTable, memberSubscriptionsTable, paymentsTable } from "@wo
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parseUserId } from "../lib/params.js";
+import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
@@ -26,7 +27,8 @@ router.get("/subscriptions", authenticate, async (_req, res) => {
   try {
     const subs = await db.select().from(subscriptionsTable).orderBy(subscriptionsTable.name);
     res.json(subs);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /subscriptions failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الاشتراكات" });
   }
 });
@@ -44,7 +46,8 @@ router.post("/subscriptions", authenticate, requireAdmin, async (req, res) => {
       price: String(body.data.price),
     }).returning();
     res.status(201).json(sub);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "POST /subscriptions failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة الاشتراك" });
   }
 });
@@ -69,7 +72,8 @@ router.put("/subscriptions/:subscriptionId", authenticate, requireAdmin, async (
       return;
     }
     res.json(sub);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "PUT /subscriptions failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء التحديث" });
   }
 });
@@ -81,7 +85,8 @@ router.delete("/subscriptions/:subscriptionId", authenticate, requireAdmin, asyn
   try {
     await db.delete(subscriptionsTable).where(eq(subscriptionsTable.id, id));
     res.json({ success: true, message: "تم حذف الاشتراك" });
-  } catch {
+  } catch (err) {
+    logger.error({ err, id }, "DELETE /subscriptions failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء الحذف" });
   }
 });
@@ -123,7 +128,8 @@ router.post("/member-subscriptions", authenticate, requireAdmin, async (req, res
     }
 
     res.status(201).json({ ...ms, subscription: plan });
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "POST /member-subscriptions failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تعيين الاشتراك" });
   }
 });
@@ -163,7 +169,8 @@ router.get("/member-subscriptions/:userId/current", authenticate, async (req, re
       return;
     }
     res.json(sub);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /member-subscriptions/current failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب الاشتراك" });
   }
 });
@@ -197,7 +204,8 @@ router.get("/member-subscriptions/:userId/history", authenticate, async (req, re
       .where(eq(memberSubscriptionsTable.userId, userId))
       .orderBy(desc(memberSubscriptionsTable.createdAt));
     res.json(subs);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "GET /member-subscriptions/history failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب السجل" });
   }
 });

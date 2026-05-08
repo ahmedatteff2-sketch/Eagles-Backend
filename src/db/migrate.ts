@@ -40,10 +40,27 @@ async function dropIfLegacyUserIdShape(
   }
 }
 
+// Stable lock key derived from the literal string "eagles_migrations" — keeps a
+// single migration run across multi-instance deployments without contending
+// with other advisory locks the app may use.
+const MIGRATION_LOCK_KEY = 0x4541474c45534d49n;
+
 export async function runMigrations(): Promise<void> {
   const client = await pool.connect();
+  let acquiredLock = false;
   try {
     logger.info("Running database migrations...");
+
+    // Serialize concurrent migrations across processes / replicas. The lock is
+    // released either by the explicit unlock below or when the connection is
+    // returned to the pool, so a crash mid-migration cannot leave it stuck.
+    await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_KEY.toString()]);
+    acquiredLock = true;
+
+    // Wrap the entire migration in a single transaction. Any failure rolls
+    // back every DDL / DML so we never leave the schema in a half-applied
+    // state. Per-step CREATE / ALTER are still individually idempotent.
+    await client.query("BEGIN");
 
     // ── Heal legacy schema ─────────────────────────────────────────────────
     // If the DB was first provisioned by an older version of this file (where
@@ -220,7 +237,7 @@ export async function runMigrations(): Promise<void> {
       CREATE TABLE IF NOT EXISTS refresh_tokens (
         id         SERIAL PRIMARY KEY,
         user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-        token      TEXT NOT NULL UNIQUE,
+        token_hash TEXT NOT NULL UNIQUE,
         revoked    BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         expires_at TIMESTAMP NOT NULL
@@ -277,12 +294,31 @@ export async function runMigrations(): Promise<void> {
         CREATE TABLE refresh_tokens (
           id         SERIAL PRIMARY KEY,
           user_id    TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-          token      TEXT NOT NULL UNIQUE,
+          token_hash TEXT NOT NULL UNIQUE,
           revoked    BOOLEAN NOT NULL DEFAULT false,
           created_at TIMESTAMP NOT NULL DEFAULT NOW(),
           expires_at TIMESTAMP NOT NULL
         )
       `);
+    }
+
+    // Migrate legacy refresh_tokens.token (plaintext) → token_hash. Existing
+    // plaintext rows can't be retroactively hashed without the original token,
+    // so they're truncated; users will simply have to log in again.
+    const { rows: hasLegacyTokenCol } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='refresh_tokens' AND column_name='token'`
+    );
+    const { rows: hasTokenHashCol } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='refresh_tokens' AND column_name='token_hash'`
+    );
+    if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length === 0) {
+      logger.warn("Migrating refresh_tokens.token → token_hash (clearing existing rows)");
+      await client.query(`TRUNCATE TABLE refresh_tokens`);
+      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN token`);
+      await client.query(`ALTER TABLE refresh_tokens ADD COLUMN token_hash TEXT NOT NULL UNIQUE`);
+    } else if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length > 0) {
+      logger.warn("Dropping legacy refresh_tokens.token column");
+      await client.query(`ALTER TABLE refresh_tokens DROP COLUMN token`);
     }
 
     if ((await userIdType("member_subscriptions")) === "integer") {
@@ -493,6 +529,38 @@ export async function runMigrations(): Promise<void> {
       await client.query(`CREATE TABLE water_logs (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, glasses INTEGER NOT NULL DEFAULT 0, date DATE NOT NULL)`);
     }
 
+    // One row per (user, day) so upserts can use ON CONFLICT and we can't end
+    // up with duplicate water totals if two requests race.
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_indexes WHERE indexname = 'water_logs_user_id_date_unique'
+        ) THEN
+          DELETE FROM water_logs a USING water_logs b
+            WHERE a.user_id = b.user_id AND a.date = b.date AND a.id < b.id;
+          CREATE UNIQUE INDEX water_logs_user_id_date_unique
+            ON water_logs(user_id, date);
+        END IF;
+      END $$;
+    `);
+
+    // CheckIn: enforce one row per (user, calendar day) so duplicate clicks /
+    // double posts don't create multiple check-ins for the same day.
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_indexes WHERE indexname = 'checkin_user_day_unique'
+        ) THEN
+          DELETE FROM "CheckIn" a USING "CheckIn" b
+            WHERE a."userId" = b."userId"
+              AND date_trunc('day', a."timestamp") = date_trunc('day', b."timestamp")
+              AND a.id < b.id;
+          CREATE UNIQUE INDEX checkin_user_day_unique
+            ON "CheckIn" ("userId", (date_trunc('day', "timestamp")));
+        END IF;
+      END $$;
+    `);
+
     // ── session_ratings table ─────────────────────────────────────────────
     const { rows: hasSessionRatings } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'session_ratings'`
@@ -546,7 +614,7 @@ export async function runMigrations(): Promise<void> {
       ["01025754947"]
     );
     if (rows.length === 0) {
-      const hashed = await bcrypt.hash("admin123", 10);
+      const hashed = await bcrypt.hash("admin123", 12);
       const { randomUUID } = await import("crypto");
       await client.query(
         `INSERT INTO "User" (id, name, phone, "passwordHash", role) VALUES ($1, $2, $3, $4, $5)`,
@@ -555,8 +623,23 @@ export async function runMigrations(): Promise<void> {
       logger.info("Default admin user created");
     }
 
+    await client.query("COMMIT");
     logger.info("Migrations complete");
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* connection may already be aborted */
+    }
+    throw err;
   } finally {
+    if (acquiredLock) {
+      try {
+        await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY.toString()]);
+      } catch {
+        /* connection may have errored — lock will free on release() */
+      }
+    }
     client.release();
   }
 }
