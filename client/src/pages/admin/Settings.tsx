@@ -3,6 +3,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useChangePassword } from "@workspace/api-client-react";
 import { useAuthStore } from "@/store/auth";
 import { customFetch } from "@/api-client/custom-fetch";
+import { STORAGE_KEYS, readJSON, writeJSON, readString } from "@/lib/storage";
+import { PHONE_INPUT_REGEX } from "@/lib/phone";
 
 const GOLD = "hsl(40 65% 52%)";
 const inp = "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
@@ -69,23 +71,34 @@ export default function AdminSettings() {
   const [phoneLoading, setPhoneLoading] = useState(false);
 
   useEffect(() => {
-    const s = localStorage.getItem("gym-settings");
-    if (s) {
-      const p = JSON.parse(s);
-      setGymName(p.gymName ?? "Eagle Gym");
-      setGymPhone(p.gymPhone ?? "");
-      setGymAddress(p.gymAddress ?? "");
-      setGymAbout(p.gymAbout ?? "");
-    }
-    const theme = localStorage.getItem("gym-theme") ?? "dark";
+    // All localStorage reads are wrapped so a corrupted payload can't crash
+    // the settings page.
+    const p = readJSON<{ gymName?: string; gymPhone?: string; gymAddress?: string; gymAbout?: string }>(
+      STORAGE_KEYS.GYM_SETTINGS,
+      {},
+    ) ?? {};
+    setGymName(p.gymName ?? "Eagle Gym");
+    setGymPhone(p.gymPhone ?? "");
+    setGymAddress(p.gymAddress ?? "");
+    setGymAbout(p.gymAbout ?? "");
+    const theme = readString(STORAGE_KEYS.THEME_GYM, "dark");
     setDarkMode(theme === "dark");
     if ("Notification" in window) setNotifPermission(Notification.permission);
   }, []);
 
   function applyTheme(dark: boolean) {
     setDarkMode(dark);
-    if (dark) { document.documentElement.classList.add("dark"); localStorage.setItem("gym-theme", "dark"); }
-    else { document.documentElement.classList.remove("dark"); localStorage.setItem("gym-theme", "light"); }
+    try {
+      if (dark) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem(STORAGE_KEYS.THEME_GYM, "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem(STORAGE_KEYS.THEME_GYM, "light");
+      }
+    } catch {
+      /* storage unavailable; theme still applies for the session */
+    }
   }
 
   async function enableNotifs() {
@@ -101,7 +114,7 @@ export default function AdminSettings() {
   }
 
   function save() {
-    localStorage.setItem("gym-settings", JSON.stringify({ gymName, gymPhone, gymAddress, gymAbout }));
+    writeJSON(STORAGE_KEYS.GYM_SETTINGS, { gymName, gymPhone, gymAddress, gymAbout });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     toast({ title: "✅ تم حفظ الإعدادات" });
@@ -109,7 +122,10 @@ export default function AdminSettings() {
 
   async function handleChangePassword() {
     if (!currentPass || !newPass) { setPassMsg({ type: "err", text: "يرجى ملء جميع الحقول" }); return; }
-    if (newPass.length < 8) { setPassMsg({ type: "err", text: "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل" }); return; }
+    if (newPass.length < 8 || newPass.length > 72) {
+      setPassMsg({ type: "err", text: "كلمة المرور يجب أن تكون 8–72 حرفاً" });
+      return;
+    }
     setPassLoading(true);
     setPassMsg(null);
     changePassword.mutate({ data: { currentPassword: currentPass, newPassword: newPass } }, {
@@ -118,8 +134,9 @@ export default function AdminSettings() {
         setCurrentPass(""); setNewPass("");
         setTimeout(() => { clearAuth(); window.location.replace("/login"); }, 2000);
       },
-      onError: (err: any) => {
-        const msg = err?.response?.data?.message || err?.message || "كلمة المرور الحالية غير صحيحة";
+      onError: (err: unknown) => {
+        const e = err as { response?: { data?: { message?: string } }; message?: string } | null;
+        const msg = e?.response?.data?.message || e?.message || "كلمة المرور الحالية غير صحيحة";
         setPassMsg({ type: "err", text: msg });
       },
       onSettled: () => setPassLoading(false),
@@ -128,6 +145,10 @@ export default function AdminSettings() {
 
   async function handleChangePhone() {
     if (!newPhone || !phonePass) { setPhoneMsg({ type: "err", text: "يرجى ملء جميع الحقول" }); return; }
+    if (!PHONE_INPUT_REGEX.test(newPhone)) {
+      setPhoneMsg({ type: "err", text: "صيغة رقم الهاتف غير صحيحة" });
+      return;
+    }
     setPhoneLoading(true);
     setPhoneMsg(null);
     try {
@@ -136,10 +157,14 @@ export default function AdminSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPhone, password: phonePass }),
       });
-      setPhoneMsg({ type: "ok", text: "تم تحديث رقم الهاتف بنجاح!" });
+      // Backend revokes all refresh tokens on phone change — force re-login so
+      // the persisted token doesn't keep working until it expires.
+      setPhoneMsg({ type: "ok", text: "تم تحديث رقم الهاتف بنجاح! سيتم تسجيل خروجك..." });
       setNewPhone(""); setPhonePass("");
-    } catch (err: any) {
-      setPhoneMsg({ type: "err", text: err?.message || "كلمة المرور غير صحيحة" });
+      setTimeout(() => { clearAuth(); window.location.replace("/login"); }, 1500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "كلمة المرور غير صحيحة";
+      setPhoneMsg({ type: "err", text: msg });
     } finally {
       setPhoneLoading(false);
     }

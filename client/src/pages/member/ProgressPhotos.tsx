@@ -2,6 +2,7 @@ import { useAuthStore } from "@/store/auth";
 import { customFetch } from "@/api-client/custom-fetch";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { safeImageSrc } from "@/lib/safe-url";
 
 const GOLD = "hsl(40 65% 52%)";
 type Category = "front" | "side" | "back";
@@ -10,6 +11,42 @@ const CATS: { key: Category; label: string }[] = [
   { key: "side", label: "جانب" },
   { key: "back", label: "خلف" },
 ];
+
+// Allow only common, safe still-image MIME types. Excludes `image/svg+xml`
+// because SVG can carry inline `<script>` and event handlers.
+const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_BYTES = 5 * 1024 * 1024;
+// Re-encode as JPEG with this quality after downscaling to keep the data URL
+// small enough for backend storage limits.
+const TARGET_MAX_DIM = 1600;
+const JPEG_QUALITY = 0.85;
+
+async function downscaleImage(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode-failed"));
+      el.src = objectUrl;
+    });
+    let { width, height } = img;
+    if (width > TARGET_MAX_DIM || height > TARGET_MAX_DIM) {
+      const ratio = Math.min(TARGET_MAX_DIM / width, TARGET_MAX_DIM / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas-unavailable");
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 interface Photo {
   id: number;
@@ -43,18 +80,22 @@ export default function MemberProgressPhotos() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
+    if (!ALLOWED_MIME.has(file.type)) {
+      toast({ title: "نوع ملف غير مدعوم (JPEG/PNG/WebP فقط)", variant: "destructive" });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (file.size > MAX_BYTES) {
       toast({ title: "الصورة كبيرة جداً (الحد 5MB)", variant: "destructive" });
+      if (fileRef.current) fileRef.current.value = "";
       return;
     }
     setUploading(true);
     try {
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Decode + downscale + re-encode as JPEG. This both shrinks the payload
+      // and strips any EXIF/metadata, which is the right behaviour for a
+      // progress-photo feature.
+      const dataUrl = await downscaleImage(file);
       await customFetch("/api/progress-photos", {
         method: "POST",
         body: JSON.stringify({
@@ -139,7 +180,7 @@ export default function MemberProgressPhotos() {
           <div className="grid grid-cols-2 gap-2">
             {comparePhotos.map(p => (
               <div key={p.id} className="text-center">
-                <img src={p.photoUrl} alt="" className="w-full rounded-lg aspect-[3/4] object-cover" />
+                <img src={safeImageSrc(p.photoUrl)} alt="" className="w-full rounded-lg aspect-[3/4] object-cover" />
                 <p className="text-xs text-muted-foreground mt-1">
                   {new Date(p.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric", year: "numeric" })}
                 </p>
