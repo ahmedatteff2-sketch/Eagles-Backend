@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import React, { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { haptic } from "@/hooks/use-pull-refresh";
+import ExerciseVideoButton from "@/components/ExerciseVideoButton";
 
 interface TemplateExercise {
   id: number;
@@ -111,13 +112,7 @@ function ExerciseCard({
           <SetBadge done={done} total={total} />
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {ex.videoUrl && (
-            <a href={ex.videoUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-              فيديو
-            </a>
-          )}
+          <ExerciseVideoButton url={ex.videoUrl} title={ex.exerciseName} variant="chip" />
           {!isComplete && (
             <div className="text-center">
               <p className="text-xs text-muted-foreground">{done}/{total}</p>
@@ -574,13 +569,12 @@ export default function MemberLog() {
                       {ex.restSeconds ? <span className="text-xs text-muted-foreground">⏱ {ex.restSeconds}ث</span> : null}
                     </div>
                   </div>
-                  {ex.videoUrl && (
-                    <a href={ex.videoUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs flex-shrink-0"
-                      style={{ background: `${color}15`, color }}>
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    </a>
-                  )}
+                  <ExerciseVideoButton
+                    url={ex.videoUrl}
+                    title={ex.exerciseName}
+                    variant="icon"
+                    style={{ background: `${color}15`, color }}
+                  />
                 </div>
                 {ex.notes && (
                   <div className="px-4 py-1.5" style={{ background: "hsl(0 0% 7%)", borderBottom: "1px solid hsl(0 0% 13%)" }}>

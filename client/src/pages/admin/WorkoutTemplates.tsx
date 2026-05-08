@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@/api-client/custom-fetch";
+import ExerciseVideoButton from "@/components/ExerciseVideoButton";
 
 interface Exercise {
   id: number;
@@ -382,9 +383,7 @@ export default function AdminWorkoutTemplates() {
                                 </div>
                                 {te.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">💡 {te.notes}</p>}
                               </div>
-                              {te.videoUrl && (
-                                <a href={te.videoUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex-shrink-0">فيديو</a>
-                              )}
+                              <ExerciseVideoButton url={te.videoUrl} title={te.exerciseName} variant="chip" />
                               <button
                                 onClick={() => setEditingExercise({ id: te.id, sets: te.sets, reps: te.reps, restSeconds: te.restSeconds ?? 90, notes: te.notes ?? "", name: te.exerciseName })}
                                 className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
