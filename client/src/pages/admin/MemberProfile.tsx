@@ -91,9 +91,37 @@ const assignSchema = z.object({
   paymentMethod: z.enum(["cash", "card", "transfer"]).optional(),
 });
 type AssignForm = z.infer<typeof assignSchema>;
-type Tab = "overview" | "qr" | "training" | "progress" | "notes";
+type Tab = "overview" | "qr" | "training" | "meals" | "progress" | "notes";
 
 const inp = "w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary";
+
+interface MealItem {
+  id?: number;
+  mealName: string;
+  time: string | null;
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fats: number | null;
+  description: string | null;
+}
+interface MealPlan {
+  id: number;
+  name: string;
+  notes: string | null;
+  items: MealItem[];
+  createdAt?: string;
+}
+
+function emptyMealItem(): MealItem {
+  return { mealName: "", time: null, calories: null, protein: null, carbs: null, fats: null, description: null };
+}
+
+function parseNum(v: string): number | null {
+  if (!v.trim()) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 export default function AdminMemberProfile() {
   const params = useParams<{ id: string }>();
@@ -109,6 +137,17 @@ export default function AdminMemberProfile() {
   const [coachNotes, setCoachNotes] = useState<any[]>([]);
   const [newCoachNote, setNewCoachNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
+
+  // Meal plans state
+  const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
+  const [mealPlansLoading, setMealPlansLoading] = useState(false);
+  const [showCreatePlan, setShowCreatePlan] = useState(false);
+  const [planName, setPlanName] = useState("");
+  const [planNotes, setPlanNotes] = useState("");
+  const [planItems, setPlanItems] = useState<MealItem[]>([emptyMealItem()]);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [confirmDeletePlanId, setConfirmDeletePlanId] = useState<number | null>(null);
+  const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -155,6 +194,77 @@ export default function AdminMemberProfile() {
       .catch(() => {});
   }
   useEffect(() => { if (activeTab === "notes") fetchCoachNotes(); }, [activeTab, userId]);
+
+  function fetchMealPlans() {
+    if (!userId) return;
+    setMealPlansLoading(true);
+    customFetch<MealPlan[]>(`/api/meal-plans?userId=${encodeURIComponent(userId)}`)
+      .then(d => setMealPlans(Array.isArray(d) ? d : []))
+      .catch(() => setMealPlans([]))
+      .finally(() => setMealPlansLoading(false));
+  }
+  useEffect(() => { if (activeTab === "meals") fetchMealPlans(); }, [activeTab, userId]);
+
+  function resetPlanForm() {
+    setPlanName("");
+    setPlanNotes("");
+    setPlanItems([emptyMealItem()]);
+  }
+
+  function updateItem(idx: number, patch: Partial<MealItem>) {
+    setPlanItems(items => items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+  function addItem() { setPlanItems(items => [...items, emptyMealItem()]); }
+  function removeItem(idx: number) {
+    setPlanItems(items => (items.length <= 1 ? items : items.filter((_, i) => i !== idx)));
+  }
+
+  async function savePlan() {
+    if (!userId) return;
+    if (!planName.trim()) { toast({ title: "اسم الخطة مطلوب", variant: "destructive" }); return; }
+    const items = planItems
+      .map(it => ({ ...it, mealName: it.mealName.trim() }))
+      .filter(it => it.mealName.length > 0);
+    if (items.length === 0) { toast({ title: "أضف وجبة واحدة على الأقل", variant: "destructive" }); return; }
+    setSavingPlan(true);
+    try {
+      await customFetch("/api/meal-plans", {
+        method: "POST",
+        body: JSON.stringify({
+          userId,
+          name: planName.trim(),
+          notes: planNotes.trim() || undefined,
+          items: items.map(it => ({
+            mealName: it.mealName,
+            time: it.time?.trim() || undefined,
+            calories: it.calories ?? undefined,
+            protein: it.protein ?? undefined,
+            carbs: it.carbs ?? undefined,
+            fats: it.fats ?? undefined,
+            description: it.description?.trim() || undefined,
+          })),
+        }),
+      });
+      toast({ title: "تم حفظ خطة التغذية" });
+      resetPlanForm();
+      setShowCreatePlan(false);
+      fetchMealPlans();
+    } catch {
+      toast({ title: "فشل في حفظ الخطة", variant: "destructive" });
+    }
+    setSavingPlan(false);
+  }
+
+  async function deletePlan(id: number) {
+    try {
+      await customFetch(`/api/meal-plans/${id}`, { method: "DELETE" });
+      toast({ title: "تم حذف الخطة" });
+      setConfirmDeletePlanId(null);
+      setMealPlans(prev => prev.filter(p => p.id !== id));
+    } catch {
+      toast({ title: "فشل في الحذف", variant: "destructive" });
+    }
+  }
 
   async function sendCoachNote() {
     if (!newCoachNote.trim() || !userId) return;
@@ -247,6 +357,7 @@ export default function AdminMemberProfile() {
     { id: "overview", label: "نظرة عامة" },
     { id: "qr", label: "QR الشخصي" },
     { id: "training", label: "التدريب" },
+    { id: "meals", label: "خطة التغذية" },
     { id: "progress", label: "التقدم" },
     { id: "notes", label: "ملاحظات" },
   ];
@@ -664,6 +775,109 @@ export default function AdminMemberProfile() {
         );
       })()}
 
+      {/* ═══ MEAL PLANS TAB ═══ */}
+      {activeTab === "meals" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">🍽️ خطط التغذية المعيّنة ({mealPlans.length})</h2>
+            <button onClick={() => { resetPlanForm(); setShowCreatePlan(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+              style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
+              + خطة تغذية جديدة
+            </button>
+          </div>
+
+          {mealPlansLoading ? (
+            <p className="text-muted-foreground text-sm text-center py-10">جاري التحميل...</p>
+          ) : mealPlans.length === 0 ? (
+            <div className="bg-card border border-card-border rounded-xl p-8 text-center">
+              <div className="text-4xl mb-3">🍽️</div>
+              <p className="text-foreground font-medium mb-1">لا توجد خطط تغذية لهذا العضو</p>
+              <p className="text-muted-foreground text-sm">اضغط على "خطة تغذية جديدة" لإنشاء أول خطة</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mealPlans.map(p => {
+                const totalCal = p.items.reduce((s, m) => s + (m.calories ?? 0), 0);
+                const totalProtein = p.items.reduce((s, m) => s + (m.protein ?? 0), 0);
+                const totalCarbs = p.items.reduce((s, m) => s + (m.carbs ?? 0), 0);
+                const totalFats = p.items.reduce((s, m) => s + (m.fats ?? 0), 0);
+                const expanded = expandedPlanId === p.id;
+                return (
+                  <div key={p.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer"
+                      onClick={() => setExpandedPlanId(expanded ? null : p.id)}>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.items.length} وجبة · {totalCal} kcal · {totalProtein}g بروتين
+                          {p.createdAt && ` · ${new Date(p.createdAt).toLocaleDateString("ar-EG")}`}
+                        </p>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); setConfirmDeletePlanId(p.id); }}
+                        className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0"
+                        style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
+                        حذف
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="px-4 pb-4 border-t border-border space-y-3">
+                        {p.notes && (
+                          <div className="rounded-lg px-3 py-2 mt-3" style={{ background: "hsl(40 65% 48% / 0.06)", border: "1px solid hsl(40 65% 48% / 0.12)" }}>
+                            <p className="text-xs" style={{ color: "hsl(40 65% 60%)" }}>📝 {p.notes}</p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-4 gap-2 mt-3">
+                          {[
+                            { label: "سعرات", value: totalCal, unit: "kcal", color: "#f39c12" },
+                            { label: "بروتين", value: totalProtein, unit: "g", color: "#e74c3c" },
+                            { label: "كارب", value: totalCarbs, unit: "g", color: "#3498db" },
+                            { label: "دهون", value: totalFats, unit: "g", color: "#2ecc71" },
+                          ].map(m => (
+                            <div key={m.label} className="rounded-lg p-2 text-center" style={{ background: "hsl(0 0% 11%)", border: `1px solid ${m.color}20` }}>
+                              <p className="text-base font-black tabular-nums" style={{ color: m.color }}>{m.value}</p>
+                              <p className="text-[10px] text-muted-foreground">{m.unit}</p>
+                              <p className="text-[10px] text-muted-foreground">{m.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-2">
+                          {p.items.map((it, idx) => (
+                            <div key={it.id ?? idx} className="rounded-lg p-3" style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 16%)" }}>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                    style={{ background: "hsl(40 65% 48% / 0.12)", color: GOLD }}>{idx + 1}</span>
+                                  <p className="text-sm font-semibold text-foreground truncate">{it.mealName}</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  {it.time && <span className="text-muted-foreground">🕐 {it.time}</span>}
+                                  {it.calories != null && <span className="font-bold tabular-nums" style={{ color: "#f39c12" }}>{it.calories} kcal</span>}
+                                </div>
+                              </div>
+                              {(it.description || it.protein != null || it.carbs != null || it.fats != null) && (
+                                <div className="mt-2 ms-8 space-y-1">
+                                  {it.description && <p className="text-xs text-muted-foreground">{it.description}</p>}
+                                  <div className="flex gap-3 text-xs">
+                                    {it.protein != null && <span style={{ color: "#e74c3c" }}>بروتين: {it.protein}g</span>}
+                                    {it.carbs != null && <span style={{ color: "#3498db" }}>كارب: {it.carbs}g</span>}
+                                    {it.fats != null && <span style={{ color: "#2ecc71" }}>دهون: {it.fats}g</span>}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ═══ PROGRESS TAB ═══ */}
       {activeTab === "progress" && (
         <div className="space-y-4">
@@ -829,6 +1043,110 @@ export default function AdminMemberProfile() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Meal Plan Modal */}
+      {showCreatePlan && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-2xl shadow-xl my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-foreground">🍽️ خطة تغذية جديدة</h2>
+              <p className="text-sm text-muted-foreground">{memberName}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">اسم الخطة</label>
+                <input value={planName} onChange={e => setPlanName(e.target.value)}
+                  placeholder="مثال: خطة بناء عضل — أسبوع 1" className={inp} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">ملاحظات (اختياري)</label>
+                <textarea value={planNotes} onChange={e => setPlanNotes(e.target.value)}
+                  rows={2} placeholder="ملاحظات عامة عن الخطة..." className={inp + " resize-none"} />
+              </div>
+
+              <div className="border-t border-border pt-3 mt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-foreground">الوجبات ({planItems.length})</h3>
+                  <button type="button" onClick={addItem}
+                    className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(40 65% 48% / 0.12)", color: GOLD }}>
+                    + وجبة
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-96 overflow-y-auto pe-1">
+                  {planItems.map((it, idx) => (
+                    <div key={idx} className="rounded-lg p-3 space-y-2" style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 16%)" }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold" style={{ color: GOLD }}>وجبة {idx + 1}</span>
+                        {planItems.length > 1 && (
+                          <button type="button" onClick={() => removeItem(idx)}
+                            className="text-xs text-destructive hover:underline">حذف</button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input value={it.mealName} onChange={e => updateItem(idx, { mealName: e.target.value })}
+                          placeholder="اسم الوجبة *" className={inp} />
+                        <input value={it.time ?? ""} onChange={e => updateItem(idx, { time: e.target.value })}
+                          placeholder="الوقت (مثل 8:00 ص)" className={inp} />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <input type="number" min={0} step="any" value={it.calories ?? ""}
+                          onChange={e => updateItem(idx, { calories: parseNum(e.target.value) })}
+                          placeholder="سعرات" className={inp} />
+                        <input type="number" min={0} step="any" value={it.protein ?? ""}
+                          onChange={e => updateItem(idx, { protein: parseNum(e.target.value) })}
+                          placeholder="بروتين (g)" className={inp} />
+                        <input type="number" min={0} step="any" value={it.carbs ?? ""}
+                          onChange={e => updateItem(idx, { carbs: parseNum(e.target.value) })}
+                          placeholder="كارب (g)" className={inp} />
+                        <input type="number" min={0} step="any" value={it.fats ?? ""}
+                          onChange={e => updateItem(idx, { fats: parseNum(e.target.value) })}
+                          placeholder="دهون (g)" className={inp} />
+                      </div>
+                      <textarea value={it.description ?? ""} onChange={e => updateItem(idx, { description: e.target.value })}
+                        rows={2} placeholder="وصف الوجبة (اختياري) — مثال: 200g صدور دجاج + 100g أرز" className={inp + " resize-none"} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-border">
+                <button type="button" onClick={savePlan} disabled={savingPlan}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
+                  {savingPlan ? "جاري الحفظ..." : "حفظ الخطة"}
+                </button>
+                <button type="button" onClick={() => { setShowCreatePlan(false); resetPlanForm(); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Meal Plan Modal */}
+      {confirmDeletePlanId !== null && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-lg font-bold text-foreground mb-2">حذف خطة التغذية؟</h2>
+            <p className="text-sm text-muted-foreground mb-5">سيتم حذف الخطة وكل وجباتها. لا يمكن التراجع.</p>
+            <div className="flex gap-3">
+              <button onClick={() => deletePlan(confirmDeletePlanId)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: "hsl(0 60% 50%)", color: "#fff" }}>
+                حذف نهائي
+              </button>
+              <button onClick={() => setConfirmDeletePlanId(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
+                إلغاء
+              </button>
+            </div>
           </div>
         </div>
       )}
