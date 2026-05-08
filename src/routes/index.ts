@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health.js";
 import authRouter from "./auth.js";
+import sessionsRouter from "./sessions.js";
+import auditRouter from "./audit.js";
 import usersRouter from "./users.js";
 import subscriptionsRouter from "./subscriptions.js";
 import trainingRouter from "./training.js";
@@ -19,6 +21,8 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(sessionsRouter);
+router.use(auditRouter);
 router.use(usersRouter);
 router.use(subscriptionsRouter);
 router.use(trainingRouter);

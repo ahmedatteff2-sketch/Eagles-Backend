@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../lib/jwt.js";
 
+export type Role = "admin" | "trainer" | "member";
+
 export interface AuthPayload {
   userId: string;
-  role: "admin" | "member";
+  role: Role;
 }
 
 declare global {
@@ -45,3 +47,28 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   }
   next();
 }
+
+/**
+ * Generic role-gate factory. Returns a middleware that allows the request
+ * through only if `req.user.role` is one of the allowed roles.
+ *
+ * Use over the inline checks above when a route accepts more than one role
+ * (e.g. admin OR trainer). Always layer this *after* `authenticate` so
+ * `req.user` is populated.
+ */
+export function requireRole(...roles: Role[]) {
+  return function roleGate(req: Request, res: Response, next: NextFunction): void {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ error: "Forbidden", message: "Insufficient permissions" });
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * Convenience: allow admin or trainer. Trainer routes are defined this way
+ * so admins can always access trainer endpoints (admin is a strict superset
+ * of trainer permissions in this app).
+ */
+export const requireAdminOrTrainer = requireRole("admin", "trainer");

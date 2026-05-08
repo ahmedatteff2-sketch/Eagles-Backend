@@ -8,6 +8,8 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
+import { auditMiddleware } from "./middlewares/audit.js";
+import { normalizePhone } from "./lib/phone.js";
 
 const app: Express = express();
 
@@ -37,7 +39,19 @@ app.use(
 );
 
 function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
-  if (process.env.NODE_ENV !== "production") return true;
+  // Dev: prefer an explicit CORS_ORIGIN_DEV whitelist (recommended); fall back
+  // to reflecting any origin only if it's not set. The reflective fallback
+  // remains so existing dev setups don't break, but the warning nudges
+  // operators toward configuring a list — same model as production.
+  if (process.env.NODE_ENV !== "production") {
+    const devRaw = process.env.CORS_ORIGIN_DEV;
+    if (devRaw) {
+      const list = devRaw.split(",").map((o) => o.trim()).filter(Boolean);
+      if (list.length === 0) return true;
+      return list.length === 1 ? list[0] : list;
+    }
+    return true;
+  }
   const raw = process.env.CORS_ORIGIN;
   if (!raw) {
     // No CORS_ORIGIN set in production. Don't crash — instead skip the CORS
@@ -97,6 +111,32 @@ const authLimiter = rateLimit({
     : undefined,
 });
 
+/**
+ * Per-phone limiter for /auth/login. Layered *in addition to* the IP-based
+ * limiter so a single attacker behind one IP can't spread attempts across
+ * many accounts, AND a distributed attacker (botnet) can't focus all attempts
+ * on a single victim's account.
+ *
+ * Key extraction is best-effort: if the body has no phone (e.g. malformed
+ * request) we fall back to the IP, which is what the IP limiter already
+ * covers — so a missing phone simply doesn't add per-phone protection.
+ */
+const loginPerPhoneLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 50 : 8,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts", message: "تم تجاوز الحد المسموح به لهذا الرقم. حاول بعد 15 دقيقة" },
+  keyGenerator: (req) => {
+    const raw = (req.body as { phone?: unknown } | undefined)?.phone;
+    if (typeof raw === "string" && raw.length > 0 && raw.length <= 32) {
+      const normalized = normalizePhone(raw);
+      if (normalized) return `phone:${normalized}`;
+    }
+    return `ip:${req.ip ?? "unknown"}`;
+  },
+});
+
 app.use(globalLimiter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -115,12 +155,23 @@ app.use(
   }),
 );
 
-app.use("/api/auth/login", authLimiter);
+// Login: IP limiter first (cheap, blocks IP-floods), then per-phone limiter
+// (slightly more expensive — has to read req.body — but blocks distributed
+// attacks against a single account).
+app.use("/api/auth/login", authLimiter, loginPerPhoneLimiter);
+app.use("/api/auth/2fa/verify", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
 app.use("/api/auth/change-password", authLimiter);
 app.use("/api/auth/update-phone", authLimiter);
+app.use("/api/auth/2fa/setup", authLimiter);
+app.use("/api/auth/2fa/enable", authLimiter);
+app.use("/api/auth/2fa/disable", authLimiter);
 app.use("/api/users/:id/reset-password", authLimiter);
 app.use("/api/imports", authLimiter);
+// Audit middleware records every state-changing API request for compliance
+// review. Mounted under /api so the SPA / static asset paths above don't
+// generate audit churn.
+app.use("/api", auditMiddleware);
 app.use("/api", router);
 
 // Any /api/* path that the router didn't match is genuinely unknown — return
