@@ -22,6 +22,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { customFetch } from "@/api-client/custom-fetch";
+import {
+  freezeMemberSubscription,
+  unfreezeMemberSubscription,
+} from "@/api-client/member-subscriptions";
 import { useToast } from "@/hooks/use-toast";
 import { memberNotesKey } from "@/lib/storage";
 
@@ -315,7 +319,14 @@ export default function AdminMemberProfile() {
   const memberName: string = userData?.name ?? "—";
   const memberPhone: string = userData?.phone ?? "—";
   const activeSub: any = (currentSub as any)?.data ?? currentSub;
-  const isActive = activeSub?.endDate ? new Date(activeSub.endDate) >= new Date() : false;
+  const isFrozen = activeSub?.status === "frozen";
+  // "Active" here means the subscription is in good standing — both
+  // active *and* frozen count, since a frozen sub is not expired and the
+  // member's account should still feel valid in the UI.
+  const isActive = activeSub?.endDate
+    ? isFrozen || new Date(activeSub.endDate) >= new Date()
+    : false;
+  const [freezeBusy, setFreezeBusy] = useState(false);
   const historyList: any[] =
     (subHistory as any)?.data ?? (Array.isArray(subHistory) ? subHistory : []);
   const checkinList: any[] = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? [];
@@ -463,6 +474,42 @@ export default function AdminMemberProfile() {
     }
   }
 
+  async function handleFreeze() {
+    if (!activeSub?.id) return;
+    setFreezeBusy(true);
+    try {
+      await freezeMemberSubscription(activeSub.id);
+      toast({ title: "❄️ تم تجميد الاشتراك" });
+      queryClient.invalidateQueries({ queryKey: getGetMemberCurrentSubscriptionQueryKey(userId) });
+      queryClient.invalidateQueries({ queryKey: getGetMemberSubscriptionHistoryQueryKey(userId) });
+    } catch (err: any) {
+      toast({
+        title: err?.data?.message ?? "فشل التجميد",
+        variant: "destructive",
+      });
+    } finally {
+      setFreezeBusy(false);
+    }
+  }
+
+  async function handleUnfreeze() {
+    if (!activeSub?.id) return;
+    setFreezeBusy(true);
+    try {
+      const res = await unfreezeMemberSubscription(activeSub.id);
+      toast({ title: `☀️ تم إلغاء التجميد (+${res.addedDays} يوم)` });
+      queryClient.invalidateQueries({ queryKey: getGetMemberCurrentSubscriptionQueryKey(userId) });
+      queryClient.invalidateQueries({ queryKey: getGetMemberSubscriptionHistoryQueryKey(userId) });
+    } catch (err: any) {
+      toast({
+        title: err?.data?.message ?? "فشل إلغاء التجميد",
+        variant: "destructive",
+      });
+    } finally {
+      setFreezeBusy(false);
+    }
+  }
+
   function handleExportPdf() {
     exportMemberPdf({
       userId,
@@ -592,35 +639,92 @@ export default function AdminMemberProfile() {
         </div>
       </div>
 
-      {/* Subscription status bar */}
+      {/* Subscription status bar. Includes a freeze/unfreeze action so
+          admins can pause an active sub (e.g. member is travelling) and
+          resume it later — endDate is automatically extended by the elapsed
+          frozen days on the server. */}
       {activeSub && (
         <div
           className="rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-3"
           style={{
-            background: isActive ? "hsl(142 60% 50% / 0.08)" : "hsl(0 60% 50% / 0.08)",
+            background: isFrozen
+              ? "hsl(210 80% 55% / 0.08)"
+              : isActive
+              ? "hsl(142 60% 50% / 0.08)"
+              : "hsl(0 60% 50% / 0.08)",
             border: `1px solid ${
-              isActive ? "hsl(142 60% 50% / 0.25)" : "hsl(0 60% 50% / 0.25)"
+              isFrozen
+                ? "hsl(210 80% 55% / 0.25)"
+                : isActive
+                ? "hsl(142 60% 50% / 0.25)"
+                : "hsl(0 60% 50% / 0.25)"
             }`,
           }}
         >
           <div className="flex items-center gap-3">
-            <span className="text-lg">{isActive ? "✅" : "⚠️"}</span>
+            <span className="text-lg">{isFrozen ? "❄️" : isActive ? "✅" : "⚠️"}</span>
             <div>
               <p className="text-sm font-semibold text-foreground">
                 {activeSub.subscription?.name ?? "—"}
+                {isFrozen && (
+                  <span className="text-xs font-bold ml-2" style={{ color: "hsl(210 80% 65%)" }}>
+                    · مجمد
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 {new Date(activeSub.startDate).toLocaleDateString("ar-EG")} ←{" "}
                 {new Date(activeSub.endDate).toLocaleDateString("ar-EG")}
+                {activeSub.totalFrozenDays > 0 && (
+                  <span className="ml-2">· إجمالي أيام التجميد: {activeSub.totalFrozenDays}</span>
+                )}
               </p>
             </div>
           </div>
-          <div className="text-left">
+          <div className="flex items-center gap-3">
+            {isFrozen ? (
+              <button
+                onClick={handleUnfreeze}
+                disabled={freezeBusy}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+                  color: "hsl(0 0% 5%)",
+                }}
+              >
+                ☀️ إلغاء التجميد
+              </button>
+            ) : (
+              isActive && (
+                <button
+                  onClick={handleFreeze}
+                  disabled={freezeBusy}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                  style={{
+                    background: "hsl(210 80% 55% / 0.15)",
+                    color: "hsl(210 80% 65%)",
+                    border: "1px solid hsl(210 80% 55% / 0.3)",
+                  }}
+                >
+                  ❄️ تجميد
+                </button>
+              )
+            )}
             <p
               className="text-sm font-bold"
-              style={{ color: isActive ? "hsl(142 60% 60%)" : "hsl(0 60% 60%)" }}
+              style={{
+                color: isFrozen
+                  ? "hsl(210 80% 65%)"
+                  : isActive
+                  ? "hsl(142 60% 60%)"
+                  : "hsl(0 60% 60%)",
+              }}
             >
-              {isActive && daysLeft !== null ? `باقي ${daysLeft} يوم` : "منتهي"}
+              {isFrozen
+                ? "متوقف"
+                : isActive && daysLeft !== null
+                ? `باقي ${daysLeft} يوم`
+                : "منتهي"}
             </p>
           </div>
         </div>

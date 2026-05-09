@@ -29,6 +29,7 @@ const AdminExports = lazy(() => import("@/pages/admin/Exports"));
 const AdminImports = lazy(() => import("@/pages/admin/Imports"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
 const AdminReminders = lazy(() => import("@/pages/admin/Reminders"));
+const AdminRenewalReminders = lazy(() => import("@/pages/admin/RenewalReminders"));
 const AdminWhatsAppTemplates = lazy(() => import("@/pages/admin/WhatsAppTemplates"));
 const AdminAuditLog = lazy(() => import("@/pages/admin/AuditLog"));
 const MemberDashboard = lazy(() => import("@/pages/member/Dashboard"));
@@ -214,6 +215,9 @@ export default function App() {
         </Route>
         <Route path="/admin/reminders">
           <AdminRoute><AdminReminders /></AdminRoute>
+        </Route>
+        <Route path="/admin/renewal-reminders">
+          <AdminRoute><AdminRenewalReminders /></AdminRoute>
         </Route>
         <Route path="/admin/wa-templates">
           <AdminRoute><AdminWhatsAppTemplates /></AdminRoute>
