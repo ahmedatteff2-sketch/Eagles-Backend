@@ -16,6 +16,7 @@ import scheduleRouter from "./schedule.js";
 import remindersRouter from "./reminders.js";
 import socialRouter from "./social.js";
 import waTemplatesRouter from "./wa-templates.js";
+import renewalRemindersRouter from "./renewal-reminders.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(scheduleRouter);
 router.use(remindersRouter);
 router.use(socialRouter);
 router.use(waTemplatesRouter);
+router.use(renewalRemindersRouter);
 
 export default router;

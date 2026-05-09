@@ -14,6 +14,13 @@ import { PHONE_INPUT_REGEX, toInternationalPhone } from "@/lib/phone";
 import { Link as WLink } from "wouter";
 import { WaTemplate, getWaTemplates, applyTemplateVars } from "@/api-client/wa-templates";
 import { listTrainers, type TrainerOption } from "@/lib/auth-extras";
+import {
+  bulkExtendMemberSubscriptions,
+  bulkFreezeMemberSubscriptions,
+  bulkUnfreezeMemberSubscriptions,
+  exportMemberSubscriptionsCsv,
+} from "@/api-client/member-subscriptions";
+import { bulkLogRenewalReminders } from "@/api-client/renewal-reminders";
 
 const PASSWORD_MSG = "كلمة المرور 8 أحرف على الأقل (والحد الأقصى 72)";
 
@@ -183,6 +190,18 @@ export default function AdminMembers() {
   }, []);
   const [confirmReset, setConfirmReset] = useState<any>(null);
   const [showBulkWa, setShowBulkWa] = useState(false);
+  // Bulk-action state. We track the *user* IDs (string[]) instead of
+  // member-subscription IDs because not every selected user has a current
+  // subscription — the UI sometimes wants to act on the user (CSV export,
+  // batch WA) regardless of subscription state. Subscription-only actions
+  // resolve `currentSubscription.id` from the row at click-time.
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkExtendDays, setBulkExtendDays] = useState<number>(30);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [showBulkExtend, setShowBulkExtend] = useState(false);
+  const [showBulkSendWa, setShowBulkSendWa] = useState(false);
+  const [bulkWaTemplateId, setBulkWaTemplateId] = useState<number>(CUSTOM_TEMPLATE_ID);
+  const [bulkWaMsg, setBulkWaMsg] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -282,6 +301,170 @@ export default function AdminMembers() {
       "_blank",
       "noopener,noreferrer",
     );
+  }
+
+  // ── Bulk selection helpers ──────────────────────────────────────────
+  const allRowsSelected =
+    userList.length > 0 && userList.every((u: any) => selectedUserIds.has(u.id));
+  function toggleRow(id: string) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAllOnPage() {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      const ids = userList.map((u: any) => u.id);
+      const allHere = ids.every((id: string) => next.has(id));
+      if (allHere) ids.forEach((id: string) => next.delete(id));
+      else ids.forEach((id: string) => next.add(id));
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelectedUserIds(new Set());
+  }
+  // Resolve which selected users actually have a current subscription —
+  // bulk extend / freeze need the member-subscription id, not the user id.
+  function selectedSubscriptionIds(filter: "any" | "active" | "frozen" = "any"): number[] {
+    const ids: number[] = [];
+    for (const u of allList) {
+      if (!selectedUserIds.has(u.id)) continue;
+      const sub = u.currentSubscription;
+      if (!sub?.id) continue;
+      if (filter === "active" && sub.status !== "active") continue;
+      if (filter === "frozen" && sub.status !== "frozen") continue;
+      ids.push(sub.id);
+    }
+    return ids;
+  }
+
+  async function doBulkExtend() {
+    const ids = selectedSubscriptionIds("any");
+    if (ids.length === 0) {
+      toast({ title: "لا يوجد اشتراكات نشطة في التحديد", variant: "destructive" });
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const r = await bulkExtendMemberSubscriptions(ids, bulkExtendDays);
+      toast({ title: `✅ تم تمديد ${r.updatedCount} اشتراكًا (+${r.days} يوم)` });
+      setShowBulkExtend(false);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+    } catch {
+      toast({ title: "فشل التمديد الجماعي", variant: "destructive" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function doBulkFreeze() {
+    const ids = selectedSubscriptionIds("active");
+    if (ids.length === 0) {
+      toast({ title: "لا يوجد اشتراكات نشطة قابلة للتجميد", variant: "destructive" });
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const r = await bulkFreezeMemberSubscriptions(ids);
+      toast({ title: `✅ تم تجميد ${r.frozenCount} اشتراكًا` });
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+    } catch {
+      toast({ title: "فشل التجميد الجماعي", variant: "destructive" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function doBulkUnfreeze() {
+    const ids = selectedSubscriptionIds("frozen");
+    if (ids.length === 0) {
+      toast({ title: "لا يوجد اشتراكات مجمدة في التحديد", variant: "destructive" });
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const r = await bulkUnfreezeMemberSubscriptions(ids);
+      toast({ title: `✅ تم إلغاء تجميد ${r.unfrozenCount} اشتراكًا` });
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+    } catch {
+      toast({ title: "فشل إلغاء التجميد الجماعي", variant: "destructive" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function doBulkExportCsv() {
+    if (selectedUserIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await exportMemberSubscriptionsCsv(Array.from(selectedUserIds));
+      toast({ title: `✅ تم تنزيل CSV (${selectedUserIds.size} عضو)` });
+    } catch {
+      toast({ title: "فشل تصدير CSV", variant: "destructive" });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  // Bulk WA: open one wa.me tab per selected user, *then* log all sends in
+  // one round-trip so the audit trail is correct. Browsers will block
+  // window.open when called outside a user gesture, so we batch open()s
+  // synchronously inside the click handler before awaiting the log call.
+  function openBulkSendWaModal() {
+    if (selectedUserIds.size === 0) return;
+    // Pick a default template — same logic as the per-row WA modal.
+    const first = waTemplates[0];
+    if (first) {
+      setBulkWaTemplateId(first.id);
+      setBulkWaMsg(first.body);
+    } else {
+      setBulkWaTemplateId(CUSTOM_TEMPLATE_ID);
+      setBulkWaMsg("");
+    }
+    setShowBulkSendWa(true);
+  }
+  function onBulkTplChange(idStr: string) {
+    const id = Number(idStr);
+    setBulkWaTemplateId(id);
+    if (id === CUSTOM_TEMPLATE_ID) { setBulkWaMsg(""); return; }
+    const t = waTemplates.find((tpl) => tpl.id === id);
+    if (t) setBulkWaMsg(t.body);
+  }
+  async function doBulkSendWa() {
+    if (selectedUserIds.size === 0 || !bulkWaMsg.trim()) return;
+    const targets = allList.filter((u: any) => selectedUserIds.has(u.id));
+    let opened = 0;
+    for (const u of targets) {
+      const intl = toInternationalPhone(u.phone ?? "");
+      if (!intl) continue;
+      // Per-recipient template substitution so each tab gets the right name.
+      const text = applyTemplateVars(bulkWaMsg, buildVars(u));
+      window.open(
+        `https://wa.me/${intl}?text=${encodeURIComponent(text)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+      opened++;
+    }
+    setShowBulkSendWa(false);
+    if (opened === 0) {
+      toast({ title: "لم يتم فتح أي محادثة (تحقق من أرقام الهواتف)", variant: "destructive" });
+      return;
+    }
+    try {
+      await bulkLogRenewalReminders(targets.map((u: any) => u.id), "Bulk send from Members page");
+    } catch {
+      // Don't block UX on logging failures — WA tabs are already open.
+    }
+    toast({ title: `✅ تم فتح ${opened} محادثة واتساب وتسجيلها` });
+    clearSelection();
   }
 
   function openEdit(u: any) {
@@ -439,6 +622,33 @@ export default function AdminMembers() {
         </div>
       )}
 
+      {/* Select-all-on-page row. Sits above the list so the user can grab a
+          page worth of rows in one click; combined with the floating action
+          bar below it covers 90% of bulk workflows without a dedicated mode. */}
+      {!isLoading && userList.length > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allRowsSelected}
+              onChange={toggleAllOnPage}
+              className="w-4 h-4 rounded"
+              style={{ accentColor: "hsl(40 65% 52%)" }}
+            />
+            تحديد الصفحة ({userList.length})
+          </label>
+          {selectedUserIds.size > 0 && (
+            <button
+              onClick={clearSelection}
+              className="text-xs px-2 py-1 rounded-md"
+              style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 60%)" }}
+            >
+              مسح التحديد ({selectedUserIds.size})
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Member list */}
       <div className="space-y-2">
         {isLoading
@@ -459,11 +669,25 @@ export default function AdminMembers() {
           )
           : userList.map((u: any) => {
             const status = getSubStatus(u);
+            const isFrozen = u.currentSubscription?.status === "frozen";
+            const selected = selectedUserIds.has(u.id);
             return (
               <div key={u.id} className="flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all"
-                style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = "hsl(40 65% 48% / 0.2)")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "hsl(0 0% 14%)")}>
+                style={{
+                  background: selected ? "hsl(40 65% 48% / 0.08)" : "hsl(0 0% 9%)",
+                  border: selected ? "1px solid hsl(40 65% 48% / 0.4)" : "1px solid hsl(0 0% 14%)",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = selected ? "hsl(40 65% 48% / 0.6)" : "hsl(40 65% 48% / 0.2)")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = selected ? "hsl(40 65% 48% / 0.4)" : "hsl(0 0% 14%)")}>
+                {/* Bulk-select checkbox */}
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={() => toggleRow(u.id)}
+                  className="w-4 h-4 rounded flex-shrink-0"
+                  style={{ accentColor: "hsl(40 65% 52%)" }}
+                  aria-label={`تحديد ${u.name}`}
+                />
                 {/* Avatar */}
                 <Link href={`/admin/members/${u.id}`}>
                   <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 cursor-pointer"
@@ -484,16 +708,24 @@ export default function AdminMembers() {
                         · ينتهي {new Date(u.currentSubscription.endDate).toLocaleDateString("ar-EG")}
                       </span>
                     )}
+                    {isFrozen && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                        style={{ background: "hsl(210 80% 55% / 0.15)", color: "hsl(210 80% 65%)" }}>
+                        ❄️ مجمد
+                      </span>
+                    )}
                   </div>
                 </div>
                 {/* Status badge */}
                 <span className="text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0"
-                  style={status === "active"
+                  style={isFrozen
+                    ? { background: "hsl(210 80% 55% / 0.15)", color: "hsl(210 80% 65%)" }
+                    : status === "active"
                     ? { background: "hsl(142 60% 50% / 0.15)", color: "hsl(142 60% 60%)" }
                     : status === "expired"
                     ? { background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 60%)" }
                     : { background: "hsl(0 0% 16%)", color: "hsl(0 0% 45%)" }}>
-                  {status === "active" ? "نشط" : status === "expired" ? "منتهي" : "بدون"}
+                  {isFrozen ? "مجمد" : status === "active" ? "نشط" : status === "expired" ? "منتهي" : "بدون"}
                 </span>
                 {/* Actions */}
                 <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
@@ -754,6 +986,168 @@ export default function AdminMembers() {
               <button type="button" onClick={() => setShowCreate(false)} className="px-4 rounded-xl text-sm" style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 60%)" }}>إلغاء</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Floating bulk-action bar. Appears as soon as one row is selected;
+          actions either fire directly (export, freeze, unfreeze) or open a
+          modal for additional input (extend days, WA template). */}
+      {selectedUserIds.size > 0 && (
+        <div
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl"
+          style={{
+            background: "hsl(0 0% 8%)",
+            border: "1px solid hsl(40 65% 48% / 0.4)",
+            backdropFilter: "blur(8px)",
+            maxWidth: "calc(100vw - 16px)",
+          }}
+        >
+          <span className="text-xs font-semibold whitespace-nowrap" style={{ color: "hsl(40 65% 60%)" }}>
+            {selectedUserIds.size} محدد
+          </span>
+          <span className="w-px h-5" style={{ background: "hsl(0 0% 18%)" }} />
+          <button
+            onClick={() => setShowBulkExtend(true)}
+            disabled={bulkBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 65%)", border: "1px solid hsl(40 65% 48% / 0.3)" }}
+          >
+            تمديد +أيام
+          </button>
+          <button
+            onClick={doBulkFreeze}
+            disabled={bulkBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: "hsl(210 80% 55% / 0.15)", color: "hsl(210 80% 65%)", border: "1px solid hsl(210 80% 55% / 0.3)" }}
+          >
+            ❄️ تجميد
+          </button>
+          <button
+            onClick={doBulkUnfreeze}
+            disabled={bulkBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 75%)", border: "1px solid hsl(0 0% 22%)" }}
+          >
+            ☀️ إلغاء التجميد
+          </button>
+          <button
+            onClick={openBulkSendWaModal}
+            disabled={bulkBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+            style={{ background: "rgba(37,211,102,0.15)", color: "#25D366", border: "1px solid rgba(37,211,102,0.3)" }}
+          >
+            <WaIcon /> واتساب
+          </button>
+          <button
+            onClick={doBulkExportCsv}
+            disabled={bulkBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 75%)", border: "1px solid hsl(0 0% 22%)" }}
+          >
+            📥 تصدير CSV
+          </button>
+          <button
+            onClick={clearSelection}
+            disabled={bulkBusy}
+            className="text-xs px-2 py-1.5 rounded-lg"
+            style={{ color: "hsl(0 0% 55%)" }}
+            title="مسح التحديد"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Bulk-extend modal — admin chooses how many days to add. */}
+      {showBulkExtend && (
+        <Modal title="تمديد جماعي" sub={`${selectedUserIds.size} عضو محدد`} onClose={() => setShowBulkExtend(false)}>
+          <div className="p-3 sm:p-6 space-y-4">
+            <Field label="عدد الأيام">
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={bulkExtendDays}
+                onChange={(e) => setBulkExtendDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
+                className={inputCls}
+                style={inputSt}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              سيتم تمديد تاريخ نهاية الاشتراك للأعضاء المحددين الذين لديهم اشتراكات حالية بـ{" "}
+              <span className="font-bold" style={{ color: "hsl(40 65% 60%)" }}>{bulkExtendDays}</span> يوم.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={doBulkExtend}
+                disabled={bulkBusy}
+                className="flex-1 py-3 rounded-xl text-sm font-bold disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}
+              >
+                {bulkBusy ? "جاري التمديد..." : "✅ تأكيد التمديد"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkExtend(false)}
+                className="px-4 rounded-xl text-sm"
+                style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 60%)" }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk-send-WA modal — admin chooses template, opens N tabs. */}
+      {showBulkSendWa && (
+        <Modal
+          title="إرسال واتساب جماعي"
+          sub={`${selectedUserIds.size} عضو`}
+          onClose={() => setShowBulkSendWa(false)}
+          accentGreen
+        >
+          <div className="p-3 sm:p-6 space-y-4">
+            <Field label="نوع الرسالة">
+              <select value={bulkWaTemplateId} onChange={(e) => onBulkTplChange(e.target.value)} className={inputCls} style={inputSt}>
+                {waTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+                <option value={CUSTOM_TEMPLATE_ID}>رسالة مخصصة ✏️</option>
+              </select>
+            </Field>
+            <Field label="نص الرسالة">
+              <textarea
+                value={bulkWaMsg}
+                onChange={(e) => setBulkWaMsg(e.target.value)}
+                rows={5}
+                className={inputCls + " resize-none"}
+                style={inputSt}
+                placeholder="اكتب رسالتك..."
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              سيتم فتح علامة تبويب لكل عضو. قد يطلب المتصفح السماح بفتح النوافذ. المتغيرات مثل {"{name}"} يتم استبدالها لكل عضو.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={doBulkSendWa}
+                disabled={!bulkWaMsg.trim()}
+                className="flex-1 py-3 rounded-xl text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: "#25D366", color: "#fff" }}
+              >
+                <WaIcon /> إرسال للكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkSendWa(false)}
+                className="px-4 rounded-xl text-sm"
+                style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 60%)" }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

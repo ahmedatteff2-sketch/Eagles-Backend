@@ -695,6 +695,41 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS neck   NUMERIC(5,2);
     `);
 
+    // ── member_subscriptions: freeze support ──────────────────────────────
+    // The `subscription_status` enum gained a third "frozen" value; both
+    // ALTER TYPE ADD VALUE and the new columns are idempotent (Postgres 12+).
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_enum e
+          JOIN pg_type t ON t.oid = e.enumtypid
+          WHERE t.typname = 'subscription_status' AND e.enumlabel = 'frozen'
+        ) THEN
+          ALTER TYPE subscription_status ADD VALUE 'frozen';
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      ALTER TABLE member_subscriptions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMP;
+      ALTER TABLE member_subscriptions ADD COLUMN IF NOT EXISTS total_frozen_days INTEGER NOT NULL DEFAULT 0;
+    `);
+
+    // ── renewal_reminders: dedupes WhatsApp expiry reminders ──────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS renewal_reminders (
+        id                       SERIAL PRIMARY KEY,
+        user_id                  TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        member_subscription_id   INTEGER REFERENCES member_subscriptions(id) ON DELETE SET NULL,
+        channel                  TEXT NOT NULL DEFAULT 'whatsapp',
+        sent_by                  TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+        success                  BOOLEAN NOT NULL DEFAULT TRUE,
+        note                     TEXT,
+        sent_at                  TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS renewal_reminders_user_id_idx  ON renewal_reminders (user_id);
+      CREATE INDEX IF NOT EXISTS renewal_reminders_sent_at_idx  ON renewal_reminders (sent_at DESC);
+    `);
+
     // ── audit_logs: append-only record of admin/trainer write actions ─────
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
