@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { usersTable } from "./users.js";
 import { subscriptionsTable } from "./subscriptions.js";
 
-export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "expired"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "expired", "frozen"]);
 
 export const memberSubscriptionsTable = pgTable("member_subscriptions", {
   id: serial("id").primaryKey(),
@@ -13,6 +13,12 @@ export const memberSubscriptionsTable = pgTable("member_subscriptions", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   status: subscriptionStatusEnum("status").notNull().default("active"),
+  // Freeze support: when an admin freezes a subscription we record `frozenAt`
+  // (NULL → not frozen). On unfreeze we extend `endDate` by the number of days
+  // the sub was frozen and accumulate the total in `totalFrozenDays` for
+  // reporting / abuse prevention.
+  frozenAt: timestamp("frozen_at"),
+  totalFrozenDays: integer("total_frozen_days").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

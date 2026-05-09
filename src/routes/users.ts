@@ -117,7 +117,7 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       subscriptionId: number;
       startDate: string;
       endDate: string;
-      status: "active" | "expired";
+      status: "active" | "expired" | "frozen";
       subscription: { id: number; name: string; duration: number; price: string };
     };
     const subsMap: Record<string, SubInfo> = {};
