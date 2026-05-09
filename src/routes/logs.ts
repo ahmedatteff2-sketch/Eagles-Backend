@@ -17,10 +17,20 @@ const exerciseLogSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
 });
 
+// Body circumference measurements in cm. 30..250 is a generous human range
+// that still rejects obvious garbage (negative values, four-digit typos, etc.).
+const measurementCm = z.number().min(30).max(250).nullable().optional();
+
 const bodyStatSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
   weight: z.number().min(0).max(999).nullable().optional(),
   bodyFat: z.number().min(0).max(100).nullable().optional(),
+  chest: measurementCm,
+  waist: measurementCm,
+  hips: measurementCm,
+  biceps: measurementCm,
+  thigh: measurementCm,
+  neck: measurementCm,
   dietNote: z.string().max(1000).nullable().optional(),
   performanceNote: z.string().max(1000).nullable().optional(),
 });
@@ -204,11 +214,18 @@ router.post("/body-stats", authenticate, async (req, res) => {
     return;
   }
   try {
+    const num = (v: number | null | undefined) => (v != null ? String(v) : null);
     const [stat] = await db.insert(bodyStatsTable).values({
       userId: req.user!.userId,
       date: body.data.date,
-      weight: body.data.weight != null ? String(body.data.weight) : null,
-      bodyFat: body.data.bodyFat != null ? String(body.data.bodyFat) : null,
+      weight: num(body.data.weight),
+      bodyFat: num(body.data.bodyFat),
+      chest: num(body.data.chest),
+      waist: num(body.data.waist),
+      hips: num(body.data.hips),
+      biceps: num(body.data.biceps),
+      thigh: num(body.data.thigh),
+      neck: num(body.data.neck),
       dietNote: body.data.dietNote ?? null,
       performanceNote: body.data.performanceNote ?? null,
     }).returning();
