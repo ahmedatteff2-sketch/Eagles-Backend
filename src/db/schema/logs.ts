@@ -20,6 +20,15 @@ export const bodyStatsTable = pgTable("body_stats", {
   date: date("date").notNull(),
   weight: numeric("weight", { precision: 6, scale: 2 }),
   bodyFat: numeric("body_fat", { precision: 5, scale: 2 }),
+  // Body measurements in centimeters. All optional — members can log only the
+  // ones they care about. Useful for serious recomp tracking where the scale
+  // alone hides muscle gain / fat loss.
+  chest: numeric("chest", { precision: 5, scale: 2 }),
+  waist: numeric("waist", { precision: 5, scale: 2 }),
+  hips: numeric("hips", { precision: 5, scale: 2 }),
+  biceps: numeric("biceps", { precision: 5, scale: 2 }),
+  thigh: numeric("thigh", { precision: 5, scale: 2 }),
+  neck: numeric("neck", { precision: 5, scale: 2 }),
   dietNote: text("diet_note"),
   performanceNote: text("performance_note"),
 });

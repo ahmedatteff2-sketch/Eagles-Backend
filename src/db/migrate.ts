@@ -684,6 +684,17 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
     `);
 
+    // ── body_stats: full circumference measurements ───────────────────────
+    // All optional — populated as members measure them. Stored in cm.
+    await client.query(`
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS chest  NUMERIC(5,2);
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS waist  NUMERIC(5,2);
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS hips   NUMERIC(5,2);
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS biceps NUMERIC(5,2);
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS thigh  NUMERIC(5,2);
+      ALTER TABLE body_stats ADD COLUMN IF NOT EXISTS neck   NUMERIC(5,2);
+    `);
+
     // ── member_subscriptions: freeze support ──────────────────────────────
     // The `subscription_status` enum gained a third "frozen" value; both
     // ALTER TYPE ADD VALUE and the new columns are idempotent (Postgres 12+).

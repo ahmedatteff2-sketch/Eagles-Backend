@@ -298,6 +298,12 @@ export interface BodyStat {
   date: string;
   weight?: number | null;
   bodyFat?: number | null;
+  chest?: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  biceps?: number | null;
+  thigh?: number | null;
+  neck?: number | null;
   dietNote?: string | null;
   performanceNote?: string | null;
 }
@@ -306,6 +312,12 @@ export interface CreateBodyStatBody {
   date: string;
   weight?: number | null;
   bodyFat?: number | null;
+  chest?: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  biceps?: number | null;
+  thigh?: number | null;
+  neck?: number | null;
   dietNote?: string | null;
   performanceNote?: string | null;
 }

@@ -21,14 +21,43 @@ const MUSCLE_COLORS: Record<string, string> = {
 
 interface PR { exerciseId: number; exerciseName: string; targetMuscle: string; maxWeight: number; maxReps: number; date: string; totalSets: number; }
 
+// Empty-string-friendly measurement field. The HTML number inputs emit ""
+// when cleared, which `z.coerce.number()` turns into 0 — that would silently
+// log a 0-cm chest. Using preprocess to map empty/undefined to undefined keeps
+// the field optional and avoids fake zeros.
+const optionalNum = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().optional(),
+);
+
 const statSchema = z.object({
   date: z.string().min(1),
-  weight: z.coerce.number().optional(),
-  bodyFat: z.coerce.number().optional(),
+  weight: optionalNum,
+  bodyFat: optionalNum,
+  chest: optionalNum,
+  waist: optionalNum,
+  hips: optionalNum,
+  biceps: optionalNum,
+  thigh: optionalNum,
+  neck: optionalNum,
   dietNote: z.string().optional(),
   performanceNote: z.string().optional(),
 });
 type StatForm = z.infer<typeof statSchema>;
+
+// Order + labels + colors used by the chart and the form. Keeping them in one
+// place avoids drift when adding a new measurement later.
+const MEASUREMENTS = [
+  { key: "weight",  label: "الوزن",   unit: "كجم", color: "hsl(40 65% 52%)" },
+  { key: "bodyFat", label: "الدهون",  unit: "%",   color: "#e74c3c" },
+  { key: "chest",   label: "الصدر",   unit: "سم",  color: "#3498db" },
+  { key: "waist",   label: "الخصر",   unit: "سم",  color: "#9b59b6" },
+  { key: "hips",    label: "الأرداف", unit: "سم",  color: "#e91e63" },
+  { key: "biceps",  label: "البايسبس",unit: "سم",  color: "#f39c12" },
+  { key: "thigh",   label: "الفخذ",   unit: "سم",  color: "#2ecc71" },
+  { key: "neck",    label: "الرقبة",  unit: "سم",  color: "#1abc9c" },
+] as const;
+type MKey = typeof MEASUREMENTS[number]["key"];
 
 export default function MemberStats() {
   const { user } = useAuthStore();
@@ -133,17 +162,50 @@ export default function MemberStats() {
   }, [logList]);
 
   const [tab, setTab] = useState<"body" | "weights" | "prs">("body");
+  // Default the chart to weight only — showing 8 lines on first open is noise.
+  // Members enable the measurements they actually log.
+  const [activeMeasures, setActiveMeasures] = useState<Set<MKey>>(new Set(["weight"]));
 
   const statList = Array.isArray(bodyStats) ? bodyStats : (bodyStats as any)?.stats ?? [];
+
+  // Numeric coerce — body_stats columns come back as strings from the API
+  // because Postgres NUMERIC is serialized as text. Treat 0 / empty / null
+  // as "not logged" so the chart skips the point cleanly.
+  const num = (v: unknown) => {
+    if (v == null || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
   const chartData = statList
     .slice()
     .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map((s: any) => ({
-      date: new Date(s.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" }),
-      weight: s.weight,
-      bodyFat: s.bodyFat,
-    }))
-    .filter((d: any) => d.weight || d.bodyFat);
+    .map((s: any) => {
+      const point: Record<string, any> = {
+        date: new Date(s.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" }),
+      };
+      for (const m of MEASUREMENTS) point[m.key] = num((s as any)[m.key]);
+      return point;
+    })
+    .filter((d: any) => MEASUREMENTS.some(m => d[m.key] != null));
+
+  // Only show chart toggles for measurements the member actually logged at
+  // least once — no point cluttering the bar with thigh/neck if they never
+  // recorded those.
+  const loggedKeys = new Set<MKey>();
+  for (const d of chartData) for (const m of MEASUREMENTS) if (d[m.key] != null) loggedKeys.add(m.key);
+  const availableMeasurements = MEASUREMENTS.filter(m => loggedKeys.has(m.key));
+
+  function toggleMeasure(k: MKey) {
+    setActiveMeasures(prev => {
+      const next = new Set(prev);
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      next.has(k) ? next.delete(k) : next.add(k);
+      // Don't allow zero — keep at least one line on the chart.
+      if (next.size === 0) next.add(k);
+      return next;
+    });
+  }
 
   const [selectedExChart, setSelectedExChart] = useState(0);
   const TIP_STYLE = { background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 8, color: "hsl(0 0% 90%)" };
@@ -172,18 +234,45 @@ export default function MemberStats() {
       {tab === "body" && (
         <>
           {/* Chart */}
-          {chartData.length > 1 && (
+          {chartData.length > 1 && availableMeasurements.length > 0 && (
             <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-4">تطور القياسات</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-foreground">تطور القياسات</h2>
+              </div>
+              {/* Toggleable measurement chips */}
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {availableMeasurements.map(m => {
+                  const active = activeMeasures.has(m.key);
+                  return (
+                    <button key={m.key} onClick={() => toggleMeasure(m.key)} type="button"
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5"
+                      style={active
+                        ? { background: m.color, color: "#000" }
+                        : { background: "hsl(0 0% 13%)", color: "hsl(0 0% 65%)", border: `1px solid ${m.color}40` }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "#000" : m.color }} />
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
                   <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
                   <Tooltip contentStyle={TIP_STYLE} />
-                  <Legend />
-                  <Line type="monotone" dataKey="weight" stroke={GOLD} strokeWidth={2} dot={true} name="الوزن (كجم)" />
-                  <Line type="monotone" dataKey="bodyFat" stroke="#e74c3c" strokeWidth={2} dot={true} name="الدهون (%)" />
+                  {MEASUREMENTS.filter(m => activeMeasures.has(m.key)).map(m => (
+                    <Line
+                      key={m.key}
+                      type="monotone"
+                      dataKey={m.key}
+                      stroke={m.color}
+                      strokeWidth={2}
+                      dot={{ fill: m.color, r: 3 }}
+                      name={`${m.label} (${m.unit})`}
+                      connectNulls
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -207,6 +296,25 @@ export default function MemberStats() {
                   <input {...register("bodyFat")} type="number" step={0.1} placeholder="18.5" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
               </div>
+              {/* Circumference measurements (cm). All optional. */}
+              <details className="group">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground select-none flex items-center gap-1">
+                  <span className="transition-transform group-open:rotate-90">▸</span>
+                  قياسات تفصيلية (سم) — اختياري
+                </summary>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  {([
+                    ["chest", "الصدر"], ["waist", "الخصر"], ["hips", "الأرداف"],
+                    ["biceps", "البايسبس"], ["thigh", "الفخذ"], ["neck", "الرقبة"],
+                  ] as const).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
+                      <input {...register(key)} type="number" step={0.1} placeholder="—"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                  ))}
+                </div>
+              </details>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">ملاحظات التغذية</label>
                 <textarea {...register("dietNote")} rows={2} placeholder="سعرات حرارية، وجبات..." className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
@@ -248,9 +356,19 @@ export default function MemberStats() {
                         <p className="text-sm font-medium text-foreground">{new Date(s.date).toLocaleDateString("ar-EG", { weekday: "short", month: "short", day: "numeric" })}</p>
                         <button onClick={() => handleDelete(s.id)} className="text-xs text-destructive hover:underline">حذف</button>
                       </div>
-                      <div className="flex gap-4">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
                         {s.weight && <span className="text-sm font-bold" style={{ color: GOLD }}>{s.weight} كجم</span>}
                         {s.bodyFat && <span className="text-red-400 text-sm font-bold">{s.bodyFat}% دهون</span>}
+                        {([
+                          ["chest", "صدر"], ["waist", "خصر"], ["hips", "أرداف"],
+                          ["biceps", "بايسبس"], ["thigh", "فخذ"], ["neck", "رقبة"],
+                        ] as const).map(([key, label]) =>
+                          s[key] ? (
+                            <span key={key} className="text-xs text-muted-foreground">
+                              {label} <span className="font-semibold text-foreground">{s[key]}</span> سم
+                            </span>
+                          ) : null,
+                        )}
                       </div>
                       {s.dietNote && <p className="text-muted-foreground text-xs mt-1">التغذية: {s.dietNote}</p>}
                       {s.performanceNote && <p className="text-muted-foreground text-xs">الأداء: {s.performanceNote}</p>}
