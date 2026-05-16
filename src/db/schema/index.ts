@@ -11,3 +11,4 @@ export * from "./reminders.js";
 export * from "./wa-templates.js";
 export * from "./audit-logs.js";
 export * from "./renewal-reminders.js";
+export * from "./absence-reminders.js";
