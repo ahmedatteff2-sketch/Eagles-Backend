@@ -13,7 +13,7 @@
  *   settings(key, value)                                       -- skipped
  *
  * Each legacy member becomes a User row (role=member, default password
- * "123456", legacy id stored in membershipNumber so it can be looked up
+ * "a1234567", legacy id stored in membershipNumber so it can be looked up
  * later) plus a member_subscriptions row pointing at the matching
  * subscription. Payments and check-ins are remapped onto the new user IDs.
  *
@@ -27,7 +27,7 @@
  *                      inserting the legacy data. Without this the script
  *                      will skip members whose phone already exists.
  *   --default-password Password to set for every imported member (default
- *                      "123456" — matches /imports/members/sqlite).
+ *                      "a1234567" — matches /imports/members/sqlite).
  *   --dry-run          Print the per-table summary that *would* be inserted
  *                      without writing anything.
  */
@@ -41,7 +41,7 @@ import { logger } from "../lib/logger.js";
 import { normalizePhone } from "../lib/phone.js";
 
 const BCRYPT_COST = 12;
-const DEFAULT_PASSWORD = "123456";
+const DEFAULT_PASSWORD = "a1234567";
 
 interface Args {
   filePath: string;
