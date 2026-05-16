@@ -1,0 +1,1 @@
+import{c as r}from"./index-BdImjAZ4.js";const s=(e=3)=>r(`/api/renewal-reminders/expiring?days=${e}`,{method:"GET"}),a=(e=200)=>r(`/api/renewal-reminders?limit=${e}`,{method:"GET"}),o=(e,n)=>r("/api/renewal-reminders/bulk-log",{method:"POST",body:JSON.stringify({userIds:e,note:n})}),m=()=>r("/api/renewal-reminders/run-now",{method:"POST"});export{a,o as b,s as g,m as r};
