@@ -3,10 +3,9 @@ import { db } from "@workspace/db";
 import {
   usersTable,
   memberSubscriptionsTable,
-  checkinsTable,
   absenceRemindersTable,
 } from "@workspace/db/schema";
-import { eq, and, lte, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
 import { z } from "zod";
