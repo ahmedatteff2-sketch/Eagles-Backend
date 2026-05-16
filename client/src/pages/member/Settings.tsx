@@ -29,6 +29,18 @@ export default function MemberSettings() {
     return () => window.removeEventListener("pwa-installable", handler);
   }, []);
 
+  // Track Notification permission in state seeded by a guarded read.
+  // The Notification global is absent in iOS Safari < 16.4 and several
+  // WebView/PWA wrappers — reading it bare (even with `?.`) throws a
+  // ReferenceError, which the top-level ErrorBoundary then turns into
+  // "حصل خطأ غير متوقع". Guard with `"Notification" in window` first.
+  type NotifState = NotificationPermission | "unsupported";
+  const [notifPermission, setNotifPermission] = useState<NotifState>(() => {
+    if (typeof window === "undefined") return "default";
+    if (!("Notification" in window)) return "unsupported";
+    return Notification.permission;
+  });
+
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof window !== "undefined") return (localStorage.getItem("theme") as "dark" | "light") ?? "dark";
     return "dark";
@@ -129,12 +141,15 @@ export default function MemberSettings() {
               <p className="text-xs text-muted-foreground">استلم تنبيهات لموعد التمرين والتذكيرات</p>
             </div>
             <button
+              disabled={notifPermission === "unsupported"}
               onClick={async () => {
                 if (!("Notification" in window)) {
+                  setNotifPermission("unsupported");
                   toast({ title: "المتصفح لا يدعم الإشعارات", variant: "destructive" });
                   return;
                 }
                 const perm = await Notification.requestPermission();
+                setNotifPermission(perm);
                 if (perm === "granted") {
                   toast({ title: "تم تفعيل الإشعارات" });
                   localStorage.setItem("push-enabled", "1");
@@ -143,11 +158,15 @@ export default function MemberSettings() {
                   localStorage.setItem("push-enabled", "0");
                 }
               }}
-              className="px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-              style={typeof window !== "undefined" && Notification?.permission === "granted"
+              className="px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+              style={notifPermission === "granted"
                 ? { background: "hsl(142 60% 45%)", color: "#fff" }
                 : { background: "hsl(40 65% 52%)", color: "#000" }}>
-              {typeof window !== "undefined" && Notification?.permission === "granted" ? "مفعّل ✓" : "تفعيل"}
+              {notifPermission === "granted"
+                ? "مفعّل ✓"
+                : notifPermission === "unsupported"
+                ? "غير مدعوم"
+                : "تفعيل"}
             </button>
           </div>
         </div>
