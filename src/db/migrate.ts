@@ -730,6 +730,36 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS renewal_reminders_sent_at_idx  ON renewal_reminders (sent_at DESC);
     `);
 
+    // ── Seed absence-reminder WhatsApp template (idempotent) ─────────────
+    // Inserted separately from the legacy templates so that databases
+    // provisioned before this template existed pick it up on next boot.
+    await client.query(
+      `INSERT INTO wa_templates (name, body, sort_order)
+       SELECT $1, $2, 3
+       WHERE NOT EXISTS (
+         SELECT 1 FROM wa_templates WHERE name ILIKE '%غياب%' OR name ILIKE '%absent%'
+       )`,
+      [
+        "تذكير غياب 👋",
+        "أهلاً {name} 👋\nلاحظنا إنك ما سجلتش حضور في {gym_name} من {days_absent} أيام.\nنفتقدك في النادي 💪 — احنا في انتظارك! 🦅",
+      ],
+    );
+
+    // ── absence_reminders: dedupes WhatsApp "you've been absent" reminders ─
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS absence_reminders (
+        id          SERIAL PRIMARY KEY,
+        user_id     TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        channel     TEXT NOT NULL DEFAULT 'whatsapp',
+        sent_by     TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+        success     BOOLEAN NOT NULL DEFAULT TRUE,
+        note        TEXT,
+        sent_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS absence_reminders_user_id_idx ON absence_reminders (user_id);
+      CREATE INDEX IF NOT EXISTS absence_reminders_sent_at_idx ON absence_reminders (sent_at DESC);
+    `);
+
     // ── audit_logs: append-only record of admin/trainer write actions ─────
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (

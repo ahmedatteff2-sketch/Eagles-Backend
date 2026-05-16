@@ -2,6 +2,7 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { runMigrations } from "./db/migrate.js";
 import { startRenewalReminderJob, stopRenewalReminderJob } from "./jobs/renewal-reminders.js";
+import { startAbsenceReminderJob, stopAbsenceReminderJob } from "./jobs/absence-reminders.js";
 import { expireOverdueSubscriptions } from "./routes/renewal-reminders.js";
 
 const rawPort = process.env["PORT"];
@@ -36,6 +37,10 @@ try {
 // admin Renewals queue. See src/jobs/renewal-reminders.ts for the policy.
 startRenewalReminderJob();
 
+// Hourly tick that surfaces members who haven't checked in for ≥3 days
+// into the admin Absent-Members queue. See src/jobs/absence-reminders.ts.
+startAbsenceReminderJob();
+
 const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -65,6 +70,7 @@ function shutdown(signal: NodeJS.Signals): void {
   forceExitTimer.unref();
 
   stopRenewalReminderJob();
+  stopAbsenceReminderJob();
   server.close((closeErr) => {
     if (closeErr) {
       logger.error({ err: closeErr }, "Error closing HTTP server");
