@@ -1,3 +1,6 @@
+// Sentry must be initialized before app.ts so its OpenTelemetry-style
+// instrumentation can wrap Express handlers as they're registered.
+import "./lib/sentry.js";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { runMigrations } from "./db/migrate.js";

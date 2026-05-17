@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import * as Sentry from "@sentry/node";
 import { pinoHttp } from "pino-http";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
@@ -212,6 +213,10 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  // Forward to Sentry first so the breadcrumb trail captured up to this
+  // point is correlated with the exception. Sentry is a no-op when DSN
+  // is unset, so this is safe in dev/test.
+  Sentry.captureException(err);
   logger.error({ err }, "Unhandled error");
   const isProd = process.env.NODE_ENV === "production";
   res.status(500).json({
