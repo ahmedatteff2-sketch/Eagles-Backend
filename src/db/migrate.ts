@@ -46,6 +46,14 @@ async function dropIfLegacyUserIdShape(
 const MIGRATION_LOCK_KEY = 0x4541474c45534d49n;
 
 export async function runMigrations(): Promise<void> {
+  // Escape hatch: once a deployment has stabilized on drizzle-kit migrations,
+  // operators can set SKIP_BOOTSTRAP_MIGRATIONS=1 to disable the runtime
+  // bootstrap entirely. See docs/migrations.md for the migration path.
+  if (process.env.SKIP_BOOTSTRAP_MIGRATIONS === "1") {
+    logger.info("SKIP_BOOTSTRAP_MIGRATIONS=1 — skipping runtime bootstrap migrations");
+    return;
+  }
+
   const client = await pool.connect();
   let acquiredLock = false;
   try {

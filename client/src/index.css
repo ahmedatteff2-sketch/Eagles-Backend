@@ -213,4 +213,36 @@
     border-color: hsl(40 65% 48% / 0.6);
     box-shadow: 0 0 0 1px hsl(40 65% 48% / 0.2);
   }
+
+  /* ── Design-token utility classes ────────────────────────────────────────
+     Use these instead of inline `style={{ background: "hsl(0 0% 12%)" }}`.
+     They map onto the same CSS variables so dark/light theme works for free
+     and design changes happen in one place rather than across hundreds of
+     inline `style` attributes.
+
+     Adoption is incremental — a single audit shouldn't have to migrate every
+     page. New components MUST use these; old components can be migrated as
+     they are touched.
+  ───────────────────────────────────────────────────────────────────────── */
+
+  .surface-1 { background-color: hsl(var(--card)); }
+  .surface-2 { background-color: hsl(var(--popover)); }
+  .surface-elevated { background-color: hsl(var(--secondary)); }
+  .surface-panel { background-color: hsl(0 0% 12%); }
+
+  .border-subtle { border-color: hsl(0 0% 16%); }
+  .border-strong { border-color: hsl(var(--border)); }
+
+  .text-gold { color: hsl(40 65% 55%); }
+  .text-gold-soft { color: hsl(40 65% 48% / 0.85); }
+  .bg-gold { background-color: hsl(var(--primary)); }
+  .ring-gold { --tw-ring-color: hsl(40 65% 48% / 0.5); }
+
+  .gradient-gold {
+    background-image: linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 40%));
+  }
+
+  .gradient-gold-soft {
+    background-image: linear-gradient(90deg, transparent, hsl(40 65% 48%), transparent);
+  }
 }

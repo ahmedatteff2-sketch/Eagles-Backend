@@ -1,0 +1,88 @@
+{
+  "app": {
+    "name": "Eagle Gym",
+    "tagline": "نظام الإدارة"
+  },
+  "nav": {
+    "dashboard": "اللوحة الرئيسية",
+    "members": "الأعضاء",
+    "subscriptions": "الاشتراكات",
+    "exercises": "التمارين",
+    "workoutTemplates": "قوالب التمرين",
+    "payments": "المدفوعات",
+    "expenses": "المصروفات",
+    "attendance": "الحضور",
+    "schedule": "الجدول",
+    "analytics": "التحليلات",
+    "exports": "التصدير",
+    "imports": "الاستيراد",
+    "settings": "الإعدادات",
+    "reminders": "التذكيرات",
+    "renewalReminders": "تذكيرات التجديد",
+    "absentMembers": "الأعضاء الغائبون",
+    "waTemplates": "قوالب واتساب",
+    "auditLog": "سجل التدقيق",
+    "workouts": "تمريناتي",
+    "log": "السجل",
+    "stats": "الإحصائيات",
+    "qr": "رمز QR",
+    "report": "التقرير",
+    "photos": "صور التقدم",
+    "leaderboard": "لوحة المتصدرين",
+    "notifications": "الإشعارات",
+    "meals": "خطة الوجبات",
+    "badges": "الأوسمة",
+    "personalRecords": "أرقامي القياسية",
+    "calendar": "التقويم",
+    "coachNotes": "ملاحظات المدرب",
+    "monthlyReport": "التقرير الشهري"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إضافة",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "loading": "جارٍ التحميل...",
+    "noData": "لا توجد بيانات",
+    "search": "بحث",
+    "filter": "تصفية",
+    "all": "الكل",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "phone": "رقم الهاتف",
+    "password": "كلمة المرور",
+    "submit": "دخول",
+    "twoFactorTitle": "التحقق بخطوتين",
+    "twoFactorPrompt": "أدخل رمز التحقق المكوّن من 6 أرقام",
+    "invalidCredentials": "رقم الهاتف أو كلمة المرور غير صحيحة",
+    "accountLocked": "الحساب مغلق مؤقتاً"
+  },
+  "errors": {
+    "generic": "حدث خطأ. حاول مرة أخرى.",
+    "network": "تعذّر الاتصال بالخادم",
+    "unauthorized": "غير مصرّح بالوصول",
+    "notFound": "غير موجود",
+    "validation": "بيانات غير صالحة"
+  },
+  "splash": {
+    "name": "Eagle Gym"
+  },
+  "shortcuts": {
+    "title": "اختصارات لوحة المفاتيح",
+    "openCommandPalette": "فتح لوحة الأوامر",
+    "navMembers": "الأعضاء",
+    "navAttendance": "الحضور",
+    "navDashboard": "اللوحة الرئيسية",
+    "navPayments": "المدفوعات",
+    "navSubscriptions": "الاشتراكات",
+    "navSettings": "الإعدادات"
+  }
+}

@@ -7,6 +7,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { withAdvisoryLock, ABSENCE_REMINDER_LOCK_KEY } from "../lib/advisory-lock.js";
 
 /**
  * Returns "now" rounded to the start of the next hour. Used to schedule the
@@ -161,13 +162,21 @@ export function startAbsenceReminderJob(): void {
   }
 
   const tick = async (): Promise<void> => {
-    try {
-      const summary = await runAbsenceReminderPass();
-      if (summary.logged > 0) {
-        logger.info({ summary }, "Absence reminder pass completed");
+    // Wrap the pass in a Postgres advisory lock so multi-instance deploys
+    // (Render, k8s) don't double-fire the reminder logic. If another replica
+    // is currently running it, we simply skip this tick.
+    const outcome = await withAdvisoryLock(ABSENCE_REMINDER_LOCK_KEY, async () => {
+      try {
+        const summary = await runAbsenceReminderPass();
+        if (summary.logged > 0) {
+          logger.info({ summary }, "Absence reminder pass completed");
+        }
+      } catch (err) {
+        logger.error({ err }, "Absence reminder pass failed");
       }
-    } catch (err) {
-      logger.error({ err }, "Absence reminder pass failed");
+    });
+    if (!outcome.acquired) {
+      logger.debug("Absence reminder tick skipped — another instance holds the lock");
     }
   };
 

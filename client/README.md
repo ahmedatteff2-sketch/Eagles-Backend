@@ -1,28 +1,158 @@
 # Eagle Gym — Frontend
 
-React + Vite + TailwindCSS
+React 18 + TypeScript + Vite 6 + Tailwind 4 SPA bundled into the backend
+project at `../public/` and served by Express in production. Also wrapped by
+Capacitor as a native Android app (`./android/`).
 
-## Setup
+## Quick start
 
 ```bash
 npm install
-
-# Development (connects to backend on localhost:3000)
-npm run dev
-
-# Production build
-npm run build
+npm run dev          # Vite dev server on :5173 (proxies /api → :3000)
 ```
 
-## Render Deployment (Static Site)
+Other scripts:
 
-1. Connect this repo to Render as **Static Site**
-2. **Build Command:** `npm install && npm run build`
-3. **Publish Directory:** `dist`
-4. Add environment variable:
-   - `VITE_API_URL` = your backend URL (e.g. `https://eagle-gym-backend.onrender.com`)
+| Script | What it does |
+|---|---|
+| `npm run build` | Production build → `../public/` |
+| `npm run analyze` | Build with rollup-plugin-visualizer; opens `dist/stats.html` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` / `lint:fix` | ESLint on `src/` |
+| `npm run format` / `format:check` | Prettier |
+| `npm run depcheck` | List unused dependencies |
 
-## Note
+## Folder layout
 
-In `src/main.tsx`, the app uses relative API calls (`/api/...`).  
-If your backend is on a different domain, update `src/api-client/custom-fetch.ts` to use `setBaseUrl()`.
+```
+src/
+├── App.tsx                # Top-level router + splash + global modals
+├── main.tsx               # Entry: Sentry init, i18n init, auth wiring, query client
+├── index.css              # Tailwind 4 + design tokens + utility classes
+├── api-client/            # Hand-written fetch wrapper (auth refresh, base URL)
+├── components/
+│   ├── ui/                # shadcn-style primitives (button, dialog, ...)
+│   ├── security/          # Auth-aware UI bits (2FA, session list)
+│   ├── CommandPalette.tsx # Ctrl/Cmd+K palette (replaces undocumented Alt+M shortcuts)
+│   ├── ErrorBoundary.tsx  # Forwards crashes to Sentry, shows fallback UI
+│   ├── PWAInstallPrompt.tsx
+│   ├── ReminderPopup.tsx
+│   └── Skeleton.tsx       # PageSkeleton used as Suspense fallback for lazy routes
+├── hooks/                 # Cross-page React hooks
+├── i18n/
+│   ├── index.ts           # i18next setup + setLanguage()
+│   └── locales/{ar,en}.json
+├── layouts/               # AdminLayout / MemberLayout sidebars + chrome
+├── lib/
+│   ├── sentry.ts          # initSentry() + reportError()
+│   ├── storage.ts         # STORAGE_KEYS map + readJSON/writeJSON helpers
+│   └── ...                # date utils, formatters, etc.
+├── pages/
+│   ├── login.tsx          # Eagerly loaded — every other page is lazy
+│   ├── admin/             # 20+ admin pages, route-split per page
+│   └── member/            # 17+ member pages, route-split per page
+└── store/                 # Zustand stores (auth, ui state)
+```
+
+## Design system
+
+Theme tokens live in `src/index.css` as CSS custom properties on `:root`
+(dark, default) and `.light`. Tailwind 4's `@theme inline { ... }` block
+wires those tokens to `bg-background`, `text-foreground`, `border-border`,
+etc.
+
+**Always prefer Tailwind classes that read from tokens.** Inline styles
+(`style={{ background: "hsl(0 0% 12%)" }}`) are tolerated in legacy code but
+new components must use either:
+
+- Tailwind tokens: `bg-card`, `text-foreground`, `border-border`
+- Project utilities (defined in `index.css`): `surface-1`, `text-gold`,
+  `gradient-gold`, `gold-glow`, `gold-border-glow`
+- Arbitrary values backed by CSS variables: `bg-[hsl(var(--popover))]`
+
+If you need a one-off color for an animation, add it to `index.css` with a
+class name rather than embedding hex strings inline.
+
+## Routing
+
+`wouter` (3KB) is the router. Pages are code-split with `React.lazy` —
+`pages/login.tsx` is the only eagerly-loaded page so the unauthenticated
+first-paint is fast.
+
+## State management
+
+- **Server state:** TanStack Query (`@tanstack/react-query`). Default options
+  are conservative: `retry: 1`, `refetchOnWindowFocus: false`. Per-query
+  overrides are encouraged for long-lived dashboards.
+- **Client state:** Zustand (`store/`). Auth tokens live there; everything
+  else is component-local or query-cache-derived.
+
+## Authentication
+
+`api-client/` calls back into `main.tsx` via `setAuthTokenGetter` /
+`setAuthRefreshHandler` / `setUnauthorizedHandler`. The flow:
+
+1. Every API call goes through `customFetch` which checks the access token's
+   `exp` claim and refreshes it 60s before expiry.
+2. On a 401, refresh is retried once; if it fails, the user is redirected
+   to `/login` and the original path is stashed in `sessionStorage` for
+   post-login redirect.
+3. Cross-tab logout: a `storage` event on `STORAGE_KEYS.AUTH` triggers a
+   redirect in every tab.
+
+## i18n
+
+`react-i18next` initialized synchronously in `src/i18n/index.ts` with
+Arabic (default) and English. Use `useTranslation()` in components:
+
+```tsx
+import { useTranslation } from "react-i18next";
+const { t } = useTranslation();
+return <h1>{t("nav.dashboard")}</h1>;
+```
+
+Switching language: call `setLanguage("en")` from `@/i18n` — it updates
+i18next, persists to localStorage, and flips `<html dir>` and `<html lang>`.
+
+## PWA / Service worker
+
+Generated by `vite-plugin-pwa` (Workbox). Configured in `vite.config.ts`:
+precaches the build output, runtime-caches Google Fonts, and falls back
+to `index.html` for SPA navigations. We do NOT cache `/api/*` — those are
+authenticated and must always reach the network.
+
+Update flow: `registerType: "autoUpdate"` + `skipWaiting: true` mean a new
+build is picked up on the next page load without forcing the user to close
+every tab.
+
+## Error tracking (Sentry)
+
+Set `VITE_SENTRY_DSN` in the build environment to enable. Without it, both
+`initSentry()` and `reportError()` are no-ops, so dev/test runs don't ship
+events. The `ErrorBoundary` forwards every `componentDidCatch` to Sentry.
+
+## Keyboard shortcuts
+
+Press **Ctrl/Cmd + K** anywhere to open the command palette. Admins still
+have the legacy `Alt + M / A / D / P / S / ,` shortcuts; they're listed
+in the palette as discoverable hints.
+
+## Bundle splitting
+
+`vite.config.ts > build.rollupOptions.output.manualChunks` groups vendor
+chunks for predictable caching:
+
+- `react` (React + ReactDOM)
+- `radix`, `tanstack`, `charts`, `pdf`, `qr`, `motion`, `date`, `icons`,
+  `sentry`, `i18n`
+
+After significant dependency changes, run `npm run analyze` and inspect
+`dist/stats.html` to make sure no chunk has ballooned.
+
+## Capacitor / Android
+
+`./android/` is the Capacitor-generated Android project. After a frontend
+build, run `npx cap sync android` to copy `../public/` into the Android
+assets. The web app and the Android app share the same runtime — the only
+difference is that on Android, Capacitor injects a `Capacitor` global on
+`window` and serves the bundle from the local APK rather than over HTTP.

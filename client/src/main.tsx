@@ -9,18 +9,21 @@ import {
   setBaseUrl,
 } from "./api-client";
 import { STORAGE_KEYS } from "./lib/storage";
+import { initSentry } from "./lib/sentry";
+// Initialize i18n for its side effects (registers resources with i18next).
+import "./i18n";
+
+// Initialize Sentry before React renders so the very first paint is
+// covered. No-op when VITE_SENTRY_DSN isn't set.
+initSentry();
 
 const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME_LEGACY) ?? "dark";
 document.documentElement.classList.add(savedTheme);
-document.documentElement.setAttribute("dir", "rtl");
-document.documentElement.setAttribute("lang", "ar");
+// `dir` and `lang` attributes are managed by i18n (see src/i18n/index.ts).
 
-// Register service worker for PWA
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });
-}
+// Service worker registration is handled by vite-plugin-pwa's
+// `injectRegister: "auto"` — see vite.config.ts. We no longer hand-roll a
+// /sw.js: Workbox handles precaching, runtime caching, and update flow.
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<{ outcome: "accepted" | "dismissed" }>;
