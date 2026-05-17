@@ -2,6 +2,7 @@ import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useEffect, useState, lazy, Suspense } from "react";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import CommandPalette from "@/components/CommandPalette";
 import AdminLayout from "@/layouts/AdminLayout";
 import MemberLayout from "@/layouts/MemberLayout";
 import { useAuthStore } from "@/store/auth";
@@ -96,45 +97,42 @@ function RoleHomeRedirect() {
 }
 
 function GlobalKeyboardShortcuts() {
-  const [, nav] = useLocation();
-  useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if (e.altKey) {
-        switch (e.key.toLowerCase()) {
-          case "m": e.preventDefault(); nav("/admin/members"); break;
-          case "a": e.preventDefault(); nav("/admin/attendance"); break;
-          case "d": e.preventDefault(); nav("/admin"); break;
-          case "p": e.preventDefault(); nav("/admin/payments"); break;
-          case "s": e.preventDefault(); nav("/admin/subscriptions"); break;
-          case ",": e.preventDefault(); nav("/admin/settings"); break;
-        }
-      }
-    }
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [nav]);
+  // Keyboard shortcuts moved into CommandPalette so they're centralized,
+  // discoverable (Ctrl/Cmd+K), and visible in the palette's hint column.
+  // This wrapper is kept so the existing call site below still compiles —
+  // remove once the palette is verified in production.
   return null;
 }
 
 import { ReminderPopup } from "@/components/ReminderPopup";
 
 function SplashScreen({ onDone }: { onDone: () => void }) {
-  useEffect(() => { const t = setTimeout(onDone, 1800); return () => clearTimeout(t); }, [onDone]);
+  // Cap the splash to ~1.4s. We use the first paint as the "started" marker
+  // and only wait long enough to finish the logo glow animation; once the
+  // user has seen the splash on this device we'll skip it next time
+  // (see `splashDone` initializer).
+  useEffect(() => {
+    const t = setTimeout(onDone, 1400);
+    return () => clearTimeout(t);
+  }, [onDone]);
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: "hsl(0 0% 4%)" }}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[hsl(0_0%_4%)]">
       <style>{`
         @keyframes splashIn { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
         @keyframes splashGlow { 0%,100%{box-shadow:0 0 20px hsl(40 65% 48% / 0.2)} 50%{box-shadow:0 0 60px hsl(40 65% 48% / 0.5)} }
         @keyframes splashFadeOut { from{opacity:1} to{opacity:0} }
-        .splash-wrapper { animation: splashIn 0.6s ease-out, splashFadeOut 0.4s ease-in 1.4s forwards; }
+        .splash-wrapper { animation: splashIn 0.5s ease-out, splashFadeOut 0.3s ease-in 1.1s forwards; }
         .splash-logo { animation: splashGlow 1.2s ease-in-out infinite; }
       `}</style>
       <div className="splash-wrapper flex flex-col items-center gap-4">
-        <img src="/eagle-gym-logo.jpg" alt="Eagle Gym" className="splash-logo w-24 h-24 rounded-2xl object-contain"
-          style={{ background: "hsl(0 0% 6%)", border: "1px solid hsl(40 65% 48% / 0.3)" }} />
+        <img
+          src="/eagle-gym-logo.jpg"
+          alt="Eagle Gym"
+          className="splash-logo w-24 h-24 rounded-2xl object-contain bg-[hsl(0_0%_6%)] border border-[hsl(40_65%_48%/0.3)]"
+        />
         <div className="text-center">
-          <h1 className="text-xl font-black tracking-[0.25em] uppercase" style={{ color: "hsl(40 65% 55%)" }}>Eagle Gym</h1>
-          <div className="w-12 h-0.5 rounded mx-auto mt-2" style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 48%), transparent)" }} />
+          <h1 className="text-xl font-black tracking-[0.25em] uppercase text-[hsl(40_65%_55%)]">Eagle Gym</h1>
+          <div className="w-12 h-0.5 rounded mx-auto mt-2 bg-gradient-to-r from-transparent via-[hsl(40_65%_48%)] to-transparent" />
         </div>
       </div>
     </div>
@@ -142,7 +140,20 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
 }
 
 export default function App() {
-  const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem("splash-done") === "1");
+  // Show the splash only on the first visit per device (localStorage). After
+  // that, sessionStorage takes over so the splash doesn't flash on every
+  // tab. Set ?splash=1 in the URL to force-show the splash for QA.
+  const [splashDone, setSplashDone] = useState(() => {
+    try {
+      const force = new URLSearchParams(window.location.search).has("splash");
+      if (force) return false;
+      if (sessionStorage.getItem(STORAGE_KEYS.SPLASH_DONE) === "1") return true;
+      if (localStorage.getItem(STORAGE_KEYS.SPLASH_DONE) === "1") return true;
+      return false;
+    } catch {
+      return false;
+    }
+  });
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -152,7 +163,14 @@ export default function App() {
   }, []);
 
   function handleSplashDone() {
-    sessionStorage.setItem("splash-done", "1");
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.SPLASH_DONE, "1");
+      // Mark "seen on this device" so subsequent visits skip the splash
+      // entirely (not just within the same browser session).
+      localStorage.setItem(STORAGE_KEYS.SPLASH_DONE, "1");
+    } catch {
+      /* ignore */
+    }
     setSplashDone(true);
   }
 
@@ -161,6 +179,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ReminderPopup />
+      <CommandPalette />
       <GlobalKeyboardShortcuts />
       <PWAInstallPrompt />
       <Switch>

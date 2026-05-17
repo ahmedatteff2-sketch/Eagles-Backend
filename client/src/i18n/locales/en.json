@@ -1,0 +1,88 @@
+{
+  "app": {
+    "name": "Eagle Gym",
+    "tagline": "Management System"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "members": "Members",
+    "subscriptions": "Subscriptions",
+    "exercises": "Exercises",
+    "workoutTemplates": "Workout Templates",
+    "payments": "Payments",
+    "expenses": "Expenses",
+    "attendance": "Attendance",
+    "schedule": "Schedule",
+    "analytics": "Analytics",
+    "exports": "Exports",
+    "imports": "Imports",
+    "settings": "Settings",
+    "reminders": "Reminders",
+    "renewalReminders": "Renewal Reminders",
+    "absentMembers": "Absent Members",
+    "waTemplates": "WhatsApp Templates",
+    "auditLog": "Audit Log",
+    "workouts": "Workouts",
+    "log": "Log",
+    "stats": "Stats",
+    "qr": "QR Code",
+    "report": "Report",
+    "photos": "Progress Photos",
+    "leaderboard": "Leaderboard",
+    "notifications": "Notifications",
+    "meals": "Meal Plan",
+    "badges": "Badges",
+    "personalRecords": "Personal Records",
+    "calendar": "Calendar",
+    "coachNotes": "Coach Notes",
+    "monthlyReport": "Monthly Report"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "noData": "No data",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "phone": "Phone number",
+    "password": "Password",
+    "submit": "Sign in",
+    "twoFactorTitle": "Two-factor authentication",
+    "twoFactorPrompt": "Enter the 6-digit verification code",
+    "invalidCredentials": "Phone number or password is incorrect",
+    "accountLocked": "Account temporarily locked"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Could not reach the server",
+    "unauthorized": "Not authorized",
+    "notFound": "Not found",
+    "validation": "Invalid input"
+  },
+  "splash": {
+    "name": "Eagle Gym"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "openCommandPalette": "Open command palette",
+    "navMembers": "Members",
+    "navAttendance": "Attendance",
+    "navDashboard": "Dashboard",
+    "navPayments": "Payments",
+    "navSubscriptions": "Subscriptions",
+    "navSettings": "Settings"
+  }
+}

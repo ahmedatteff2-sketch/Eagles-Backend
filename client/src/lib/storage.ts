@@ -12,6 +12,8 @@ export const STORAGE_KEYS = {
   PUSH_ENABLED: "push-enabled",
   REDIRECT_AFTER_LOGIN: "post-login-redirect",
   SPLASH_DONE: "splash-done",
+  // Language preference for the i18n switcher (ar | en).
+  LANG: "gym-lang",
 } as const;
 
 export function memberNotesKey(userId: number | string): string {
