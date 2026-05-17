@@ -10,12 +10,20 @@
     "start": "node --enable-source-maps dist/index.mjs",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,mjs,json,md}\" \"*.{ts,js,mjs,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,mjs,json,md}\" \"*.{ts,js,mjs,json,md}\"",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --run --coverage",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "import:sqlite-backup": "tsx src/scripts/import-sqlite-backup.ts"
   },
   "dependencies": {
+    "@sentry/node": "^8.47.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.5",
@@ -36,6 +44,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.17",
@@ -45,10 +54,17 @@
     "@types/node": "^22.0.0",
     "@types/papaparse": "^5.3.15",
     "@types/pg": "^8.11.11",
+    "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^2.1.8",
     "drizzle-kit": "^0.30.4",
     "esbuild": "0.25.8",
     "esbuild-plugin-pino": "^2.3.3",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "supertest": "^7.0.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
   }
 }
