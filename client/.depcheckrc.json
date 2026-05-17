@@ -1,0 +1,28 @@
+{
+  "ignores": [
+    "@capacitor/cli",
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "@types/lodash",
+    "@vitejs/plugin-react",
+    "@tailwindcss/vite",
+    "@tailwindcss/typography",
+    "tailwindcss",
+    "tw-animate-css",
+    "vite",
+    "vite-plugin-pwa",
+    "rollup-plugin-visualizer",
+    "workbox-window",
+    "typescript",
+    "typescript-eslint",
+    "eslint",
+    "eslint-plugin-react",
+    "eslint-plugin-react-hooks",
+    "@eslint/js",
+    "prettier",
+    "depcheck",
+    "@types/supertest"
+  ],
+  "skip-missing": true
+}
