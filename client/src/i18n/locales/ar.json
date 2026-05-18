@@ -35,7 +35,11 @@
     "personalRecords": "أرقامي القياسية",
     "calendar": "التقويم",
     "coachNotes": "ملاحظات المدرب",
-    "monthlyReport": "التقرير الشهري"
+    "monthlyReport": "التقرير الشهري",
+    "trainerDashboard": "لوحة المدرب",
+    "trainerMembers": "أعضائي",
+    "trainerSchedule": "جدولي",
+    "trainerPerformance": "أدائي"
   },
   "common": {
     "save": "حفظ",
