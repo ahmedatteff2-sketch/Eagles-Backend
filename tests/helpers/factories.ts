@@ -20,6 +20,12 @@ export interface CreateUserInput {
   password?: string;
   role?: SeededUser["role"];
   name?: string;
+  /**
+   * For members, optionally assign to a trainer at creation time. Ignored
+   * for admin/trainer rows. Letting the factory write this saves the
+   * caller a follow-up UPDATE in every trainer-portal test.
+   */
+  assignedTrainerId?: string | null;
 }
 
 /**
@@ -43,6 +49,7 @@ export async function createTestUser(input: CreateUserInput = {}): Promise<Seede
     phone,
     passwordHash,
     role,
+    assignedTrainerId: role === "member" ? input.assignedTrainerId ?? null : null,
   });
 
   return { id, name, phone, password, role };
