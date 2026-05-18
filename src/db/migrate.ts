@@ -794,6 +794,27 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS audit_logs_action_idx     ON audit_logs (action);
     `);
 
+    // ── trainer_member_notes: a trainer's quick notebook on their members ──
+    // See src/db/schema/trainer-notes.ts for the rationale (separate from
+    // coach_notes which is a member-facing feed). Idempotent so existing
+    // databases pick this up on next boot.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS trainer_member_notes (
+        id          SERIAL PRIMARY KEY,
+        trainer_id  TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+        member_id   TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        note        TEXT NOT NULL,
+        category    TEXT NOT NULL DEFAULT 'general',
+        pinned      BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS trainer_member_notes_member_id_idx
+        ON trainer_member_notes (member_id);
+      CREATE INDEX IF NOT EXISTS trainer_member_notes_trainer_id_idx
+        ON trainer_member_notes (trainer_id);
+    `);
+
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(
       `SELECT id FROM "User" WHERE phone = $1 LIMIT 1`,

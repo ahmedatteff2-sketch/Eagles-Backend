@@ -35,7 +35,11 @@
     "personalRecords": "Personal Records",
     "calendar": "Calendar",
     "coachNotes": "Coach Notes",
-    "monthlyReport": "Monthly Report"
+    "monthlyReport": "Monthly Report",
+    "trainerDashboard": "Trainer Home",
+    "trainerMembers": "My Members",
+    "trainerSchedule": "My Schedule",
+    "trainerPerformance": "My Performance"
   },
   "common": {
     "save": "Save",

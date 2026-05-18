@@ -72,3 +72,13 @@ export function requireRole(...roles: Role[]) {
  * of trainer permissions in this app).
  */
 export const requireAdminOrTrainer = requireRole("admin", "trainer");
+
+/**
+ * Strict trainer-only gate. Used by `/api/trainer/*` endpoints whose
+ * authorization rules ("can only see members assigned to me") would be
+ * meaningless for an admin — admins already have admin endpoints.
+ *
+ * If product later wants admins to be able to "view as trainer", we'll
+ * add a separate impersonation flow rather than loosening this gate.
+ */
+export const requireTrainer = requireRole("trainer");

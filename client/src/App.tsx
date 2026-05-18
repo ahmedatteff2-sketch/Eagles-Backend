@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import CommandPalette from "@/components/CommandPalette";
 import AdminLayout from "@/layouts/AdminLayout";
 import MemberLayout from "@/layouts/MemberLayout";
+import TrainerLayout from "@/layouts/TrainerLayout";
 import { useAuthStore } from "@/store/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { PageSkeleton } from "@/components/Skeleton";
@@ -53,6 +54,15 @@ const MemberCalendar = lazy(() => import("@/pages/member/Calendar"));
 const MemberCoachNotes = lazy(() => import("@/pages/member/CoachNotes"));
 const MemberMonthlyReport = lazy(() => import("@/pages/member/MonthlyReport"));
 
+// Trainer portal pages — separate bundle so admins/members never download
+// them, and the trainer's first paint is fast (just the dashboard chunk).
+const TrainerDashboard = lazy(() => import("@/pages/trainer/Dashboard"));
+const TrainerMembers = lazy(() => import("@/pages/trainer/Members"));
+const TrainerMemberProfile = lazy(() => import("@/pages/trainer/MemberProfile"));
+const TrainerSchedule = lazy(() => import("@/pages/trainer/Schedule"));
+const TrainerPerformance = lazy(() => import("@/pages/trainer/Performance"));
+const TrainerSettings = lazy(() => import("@/pages/trainer/Settings"));
+
 function LazyPage({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
 }
@@ -60,7 +70,12 @@ function LazyPage({ children }: { children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
-  if (user && user.role !== "admin") return <Redirect to="/member" />;
+  if (user && user.role !== "admin") {
+    // Bounce non-admins to their own home rather than /member, so trainers
+    // who follow a stale /admin/* link land on /trainer instead of getting
+    // dumped into the member portal.
+    return <Redirect to={user.role === "trainer" ? "/trainer" : "/member"} />;
+  }
   return (
     <AdminLayout>
       <LazyPage>{children}</LazyPage>
@@ -71,11 +86,33 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function MemberRoute({ children }: { children: React.ReactNode }) {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
-  if (user && user.role === "admin") return <Redirect to="/admin" />;
+  if (user) {
+    if (user.role === "admin") return <Redirect to="/admin" />;
+    if (user.role === "trainer") return <Redirect to="/trainer" />;
+  }
   return (
     <MemberLayout>
       <LazyPage>{children}</LazyPage>
     </MemberLayout>
+  );
+}
+
+/**
+ * Trainer-only route guard. Trainers have a strictly separate UI from
+ * admins and members; an admin who lands on /trainer/* is bounced to /admin
+ * (they have their own admin views), and a member is bounced to /member.
+ */
+function TrainerRoute({ children }: { children: React.ReactNode }) {
+  const { accessToken, user } = useAuthStore();
+  if (!accessToken) return <Redirect to="/login" />;
+  if (user) {
+    if (user.role === "admin") return <Redirect to="/admin" />;
+    if (user.role !== "trainer") return <Redirect to="/member" />;
+  }
+  return (
+    <TrainerLayout>
+      <LazyPage>{children}</LazyPage>
+    </TrainerLayout>
   );
 }
 
@@ -93,7 +130,11 @@ function RoleHomeRedirect() {
   } catch {
     /* ignore */
   }
-  return <Redirect to={user?.role === "admin" ? "/admin" : "/member"} />;
+  // Three roles → three landing pages. Default to /member for any future
+  // role we add (safe least-privilege fallback).
+  if (user?.role === "admin") return <Redirect to="/admin" />;
+  if (user?.role === "trainer") return <Redirect to="/trainer" />;
+  return <Redirect to="/member" />;
 }
 
 function GlobalKeyboardShortcuts() {
@@ -247,6 +288,25 @@ export default function App() {
         </Route>
         <Route path="/admin/audit">
           <AdminRoute><AdminAuditLog /></AdminRoute>
+        </Route>
+        {/* Trainer portal */}
+        <Route path="/trainer">
+          <TrainerRoute><TrainerDashboard /></TrainerRoute>
+        </Route>
+        <Route path="/trainer/members">
+          <TrainerRoute><TrainerMembers /></TrainerRoute>
+        </Route>
+        <Route path="/trainer/members/:id">
+          {() => <TrainerRoute><TrainerMemberProfile /></TrainerRoute>}
+        </Route>
+        <Route path="/trainer/schedule">
+          <TrainerRoute><TrainerSchedule /></TrainerRoute>
+        </Route>
+        <Route path="/trainer/performance">
+          <TrainerRoute><TrainerPerformance /></TrainerRoute>
+        </Route>
+        <Route path="/trainer/settings">
+          <TrainerRoute><TrainerSettings /></TrainerRoute>
         </Route>
         {/* Member routes */}
         <Route path="/member">

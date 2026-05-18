@@ -109,7 +109,11 @@ export default function LoginPage() {
       setLocation(next);
       return;
     }
-    setLocation(r.user?.role === "admin" ? "/admin" : "/member");
+    // Three roles → three landing pages. Keep this in sync with
+    // RoleHomeRedirect in App.tsx.
+    if (r.user?.role === "admin") setLocation("/admin");
+    else if (r.user?.role === "trainer") setLocation("/trainer");
+    else setLocation("/member");
   }
 
   function onSubmit(data: FormData) {

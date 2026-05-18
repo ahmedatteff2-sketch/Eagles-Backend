@@ -67,6 +67,7 @@ export function CommandPalette() {
 
   const commands = useMemo<PaletteCommand[]>(() => {
     const adminOnly: Array<"admin"> = ["admin"];
+    const trainerOnly: Array<"trainer"> = ["trainer"];
     return [
       // Admin commands
       { id: "admin-dashboard", label: t("nav.dashboard"), hint: "Alt+D", group: "Admin", href: "/admin", roles: adminOnly },
@@ -81,6 +82,12 @@ export function CommandPalette() {
       { id: "admin-renewals", label: t("nav.renewalReminders"), group: "Admin", href: "/admin/renewal-reminders", roles: adminOnly },
       { id: "admin-absent", label: t("nav.absentMembers"), group: "Admin", href: "/admin/absent-members", roles: adminOnly },
       { id: "admin-audit", label: t("nav.auditLog"), group: "Admin", href: "/admin/audit", roles: adminOnly },
+      // Trainer commands
+      { id: "trainer-dashboard", label: t("nav.trainerDashboard"), group: "Trainer", href: "/trainer", roles: trainerOnly },
+      { id: "trainer-members", label: t("nav.trainerMembers"), group: "Trainer", href: "/trainer/members", roles: trainerOnly },
+      { id: "trainer-schedule", label: t("nav.trainerSchedule"), group: "Trainer", href: "/trainer/schedule", roles: trainerOnly },
+      { id: "trainer-performance", label: t("nav.trainerPerformance"), group: "Trainer", href: "/trainer/performance", roles: trainerOnly },
+      { id: "trainer-settings", label: t("nav.settings"), group: "Trainer", href: "/trainer/settings", roles: trainerOnly },
       // Member commands
       { id: "member-dashboard", label: t("nav.dashboard"), group: "Member", href: "/member" },
       { id: "member-workouts", label: t("nav.workouts"), group: "Member", href: "/member/workouts" },
@@ -94,7 +101,11 @@ export function CommandPalette() {
 
   const visibleCommands = useMemo(() => {
     return commands.filter((c) => {
-      if (!c.roles) return true;
+      if (!c.roles) {
+        // Member-by-default commands. Trainers shouldn't see member nav
+        // duplicated in the palette — they have their own "Trainer" group.
+        return role === "member";
+      }
       if (!role) return false;
       return c.roles.includes(role as "admin" | "trainer" | "member");
     });
