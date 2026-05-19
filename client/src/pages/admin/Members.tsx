@@ -669,6 +669,17 @@ export default function AdminMembers() {
       },
     );
   }
+  // Surface client-side validation errors as a toast so mobile users see
+  // *something* when tapping submit — without this, errors only appear inline
+  // next to the offending field, which is easy to miss with the keyboard up.
+  function onInvalidCreate(errors: Record<string, { message?: string } | undefined>) {
+    const first = Object.values(errors).find((e) => e?.message);
+    toast({
+      title: "تحقق من البيانات",
+      description: first?.message ?? "بعض الحقول غير صحيحة",
+      variant: "destructive",
+    });
+  }
   function onSubmitReset(data: ResetForm) {
     if (!resettingUser) return;
     resetPwd.mutate(
@@ -1201,7 +1212,7 @@ export default function AdminMembers() {
                 type="password"
                 className={inputCls}
                 style={inputSt}
-                placeholder="6 أحرف على الأقل"
+                placeholder="8 أحرف على الأقل"
               />
             </Field>
             <div className="flex gap-3 pt-2">
@@ -1402,8 +1413,8 @@ export default function AdminMembers() {
       {showCreate && (
         <Modal title="إضافة عضو جديد" onClose={() => setShowCreate(false)}>
           <form
-            onSubmit={createForm.handleSubmit(onSubmitCreate)}
-            className="p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+            onSubmit={createForm.handleSubmit(onSubmitCreate, onInvalidCreate)}
+            className="p-3 sm:p-6 space-y-4 sm:space-y-4"
           >
             <Field label="الاسم الكامل" error={createForm.formState.errors.name?.message}>
               <input
@@ -1439,7 +1450,7 @@ export default function AdminMembers() {
                 type="password"
                 className={inputCls}
                 style={inputSt}
-                placeholder="6 أحرف على الأقل"
+                placeholder="8 أحرف على الأقل"
               />
             </Field>
             <Field label="الدور" error={createForm.formState.errors.role?.message}>
@@ -1511,7 +1522,13 @@ export default function AdminMembers() {
                 </>
               )}
             </div>
-            <div className="flex gap-3 pt-2">
+            {/* Sticky submit bar — keeps the action visible on small phones
+                when the on-screen keyboard pushes the bottom of the form
+                out of view. Adds a top border so it reads as a footer. */}
+            <div
+              className="sticky bottom-0 -mx-3 sm:-mx-6 -mb-3 sm:-mb-6 px-3 sm:px-6 py-3 flex gap-3"
+              style={{ background: "hsl(0 0% 8%)", borderTop: "1px solid hsl(0 0% 14%)" }}
+            >
               <button
                 type="submit"
                 disabled={createUser.isPending}

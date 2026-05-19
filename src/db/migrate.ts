@@ -521,6 +521,26 @@ export async function runMigrations(): Promise<void> {
       await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN rest_seconds INTEGER DEFAULT 90`);
     }
 
+    // ── created_by_user_id on templates ─────────────────────────────────────
+    // NULL = global/admin template; non-null = personal template owned by the
+    // referenced user. Used to authorize members managing their own workouts
+    // and to keep the admin list filtered to global templates. See
+    // src/db/schema/training.ts for the rationale.
+    const { rows: hasCreatedBy } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='created_by_user_id'`,
+    );
+    if (hasCreatedBy.length === 0) {
+      logger.info("Adding created_by_user_id to workout_templates");
+      await client.query(
+        `ALTER TABLE workout_templates ADD COLUMN created_by_user_id TEXT REFERENCES "User"(id) ON DELETE CASCADE`,
+      );
+      // Index because both authorization checks ("is this template owned by
+      // the current user?") and the my-workouts query filter on this column.
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS idx_workout_templates_created_by_user_id ON workout_templates(created_by_user_id)`,
+      );
+    }
+
     // ── progress_photos table ────────────────────────────────────────────
     const { rows: hasProgressPhotos } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'progress_photos'`,

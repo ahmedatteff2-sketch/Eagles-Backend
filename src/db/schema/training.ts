@@ -13,6 +13,15 @@ export const exercisesTable = pgTable("exercises", {
 });
 
 // ── Workout templates ───────────────────────────────────────────────────────
+// `createdByUserId` partitions templates into two flavours:
+//   - NULL          → global / admin-curated template (the admin library)
+//   - <userId>      → personal template owned by that member (or trainer)
+//
+// Admin-facing `GET /api/workout-templates` filters to NULL, so the admin
+// library never gets polluted with members' personal workouts. Members get
+// their own templates back via `GET /api/my-workouts` along with anything
+// admin assigned to them. RBAC for writes (`POST/PUT/DELETE`) keys off this
+// column too — admins can edit anything, members can only edit rows they own.
 export const workoutTemplatesTable = pgTable("workout_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -20,6 +29,7 @@ export const workoutTemplatesTable = pgTable("workout_templates", {
   daysPerWeek: integer("days_per_week").notNull().default(4),
   dayNames: text("day_names"),
   notes: text("notes"),
+  createdByUserId: text("created_by_user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
