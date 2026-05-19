@@ -86,7 +86,10 @@ export default function SessionsSection() {
   }
 
   return (
-    <div className="rounded-xl p-5 space-y-4" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+    <div
+      className="rounded-xl p-5 space-y-4"
+      style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-bold text-foreground tracking-wide">🖥️ الجلسات النشطة</h2>
         <div className="flex items-center gap-2">
@@ -102,7 +105,11 @@ export default function SessionsSection() {
             onClick={() => void handleRevokeAll()}
             disabled={actingAll || !rows || rows.length <= 1}
             className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40"
-            style={{ background: "hsl(0 72% 51% / 0.12)", color: "hsl(0 72% 65%)", border: "1px solid hsl(0 72% 51% / 0.25)" }}
+            style={{
+              background: "hsl(0 72% 51% / 0.12)",
+              color: "hsl(0 72% 65%)",
+              border: "1px solid hsl(0 72% 51% / 0.25)",
+            }}
           >
             {actingAll ? "..." : "إنهاء كل الجلسات الأخرى"}
           </button>
@@ -115,18 +122,21 @@ export default function SessionsSection() {
       </p>
 
       {error && (
-        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "hsl(0 72% 50% / 0.1)", color: "hsl(0 72% 65%)", border: "1px solid hsl(0 72% 50% / 0.2)" }}>
+        <div
+          className="rounded-lg px-3 py-2 text-xs"
+          style={{
+            background: "hsl(0 72% 50% / 0.1)",
+            color: "hsl(0 72% 65%)",
+            border: "1px solid hsl(0 72% 50% / 0.2)",
+          }}
+        >
           {error}
         </div>
       )}
 
-      {!rows && loading && (
-        <div className="text-xs text-muted-foreground">جاري التحميل...</div>
-      )}
+      {!rows && loading && <div className="text-xs text-muted-foreground">جاري التحميل...</div>}
 
-      {rows && rows.length === 0 && (
-        <p className="text-xs text-muted-foreground">لا توجد جلسات نشطة.</p>
-      )}
+      {rows && rows.length === 0 && <p className="text-xs text-muted-foreground">لا توجد جلسات نشطة.</p>}
 
       {rows && rows.length > 0 && (
         <div className="space-y-2">
@@ -137,14 +147,14 @@ export default function SessionsSection() {
               style={{ background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 13%)" }}
             >
               <div className="flex-1 min-w-0 space-y-1">
-                <p className="text-sm font-semibold text-foreground">
-                  {s.label || "جهاز غير معروف"}
-                </p>
+                <p className="text-sm font-semibold text-foreground">{s.label || "جهاز غير معروف"}</p>
                 <p className="text-xs text-muted-foreground truncate" title={s.userAgent ?? ""}>
                   {s.userAgent || "—"}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>IP: <span className="font-mono">{s.ip || "—"}</span></span>
+                  <span>
+                    IP: <span className="font-mono">{s.ip || "—"}</span>
+                  </span>
                   <span>أُنشئت: {fmt(s.createdAt)}</span>
                   <span>آخر استخدام: {fmt(s.lastUsedAt)}</span>
                   <span>تنتهي: {fmt(s.expiresAt)}</span>
@@ -154,7 +164,11 @@ export default function SessionsSection() {
                 onClick={() => void handleRevoke(s.id)}
                 disabled={actingId === s.id}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40 flex-shrink-0"
-                style={{ background: "hsl(0 72% 51% / 0.12)", color: "hsl(0 72% 65%)", border: "1px solid hsl(0 72% 51% / 0.25)" }}
+                style={{
+                  background: "hsl(0 72% 51% / 0.12)",
+                  color: "hsl(0 72% 65%)",
+                  border: "1px solid hsl(0 72% 51% / 0.25)",
+                }}
               >
                 {actingId === s.id ? "..." : "إنهاء"}
               </button>

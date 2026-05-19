@@ -226,31 +226,51 @@ export default function App() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin">
-          <AdminRoute><AdminDashboard /></AdminRoute>
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
         </Route>
         <Route path="/admin/members">
-          <AdminRoute><AdminMembers /></AdminRoute>
+          <AdminRoute>
+            <AdminMembers />
+          </AdminRoute>
         </Route>
         <Route path="/admin/members/:id">
-          {(params) => <AdminRoute><AdminMemberProfile /></AdminRoute>}
+          {(params) => (
+            <AdminRoute>
+              <AdminMemberProfile />
+            </AdminRoute>
+          )}
         </Route>
         <Route path="/admin/subscriptions">
-          <AdminRoute><AdminSubscriptions /></AdminRoute>
+          <AdminRoute>
+            <AdminSubscriptions />
+          </AdminRoute>
         </Route>
         <Route path="/admin/exercises">
-          <AdminRoute><AdminExercises /></AdminRoute>
+          <AdminRoute>
+            <AdminExercises />
+          </AdminRoute>
         </Route>
         <Route path="/admin/workout-templates">
-          <AdminRoute><AdminWorkoutTemplates /></AdminRoute>
+          <AdminRoute>
+            <AdminWorkoutTemplates />
+          </AdminRoute>
         </Route>
         <Route path="/admin/payments">
-          <AdminRoute><AdminPayments /></AdminRoute>
+          <AdminRoute>
+            <AdminPayments />
+          </AdminRoute>
         </Route>
         <Route path="/admin/expenses">
-          <AdminRoute><AdminExpenses /></AdminRoute>
+          <AdminRoute>
+            <AdminExpenses />
+          </AdminRoute>
         </Route>
         <Route path="/admin/attendance">
-          <AdminRoute><AdminAttendance /></AdminRoute>
+          <AdminRoute>
+            <AdminAttendance />
+          </AdminRoute>
         </Route>
         {/* Legacy redirects */}
         <Route path="/admin/checkins">
@@ -260,108 +280,178 @@ export default function App() {
           <Redirect to="/admin/attendance" />
         </Route>
         <Route path="/admin/schedule">
-          <AdminRoute><AdminSchedule /></AdminRoute>
+          <AdminRoute>
+            <AdminSchedule />
+          </AdminRoute>
         </Route>
         <Route path="/admin/analytics">
-          <AdminRoute><AdminAnalytics /></AdminRoute>
+          <AdminRoute>
+            <AdminAnalytics />
+          </AdminRoute>
         </Route>
         <Route path="/admin/exports">
-          <AdminRoute><AdminExports /></AdminRoute>
+          <AdminRoute>
+            <AdminExports />
+          </AdminRoute>
         </Route>
         <Route path="/admin/imports">
-          <AdminRoute><AdminImports /></AdminRoute>
+          <AdminRoute>
+            <AdminImports />
+          </AdminRoute>
         </Route>
         <Route path="/admin/settings">
-          <AdminRoute><AdminSettings /></AdminRoute>
+          <AdminRoute>
+            <AdminSettings />
+          </AdminRoute>
         </Route>
         <Route path="/admin/reminders">
-          <AdminRoute><AdminReminders /></AdminRoute>
+          <AdminRoute>
+            <AdminReminders />
+          </AdminRoute>
         </Route>
         <Route path="/admin/renewal-reminders">
-          <AdminRoute><AdminRenewalReminders /></AdminRoute>
+          <AdminRoute>
+            <AdminRenewalReminders />
+          </AdminRoute>
         </Route>
         <Route path="/admin/absent-members">
-          <AdminRoute><AdminAbsentMembers /></AdminRoute>
+          <AdminRoute>
+            <AdminAbsentMembers />
+          </AdminRoute>
         </Route>
         <Route path="/admin/wa-templates">
-          <AdminRoute><AdminWhatsAppTemplates /></AdminRoute>
+          <AdminRoute>
+            <AdminWhatsAppTemplates />
+          </AdminRoute>
         </Route>
         <Route path="/admin/audit">
-          <AdminRoute><AdminAuditLog /></AdminRoute>
+          <AdminRoute>
+            <AdminAuditLog />
+          </AdminRoute>
         </Route>
         {/* Trainer portal */}
         <Route path="/trainer">
-          <TrainerRoute><TrainerDashboard /></TrainerRoute>
+          <TrainerRoute>
+            <TrainerDashboard />
+          </TrainerRoute>
         </Route>
         <Route path="/trainer/members">
-          <TrainerRoute><TrainerMembers /></TrainerRoute>
+          <TrainerRoute>
+            <TrainerMembers />
+          </TrainerRoute>
         </Route>
         <Route path="/trainer/members/:id">
-          {() => <TrainerRoute><TrainerMemberProfile /></TrainerRoute>}
+          {() => (
+            <TrainerRoute>
+              <TrainerMemberProfile />
+            </TrainerRoute>
+          )}
         </Route>
         <Route path="/trainer/schedule">
-          <TrainerRoute><TrainerSchedule /></TrainerRoute>
+          <TrainerRoute>
+            <TrainerSchedule />
+          </TrainerRoute>
         </Route>
         <Route path="/trainer/performance">
-          <TrainerRoute><TrainerPerformance /></TrainerRoute>
+          <TrainerRoute>
+            <TrainerPerformance />
+          </TrainerRoute>
         </Route>
         <Route path="/trainer/settings">
-          <TrainerRoute><TrainerSettings /></TrainerRoute>
+          <TrainerRoute>
+            <TrainerSettings />
+          </TrainerRoute>
         </Route>
         {/* Member routes */}
         <Route path="/member">
-          <MemberRoute><MemberDashboard /></MemberRoute>
+          <MemberRoute>
+            <MemberDashboard />
+          </MemberRoute>
         </Route>
         <Route path="/member/workouts">
-          <MemberRoute><MemberWorkouts /></MemberRoute>
+          <MemberRoute>
+            <MemberWorkouts />
+          </MemberRoute>
         </Route>
         <Route path="/member/log">
-          <MemberRoute><MemberLog /></MemberRoute>
+          <MemberRoute>
+            <MemberLog />
+          </MemberRoute>
         </Route>
         <Route path="/member/report">
-          <MemberRoute><MemberReport /></MemberRoute>
+          <MemberRoute>
+            <MemberReport />
+          </MemberRoute>
         </Route>
         <Route path="/member/photos">
-          <MemberRoute><MemberProgressPhotos /></MemberRoute>
+          <MemberRoute>
+            <MemberProgressPhotos />
+          </MemberRoute>
         </Route>
         <Route path="/member/leaderboard">
-          <MemberRoute><MemberLeaderboard /></MemberRoute>
+          <MemberRoute>
+            <MemberLeaderboard />
+          </MemberRoute>
         </Route>
         <Route path="/member/notifications">
-          <MemberRoute><MemberNotifications /></MemberRoute>
+          <MemberRoute>
+            <MemberNotifications />
+          </MemberRoute>
         </Route>
         <Route path="/member/meals">
-          <MemberRoute><MemberMealPlan /></MemberRoute>
+          <MemberRoute>
+            <MemberMealPlan />
+          </MemberRoute>
         </Route>
         <Route path="/member/badges">
-          <MemberRoute><MemberBadges /></MemberRoute>
+          <MemberRoute>
+            <MemberBadges />
+          </MemberRoute>
         </Route>
         <Route path="/member/stats">
-          <MemberRoute><MemberStats /></MemberRoute>
+          <MemberRoute>
+            <MemberStats />
+          </MemberRoute>
         </Route>
         <Route path="/member/attendance">
-          <MemberRoute><MemberAttendance /></MemberRoute>
+          <MemberRoute>
+            <MemberAttendance />
+          </MemberRoute>
         </Route>
         <Route path="/member/schedule">
-          <MemberRoute><MemberSchedule /></MemberRoute>
+          <MemberRoute>
+            <MemberSchedule />
+          </MemberRoute>
         </Route>
         <Route path="/member/qr">
-          <MemberRoute><MemberQRCode /></MemberRoute>
+          <MemberRoute>
+            <MemberQRCode />
+          </MemberRoute>
         </Route>
         <Route path="/member/personal-records">
-          <MemberRoute><MemberPersonalRecords /></MemberRoute>
+          <MemberRoute>
+            <MemberPersonalRecords />
+          </MemberRoute>
         </Route>
         <Route path="/member/calendar">
-          <MemberRoute><MemberCalendar /></MemberRoute>
+          <MemberRoute>
+            <MemberCalendar />
+          </MemberRoute>
         </Route>
         <Route path="/member/coach-notes">
-          <MemberRoute><MemberCoachNotes /></MemberRoute>
+          <MemberRoute>
+            <MemberCoachNotes />
+          </MemberRoute>
         </Route>
         <Route path="/member/monthly-report">
-          <MemberRoute><MemberMonthlyReport /></MemberRoute>
+          <MemberRoute>
+            <MemberMonthlyReport />
+          </MemberRoute>
         </Route>
         <Route path="/member/settings">
-          <MemberRoute><MemberSettings /></MemberRoute>
+          <MemberRoute>
+            <MemberSettings />
+          </MemberRoute>
         </Route>
         <Route path="/">
           <RoleHomeRedirect />

@@ -10,8 +10,4 @@ export {
   setAuthRefreshHandler,
   setUnauthorizedHandler,
 } from "./custom-fetch";
-export type {
-  AuthTokenGetter,
-  AuthRefreshHandler,
-  UnauthorizedHandler,
-} from "./custom-fetch";
+export type { AuthTokenGetter, AuthRefreshHandler, UnauthorizedHandler } from "./custom-fetch";

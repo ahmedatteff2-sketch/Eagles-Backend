@@ -97,7 +97,11 @@ router.post("/imports/members", authenticate, requireAdmin, async (req, res) => 
       const phone = normalizePhone(rawPhone);
       // Generated random passwords are 16 chars; bcrypt's effective input limit
       // is 72 bytes so we slice anything longer to stay inside that bound.
-      const rawPassword = (row["password"] || row["كلمة المرور"] || randomBytes(12).toString("base64url")).toString();
+      const rawPassword = (
+        row["password"] ||
+        row["كلمة المرور"] ||
+        randomBytes(12).toString("base64url")
+      ).toString();
       const password = rawPassword.length > 72 ? rawPassword.slice(0, 72) : rawPassword;
       const rawRole = (row["role"] || row["الدور"] || "member").toLowerCase();
       const role: "admin" | "member" = rawRole === "admin" ? "admin" : "member";
@@ -303,15 +307,11 @@ router.post(
 
       // Find the members/users table in the SQLite file
       const tables = sqliteDb
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-        )
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         .all() as { name: string }[];
 
       const targetNames = ["members", "users", "member", "user", "أعضاء", "الأعضاء"];
-      const tableName = tables.find((t) =>
-        targetNames.includes(t.name.toLowerCase()),
-      )?.name;
+      const tableName = tables.find((t) => targetNames.includes(t.name.toLowerCase()))?.name;
 
       if (!tableName) {
         sqliteDb.close();
@@ -349,9 +349,7 @@ router.post(
         const role: "admin" | "member" = rawRole === "admin" ? "admin" : "member";
         const category = String(row.category ?? "normal").toLowerCase();
         const validCategory = ["normal", "vip", "trial"].includes(category) ? category : "normal";
-        const membershipNum = row.membershipNumber
-          ? String(row.membershipNumber).trim()
-          : null;
+        const membershipNum = row.membershipNumber ? String(row.membershipNumber).trim() : null;
 
         if (!name || !phone) {
           results.errors.push(`صف مفقود البيانات: الاسم="${name}" الهاتف="${rawPhone}"`);
@@ -365,9 +363,7 @@ router.post(
           if (typeof existingHash === "string" && existingHash.startsWith("$2")) {
             hashed = existingHash;
           } else {
-            const rawPassword = String(
-              row.password ?? row["كلمة المرور"] ?? "a1234567",
-            );
+            const rawPassword = String(row.password ?? row["كلمة المرور"] ?? "a1234567");
             const password = rawPassword.length > 72 ? rawPassword.slice(0, 72) : rawPassword;
             hashed = await bcrypt.hash(password, BCRYPT_COST);
           }

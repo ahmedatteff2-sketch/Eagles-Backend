@@ -10,12 +10,7 @@ import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { authenticator } from "otplib";
 import { logger } from "../lib/logger.js";
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-  getRefreshTokenExpiry,
-} from "../lib/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiry } from "../lib/jwt.js";
 import type { Role } from "../middlewares/auth.js";
 import * as usersRepo from "../repositories/users.repo.js";
 import * as refreshRepo from "../repositories/refresh-tokens.repo.js";
@@ -76,11 +71,7 @@ export interface TokenPair {
   refreshToken: string;
 }
 
-export async function issueTokenPair(
-  userId: string,
-  role: Role,
-  ctx: SessionContext,
-): Promise<TokenPair> {
+export async function issueTokenPair(userId: string, role: Role, ctx: SessionContext): Promise<TokenPair> {
   const payload = { userId, role };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
@@ -204,7 +195,11 @@ export type Verify2FAOutcome =
   | { type: "invalid_code"; userId: string }
   | { type: "locked_now"; userId: string };
 
-export async function verify2FA(userId: string, code: string, ctx: SessionContext): Promise<Verify2FAOutcome> {
+export async function verify2FA(
+  userId: string,
+  code: string,
+  ctx: SessionContext,
+): Promise<Verify2FAOutcome> {
   const user = await usersRepo.findUserById(userId);
   if (!user || !user.totpEnabled || !user.totpSecret) {
     return { type: "session_expired" };
@@ -358,11 +353,7 @@ export type Disable2FAOutcome =
   | { type: "wrong_password" }
   | { type: "invalid_code" };
 
-export async function disable2FA(
-  userId: string,
-  password: string,
-  code: string,
-): Promise<Disable2FAOutcome> {
+export async function disable2FA(userId: string, password: string, code: string): Promise<Disable2FAOutcome> {
   const user = await usersRepo.findUserById(userId);
   if (!user) return { type: "user_not_found" };
   if (!(await bcrypt.compare(password, user.passwordHash))) return { type: "wrong_password" };

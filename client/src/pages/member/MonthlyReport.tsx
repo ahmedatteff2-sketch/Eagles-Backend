@@ -2,12 +2,31 @@ import { customFetch } from "@/api-client/custom-fetch";
 import { useState, useEffect } from "react";
 
 const GOLD = "hsl(40 65% 52%)";
-const MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+const MONTHS_AR = [
+  "يناير",
+  "فبراير",
+  "مارس",
+  "أبريل",
+  "مايو",
+  "يونيو",
+  "يوليو",
+  "أغسطس",
+  "سبتمبر",
+  "أكتوبر",
+  "نوفمبر",
+  "ديسمبر",
+];
 
 interface Report {
-  month: number; year: number;
-  totalSets: number; attendanceDays: number; trainingDays: number;
-  maxWeight: number; weightStart: number | null; weightEnd: number | null; weightChange: number | null;
+  month: number;
+  year: number;
+  totalSets: number;
+  attendanceDays: number;
+  trainingDays: number;
+  maxWeight: number;
+  weightStart: number | null;
+  weightEnd: number | null;
+  weightChange: number | null;
 }
 
 export default function MonthlyReport() {
@@ -20,18 +39,22 @@ export default function MonthlyReport() {
   useEffect(() => {
     setLoading(true);
     customFetch<Report>(`/api/analytics/monthly-report?month=${month}&year=${year}`)
-      .then(d => setReport(d))
+      .then((d) => setReport(d))
       .catch(() => setReport(null))
       .finally(() => setLoading(false));
   }, [month, year]);
 
   function prevMonth() {
-    if (month === 1) { setMonth(12); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
+    if (month === 1) {
+      setMonth(12);
+      setYear((y) => y - 1);
+    } else setMonth((m) => m - 1);
   }
   function nextMonth() {
-    if (month === 12) { setMonth(1); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
+    if (month === 12) {
+      setMonth(1);
+      setYear((y) => y + 1);
+    } else setMonth((m) => m + 1);
   }
 
   return (
@@ -44,18 +67,28 @@ export default function MonthlyReport() {
       {/* Month nav */}
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 rounded-lg bg-muted text-foreground hover:bg-muted/80">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
-        <h2 className="text-base font-bold text-foreground">{MONTHS_AR[month - 1]} {year}</h2>
+        <h2 className="text-base font-bold text-foreground">
+          {MONTHS_AR[month - 1]} {year}
+        </h2>
         <button onClick={nextMonth} className="p-2 rounded-lg bg-muted text-foreground hover:bg-muted/80">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
       </div>
 
       {loading ? (
         <div className="space-y-3">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="rounded-xl p-5 animate-pulse" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl p-5 animate-pulse"
+              style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+            >
               <div className="h-4 w-24 rounded bg-muted mb-2" />
               <div className="h-8 w-16 rounded bg-muted" />
             </div>
@@ -73,7 +106,10 @@ export default function MonthlyReport() {
 
           {/* Weight change */}
           {report.weightStart != null && report.weightEnd != null && (
-            <div className="rounded-xl p-4" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+            <div
+              className="rounded-xl p-4"
+              style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+            >
               <h3 className="text-sm font-bold text-foreground mb-3">⚖️ تغيّر الوزن</h3>
               <div className="flex items-center justify-between">
                 <div className="text-center">
@@ -90,8 +126,11 @@ export default function MonthlyReport() {
               </div>
               {report.weightChange !== null && (
                 <div className="text-center mt-3">
-                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${report.weightChange < 0 ? "bg-green-500/15 text-green-400" : report.weightChange > 0 ? "bg-red-500/15 text-red-400" : "bg-muted text-muted-foreground"}`}>
-                    {report.weightChange > 0 ? "+" : ""}{report.weightChange.toFixed(1)} كجم
+                  <span
+                    className={`text-sm font-bold px-3 py-1 rounded-full ${report.weightChange < 0 ? "bg-green-500/15 text-green-400" : report.weightChange > 0 ? "bg-red-500/15 text-red-400" : "bg-muted text-muted-foreground"}`}
+                  >
+                    {report.weightChange > 0 ? "+" : ""}
+                    {report.weightChange.toFixed(1)} كجم
                   </span>
                 </div>
               )}
@@ -99,15 +138,23 @@ export default function MonthlyReport() {
           )}
 
           {/* Summary */}
-          <div className="rounded-xl p-4 text-center" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20` }}>
+          <div
+            className="rounded-xl p-4 text-center"
+            style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20` }}
+          >
             <p className="text-sm text-muted-foreground">معدل التمرين</p>
             <p className="text-lg font-black" style={{ color: GOLD }}>
-              {report.trainingDays > 0 ? `${(report.trainingDays / 4.3).toFixed(1)} مرات/أسبوع` : "لم تتمرن هذا الشهر"}
+              {report.trainingDays > 0
+                ? `${(report.trainingDays / 4.3).toFixed(1)} مرات/أسبوع`
+                : "لم تتمرن هذا الشهر"}
             </p>
           </div>
         </div>
       ) : (
-        <div className="rounded-xl p-8 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+        <div
+          className="rounded-xl p-8 text-center"
+          style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+        >
           <p className="text-muted-foreground text-sm">لا توجد بيانات</p>
         </div>
       )}
@@ -115,11 +162,26 @@ export default function MonthlyReport() {
   );
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: string; color: string }) {
+function StatCard({
+  label,
+  value,
+  icon,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  icon: string;
+  color: string;
+}) {
   return (
-    <div className="rounded-xl p-4 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+    <div
+      className="rounded-xl p-4 text-center"
+      style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+    >
       <p className="text-2xl mb-1">{icon}</p>
-      <p className="text-xl font-black" style={{ color }}>{value}</p>
+      <p className="text-xl font-black" style={{ color }}>
+        {value}
+      </p>
       <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
     </div>
   );

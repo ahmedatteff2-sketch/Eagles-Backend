@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
-  usersTable, memberSubscriptionsTable, subscriptionsTable, paymentsTable,
-  exercisesTable, workoutTemplatesTable, workoutTemplateExercisesTable, memberWorkoutAssignmentsTable,
-  exerciseLogsTable, bodyStatsTable, checkinsTable,
+  usersTable,
+  memberSubscriptionsTable,
+  subscriptionsTable,
+  paymentsTable,
+  exercisesTable,
+  workoutTemplatesTable,
+  workoutTemplateExercisesTable,
+  memberWorkoutAssignmentsTable,
+  exerciseLogsTable,
+  bodyStatsTable,
+  checkinsTable,
 } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -22,9 +30,7 @@ function toCSV(fields: string[], rows: Record<string, unknown>[]): string {
     if (s.length > 0 && FORMULA_TRIGGERS.includes(s[0])) {
       s = "'" + s;
     }
-    return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"`
-      : s;
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = fields.map((f) => escape(f)).join(",");
   const lines = rows.map((r) => fields.map((f) => escape(r[f])).join(","));
@@ -106,11 +112,27 @@ router.get("/exports/payments-csv", authenticate, requireAdmin, async (_req, res
 router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res) => {
   try {
     const [
-      users, subscriptionsList, memberSubs,
-      exerciseList, workoutTemplates, templateExercises, workoutAssignments,
-      exerciseLogs, bodyStats, checkins, payments,
+      users,
+      subscriptionsList,
+      memberSubs,
+      exerciseList,
+      workoutTemplates,
+      templateExercises,
+      workoutAssignments,
+      exerciseLogs,
+      bodyStats,
+      checkins,
+      payments,
     ] = await Promise.all([
-      db.select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone, role: usersTable.role, createdAt: usersTable.createdAt }).from(usersTable),
+      db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          phone: usersTable.phone,
+          role: usersTable.role,
+          createdAt: usersTable.createdAt,
+        })
+        .from(usersTable),
       db.select().from(subscriptionsTable),
       db.select().from(memberSubscriptionsTable),
       db.select().from(exercisesTable),
@@ -145,7 +167,9 @@ router.get("/exports/full-backup", authenticate, requireAdmin, async (_req, res)
     });
     res.json(backup);
   } catch (err) {
-    res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء تصدير النسخة الاحتياطية" });
+    res
+      .status(500)
+      .json({ error: "Internal server error", message: "حدث خطأ أثناء تصدير النسخة الاحتياطية" });
   }
 });
 

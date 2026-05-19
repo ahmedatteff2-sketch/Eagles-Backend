@@ -84,24 +84,14 @@ export async function getDashboardSummary(trainerId: string): Promise<DashboardS
   const trainersMembers = db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.role, "member"),
-        eq(usersTable.assignedTrainerId, trainerId),
-      ),
-    );
+    .where(and(eq(usersTable.role, "member"), eq(usersTable.assignedTrainerId, trainerId)));
 
   const [[{ totalMembers }], [activeRow], [expiringRow], [todayRow], [weekRow], [ratingRow], [pinnedRow]] =
     await Promise.all([
       db
         .select({ totalMembers: count() })
         .from(usersTable)
-        .where(
-          and(
-            eq(usersTable.role, "member"),
-            eq(usersTable.assignedTrainerId, trainerId),
-          ),
-        ),
+        .where(and(eq(usersTable.role, "member"), eq(usersTable.assignedTrainerId, trainerId))),
 
       db
         .select({ activeMembers: count() })
@@ -129,22 +119,12 @@ export async function getDashboardSummary(trainerId: string): Promise<DashboardS
       db
         .select({ checkinsToday: count() })
         .from(checkinsTable)
-        .where(
-          and(
-            gte(checkinsTable.timestamp, todayStart),
-            inArray(checkinsTable.userId, trainersMembers),
-          ),
-        ),
+        .where(and(gte(checkinsTable.timestamp, todayStart), inArray(checkinsTable.userId, trainersMembers))),
 
       db
         .select({ checkinsThisWeek: count() })
         .from(checkinsTable)
-        .where(
-          and(
-            gte(checkinsTable.timestamp, weekAgo),
-            inArray(checkinsTable.userId, trainersMembers),
-          ),
-        ),
+        .where(and(gte(checkinsTable.timestamp, weekAgo), inArray(checkinsTable.userId, trainersMembers))),
 
       // Mean rating: drizzle has no `avg()` helper that infers the right type
       // out of the box, so we use sql<number> to coerce.
@@ -164,10 +144,7 @@ export async function getDashboardSummary(trainerId: string): Promise<DashboardS
         .select({ pinnedNotesCount: count() })
         .from(trainerMemberNotesTable)
         .where(
-          and(
-            eq(trainerMemberNotesTable.trainerId, trainerId),
-            eq(trainerMemberNotesTable.pinned, true),
-          ),
+          and(eq(trainerMemberNotesTable.trainerId, trainerId), eq(trainerMemberNotesTable.pinned, true)),
         ),
     ]);
 
@@ -211,12 +188,7 @@ export async function listMembers(trainerId: string): Promise<TrainerMemberRow[]
       category: usersTable.category,
     })
     .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.role, "member"),
-        eq(usersTable.assignedTrainerId, trainerId),
-      ),
-    )
+    .where(and(eq(usersTable.role, "member"), eq(usersTable.assignedTrainerId, trainerId)))
     .orderBy(desc(usersTable.createdAt));
 
   if (members.length === 0) return [];
@@ -406,9 +378,7 @@ export async function getMemberProfile(
       : null,
     recentCheckins: checkins,
     recentExerciseLogs: logs,
-    latestBodyStats: body
-      ? { date: body.date, weight: body.weight, bodyFat: body.bodyFat }
-      : null,
+    latestBodyStats: body ? { date: body.date, weight: body.weight, bodyFat: body.bodyFat } : null,
     notes: notes.map((n) => ({
       id: n.id,
       note: n.note,
@@ -487,23 +457,13 @@ export async function getPerformance(trainerId: string): Promise<PerformanceMetr
   const trainersMembers = db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.role, "member"),
-        eq(usersTable.assignedTrainerId, trainerId),
-      ),
-    );
+    .where(and(eq(usersTable.role, "member"), eq(usersTable.assignedTrainerId, trainerId)));
 
   const [[totalRow], allSubs, [ratingAgg], [c30], [c7], top30] = await Promise.all([
     db
       .select({ total: count() })
       .from(usersTable)
-      .where(
-        and(
-          eq(usersTable.role, "member"),
-          eq(usersTable.assignedTrainerId, trainerId),
-        ),
-      ),
+      .where(and(eq(usersTable.role, "member"), eq(usersTable.assignedTrainerId, trainerId))),
 
     db
       .select({
@@ -532,22 +492,12 @@ export async function getPerformance(trainerId: string): Promise<PerformanceMetr
     db
       .select({ c: count() })
       .from(checkinsTable)
-      .where(
-        and(
-          gte(checkinsTable.timestamp, monthAgo),
-          inArray(checkinsTable.userId, trainersMembers),
-        ),
-      ),
+      .where(and(gte(checkinsTable.timestamp, monthAgo), inArray(checkinsTable.userId, trainersMembers))),
 
     db
       .select({ c: count() })
       .from(checkinsTable)
-      .where(
-        and(
-          gte(checkinsTable.timestamp, weekAgo),
-          inArray(checkinsTable.userId, trainersMembers),
-        ),
-      ),
+      .where(and(gte(checkinsTable.timestamp, weekAgo), inArray(checkinsTable.userId, trainersMembers))),
 
     db
       .select({
@@ -557,12 +507,7 @@ export async function getPerformance(trainerId: string): Promise<PerformanceMetr
       })
       .from(checkinsTable)
       .innerJoin(usersTable, eq(usersTable.id, checkinsTable.userId))
-      .where(
-        and(
-          gte(checkinsTable.timestamp, monthAgo),
-          inArray(checkinsTable.userId, trainersMembers),
-        ),
-      )
+      .where(and(gte(checkinsTable.timestamp, monthAgo), inArray(checkinsTable.userId, trainersMembers)))
       .groupBy(checkinsTable.userId, usersTable.name)
       .orderBy(sql`c DESC`)
       .limit(5),
@@ -591,8 +536,7 @@ export async function getPerformance(trainerId: string): Promise<PerformanceMetr
     activeMembers: active,
     expiredMembers: expired,
     retentionRate,
-    averageRating:
-      ratingAgg?.avg == null ? null : Number(Number(ratingAgg.avg).toFixed(2)),
+    averageRating: ratingAgg?.avg == null ? null : Number(Number(ratingAgg.avg).toFixed(2)),
     ratingCount: Number(ratingAgg?.cnt ?? 0),
     checkinsLast30d: Number(c30?.c ?? 0),
     checkinsLast7d: Number(c7?.c ?? 0),
@@ -667,7 +611,10 @@ export async function deleteNote(trainerId: string, noteId: number): Promise<Del
   return { type: "ok" };
 }
 
-export async function listRecentNotes(trainerId: string, limit?: number): Promise<notesRepo.TrainerNoteRow[]> {
+export async function listRecentNotes(
+  trainerId: string,
+  limit?: number,
+): Promise<notesRepo.TrainerNoteRow[]> {
   return notesRepo.listRecentByTrainer(trainerId, limit);
 }
 
@@ -694,12 +641,7 @@ export async function listPinnedNotesWithMember(trainerId: string): Promise<
     })
     .from(trainerMemberNotesTable)
     .innerJoin(usersTable, eq(usersTable.id, trainerMemberNotesTable.memberId))
-    .where(
-      and(
-        eq(trainerMemberNotesTable.trainerId, trainerId),
-        eq(trainerMemberNotesTable.pinned, true),
-      ),
-    )
+    .where(and(eq(trainerMemberNotesTable.trainerId, trainerId), eq(trainerMemberNotesTable.pinned, true)))
     .orderBy(desc(trainerMemberNotesTable.createdAt));
 
   return rows.map((r) => ({

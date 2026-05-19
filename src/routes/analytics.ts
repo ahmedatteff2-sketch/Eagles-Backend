@@ -1,8 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
-  usersTable, memberSubscriptionsTable, paymentsTable,
-  checkinsTable, exerciseLogsTable, bodyStatsTable, expensesTable, notificationsTable
+  usersTable,
+  memberSubscriptionsTable,
+  paymentsTable,
+  checkinsTable,
+  exerciseLogsTable,
+  bodyStatsTable,
+  expensesTable,
+  notificationsTable,
 } from "@workspace/db/schema";
 import { eq, count, sum, gte, lte, desc, and, sql, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -22,29 +28,51 @@ async function checkExpiringSubscriptions() {
     const in1day = new Date(today.getTime() + 1 * 86400000).toISOString().split("T")[0];
     const todayStr = today.toISOString().split("T")[0];
 
-    const expiring = await db.select({
-      userId: memberSubscriptionsTable.userId,
-      endDate: memberSubscriptionsTable.endDate,
-    }).from(memberSubscriptionsTable).where(
-      and(eq(memberSubscriptionsTable.status, "active"), gte(memberSubscriptionsTable.endDate, todayStr), lte(memberSubscriptionsTable.endDate, in3days))
-    );
+    const expiring = await db
+      .select({
+        userId: memberSubscriptionsTable.userId,
+        endDate: memberSubscriptionsTable.endDate,
+      })
+      .from(memberSubscriptionsTable)
+      .where(
+        and(
+          eq(memberSubscriptionsTable.status, "active"),
+          gte(memberSubscriptionsTable.endDate, todayStr),
+          lte(memberSubscriptionsTable.endDate, in3days),
+        ),
+      );
 
     for (const sub of expiring) {
       const daysLeft = Math.ceil((new Date(sub.endDate).getTime() - today.getTime()) / 86400000);
-      const title = daysLeft <= 0 ? "⚠️ اشتراكك ينتهي اليوم!" : daysLeft === 1 ? "⚠️ اشتراكك ينتهي غداً" : `⏰ اشتراكك ينتهي بعد ${daysLeft} أيام`;
-      const existing = await db.select({ id: notificationsTable.id }).from(notificationsTable)
-        .where(and(
-          eq(notificationsTable.userId, sub.userId),
-          eq(notificationsTable.type, "subscription_expiry"),
-          gte(notificationsTable.createdAt, new Date(todayStr)),
-        )).limit(1);
+      const title =
+        daysLeft <= 0
+          ? "⚠️ اشتراكك ينتهي اليوم!"
+          : daysLeft === 1
+            ? "⚠️ اشتراكك ينتهي غداً"
+            : `⏰ اشتراكك ينتهي بعد ${daysLeft} أيام`;
+      const existing = await db
+        .select({ id: notificationsTable.id })
+        .from(notificationsTable)
+        .where(
+          and(
+            eq(notificationsTable.userId, sub.userId),
+            eq(notificationsTable.type, "subscription_expiry"),
+            gte(notificationsTable.createdAt, new Date(todayStr)),
+          ),
+        )
+        .limit(1);
       if (existing.length === 0) {
         await db.insert(notificationsTable).values({
-          userId: sub.userId, title, body: "تواصل مع الإدارة لتجديد اشتراكك", type: "subscription_expiry",
+          userId: sub.userId,
+          title,
+          body: "تواصل مع الإدارة لتجديد اشتراكك",
+          type: "subscription_expiry",
         });
       }
     }
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 }
 
 router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) => {
@@ -62,17 +90,37 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
-  const [totalMembersRow] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, "member"));
-  const [activeMembersRow] = await db.select({ count: count() }).from(memberSubscriptionsTable).where(eq(memberSubscriptionsTable.status, "active"));
+  const [totalMembersRow] = await db
+    .select({ count: count() })
+    .from(usersTable)
+    .where(eq(usersTable.role, "member"));
+  const [activeMembersRow] = await db
+    .select({ count: count() })
+    .from(memberSubscriptionsTable)
+    .where(eq(memberSubscriptionsTable.status, "active"));
   const [totalRevenueRow] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable);
-  const [monthlyRevenueRow] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(gte(paymentsTable.date, monthStart));
-  const [monthlyExpensesRow] = await db.select({ total: sum(expensesTable.amount) }).from(expensesTable).where(gte(expensesTable.date, monthStart));
-  const [todayCheckinsRow] = await db.select({ count: count() }).from(checkinsTable).where(
-    and(gte(checkinsTable.timestamp, todayStart), lte(checkinsTable.timestamp, todayEnd))
-  );
-  const [expiringRow] = await db.select({ count: count() }).from(memberSubscriptionsTable).where(
-    and(eq(memberSubscriptionsTable.status, "active"), gte(memberSubscriptionsTable.endDate, today), lte(memberSubscriptionsTable.endDate, weekEnd))
-  );
+  const [monthlyRevenueRow] = await db
+    .select({ total: sum(paymentsTable.amount) })
+    .from(paymentsTable)
+    .where(gte(paymentsTable.date, monthStart));
+  const [monthlyExpensesRow] = await db
+    .select({ total: sum(expensesTable.amount) })
+    .from(expensesTable)
+    .where(gte(expensesTable.date, monthStart));
+  const [todayCheckinsRow] = await db
+    .select({ count: count() })
+    .from(checkinsTable)
+    .where(and(gte(checkinsTable.timestamp, todayStart), lte(checkinsTable.timestamp, todayEnd)));
+  const [expiringRow] = await db
+    .select({ count: count() })
+    .from(memberSubscriptionsTable)
+    .where(
+      and(
+        eq(memberSubscriptionsTable.status, "active"),
+        gte(memberSubscriptionsTable.endDate, today),
+        lte(memberSubscriptionsTable.endDate, weekEnd),
+      ),
+    );
   const totalMembers = totalMembersRow?.count ?? 0;
   const activeMembers = activeMembersRow?.count ?? 0;
 
@@ -100,11 +148,13 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     })
     .from(memberSubscriptionsTable)
     .innerJoin(usersTable, eq(memberSubscriptionsTable.userId, usersTable.id))
-    .where(and(
-      eq(memberSubscriptionsTable.status, "active"),
-      gte(memberSubscriptionsTable.endDate, today),
-      lte(memberSubscriptionsTable.endDate, weekEnd)
-    ))
+    .where(
+      and(
+        eq(memberSubscriptionsTable.status, "active"),
+        gte(memberSubscriptionsTable.endDate, today),
+        lte(memberSubscriptionsTable.endDate, weekEnd),
+      ),
+    )
     .orderBy(memberSubscriptionsTable.endDate);
 
   // Top attendees this week
@@ -119,7 +169,7 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     .groupBy(checkinsTable.userId, usersTable.name)
     .orderBy(desc(count()))
     .limit(5);
-  const topAttendees = topAttendeesRaw.map(r => ({ id: r.userId, name: r.userName, checkins: r.checkins }));
+  const topAttendees = topAttendeesRaw.map((r) => ({ id: r.userId, name: r.userName, checkins: r.checkins }));
 
   // Inactive members: active subscription but no check-in in 7+ days. The
   // previous implementation issued 2 queries per active member (O(2N)) just
@@ -140,7 +190,9 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     ORDER BY last_checkin NULLS FIRST
     LIMIT 10
   `);
-  const inactiveMembers = (inactiveRaw.rows as Array<{ id: string; name: string; phone: string; last_checkin: string | null }>).map((r) => {
+  const inactiveMembers = (
+    inactiveRaw.rows as Array<{ id: string; name: string; phone: string; last_checkin: string | null }>
+  ).map((r) => {
     const days = r.last_checkin
       ? Math.floor((Date.now() - new Date(r.last_checkin).getTime()) / 86400000)
       : 999;
@@ -193,9 +245,18 @@ router.get("/analytics/monthly-revenue", authenticate, requireAdmin, async (req,
     }
 
     const MONTH_AR: Record<string, string> = {
-      "01": "يناير", "02": "فبراير", "03": "مارس", "04": "أبريل",
-      "05": "مايو", "06": "يونيو", "07": "يوليو", "08": "أغسطس",
-      "09": "سبتمبر", "10": "أكتوبر", "11": "نوفمبر", "12": "ديسمبر",
+      "01": "يناير",
+      "02": "فبراير",
+      "03": "مارس",
+      "04": "أبريل",
+      "05": "مايو",
+      "06": "يونيو",
+      "07": "يوليو",
+      "08": "أغسطس",
+      "09": "سبتمبر",
+      "10": "أكتوبر",
+      "11": "نوفمبر",
+      "12": "ديسمبر",
     };
 
     const data = (revenueRows.rows as any[]).map((row) => {
@@ -224,14 +285,33 @@ router.get("/analytics/member/:userId", authenticate, async (req, res) => {
     return;
   }
 
-  const bodyStats = await db.select().from(bodyStatsTable).where(eq(bodyStatsTable.userId, userId)).orderBy(bodyStatsTable.date);
-  const weightProgress = bodyStats.filter(s => s.weight != null).map(s => ({ date: s.date, value: Number(s.weight) }));
-  const bodyFatProgress = bodyStats.filter(s => s.bodyFat != null).map(s => ({ date: s.date, value: Number(s.bodyFat) }));
+  const bodyStats = await db
+    .select()
+    .from(bodyStatsTable)
+    .where(eq(bodyStatsTable.userId, userId))
+    .orderBy(bodyStatsTable.date);
+  const weightProgress = bodyStats
+    .filter((s) => s.weight != null)
+    .map((s) => ({ date: s.date, value: Number(s.weight) }));
+  const bodyFatProgress = bodyStats
+    .filter((s) => s.bodyFat != null)
+    .map((s) => ({ date: s.date, value: Number(s.bodyFat) }));
 
-  const [attendanceRow] = await db.select({ count: count() }).from(checkinsTable).where(eq(checkinsTable.userId, userId));
-  const [setsRow] = await db.select({ count: count() }).from(exerciseLogsTable).where(eq(exerciseLogsTable.userId, userId));
+  const [attendanceRow] = await db
+    .select({ count: count() })
+    .from(checkinsTable)
+    .where(eq(checkinsTable.userId, userId));
+  const [setsRow] = await db
+    .select({ count: count() })
+    .from(exerciseLogsTable)
+    .where(eq(exerciseLogsTable.userId, userId));
 
-  const exerciseLogs = await db.select().from(exerciseLogsTable).where(eq(exerciseLogsTable.userId, userId)).orderBy(desc(exerciseLogsTable.date)).limit(50);
+  const exerciseLogs = await db
+    .select()
+    .from(exerciseLogsTable)
+    .where(eq(exerciseLogsTable.userId, userId))
+    .orderBy(desc(exerciseLogsTable.date))
+    .limit(50);
 
   res.json({
     userId,
@@ -277,27 +357,68 @@ router.get("/analytics/monthly-report", authenticate, async (req, res) => {
   const monthEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
 
   try {
-    const [setsRow] = await db.select({ c: count() }).from(exerciseLogsTable)
-      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+    const [setsRow] = await db
+      .select({ c: count() })
+      .from(exerciseLogsTable)
+      .where(
+        and(
+          eq(exerciseLogsTable.userId, userId),
+          gte(exerciseLogsTable.date, monthStart),
+          lte(exerciseLogsTable.date, monthEnd),
+        ),
+      );
 
-    const [checkinRow] = await db.select({ c: count() }).from(checkinsTable)
-      .where(and(eq(checkinsTable.userId, userId), gte(checkinsTable.timestamp, new Date(`${monthStart}T00:00:00Z`)), lte(checkinsTable.timestamp, new Date(`${monthEnd}T23:59:59Z`))));
+    const [checkinRow] = await db
+      .select({ c: count() })
+      .from(checkinsTable)
+      .where(
+        and(
+          eq(checkinsTable.userId, userId),
+          gte(checkinsTable.timestamp, new Date(`${monthStart}T00:00:00Z`)),
+          lte(checkinsTable.timestamp, new Date(`${monthEnd}T23:59:59Z`)),
+        ),
+      );
 
-    const [uniqueDays] = await db.select({ c: sql<number>`count(DISTINCT date)::int` }).from(exerciseLogsTable)
-      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+    const [uniqueDays] = await db
+      .select({ c: sql<number>`count(DISTINCT date)::int` })
+      .from(exerciseLogsTable)
+      .where(
+        and(
+          eq(exerciseLogsTable.userId, userId),
+          gte(exerciseLogsTable.date, monthStart),
+          lte(exerciseLogsTable.date, monthEnd),
+        ),
+      );
 
-    const [maxW] = await db.select({ w: sql<number>`COALESCE(MAX(CAST(weight AS NUMERIC)), 0)` }).from(exerciseLogsTable)
-      .where(and(eq(exerciseLogsTable.userId, userId), gte(exerciseLogsTable.date, monthStart), lte(exerciseLogsTable.date, monthEnd)));
+    const [maxW] = await db
+      .select({ w: sql<number>`COALESCE(MAX(CAST(weight AS NUMERIC)), 0)` })
+      .from(exerciseLogsTable)
+      .where(
+        and(
+          eq(exerciseLogsTable.userId, userId),
+          gte(exerciseLogsTable.date, monthStart),
+          lte(exerciseLogsTable.date, monthEnd),
+        ),
+      );
 
-    const bodyStats = await db.select().from(bodyStatsTable)
-      .where(and(eq(bodyStatsTable.userId, userId), gte(bodyStatsTable.date, monthStart), lte(bodyStatsTable.date, monthEnd)))
+    const bodyStats = await db
+      .select()
+      .from(bodyStatsTable)
+      .where(
+        and(
+          eq(bodyStatsTable.userId, userId),
+          gte(bodyStatsTable.date, monthStart),
+          lte(bodyStatsTable.date, monthEnd),
+        ),
+      )
       .orderBy(bodyStatsTable.date);
 
-    const firstWeight = bodyStats.find(s => s.weight != null)?.weight;
-    const lastWeight = [...bodyStats].reverse().find(s => s.weight != null)?.weight;
+    const firstWeight = bodyStats.find((s) => s.weight != null)?.weight;
+    const lastWeight = [...bodyStats].reverse().find((s) => s.weight != null)?.weight;
 
     res.json({
-      month: m, year: y,
+      month: m,
+      year: y,
       totalSets: setsRow?.c ?? 0,
       attendanceDays: checkinRow?.c ?? 0,
       trainingDays: uniqueDays?.c ?? 0,
@@ -306,7 +427,9 @@ router.get("/analytics/monthly-report", authenticate, async (req, res) => {
       weightEnd: lastWeight ? Number(lastWeight) : null,
       weightChange: firstWeight && lastWeight ? Number(lastWeight) - Number(firstWeight) : null,
     });
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;

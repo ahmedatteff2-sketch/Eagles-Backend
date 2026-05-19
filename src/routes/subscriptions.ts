@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { subscriptionsTable, memberSubscriptionsTable, paymentsTable, usersTable } from "@workspace/db/schema";
+import {
+  subscriptionsTable,
+  memberSubscriptionsTable,
+  paymentsTable,
+  usersTable,
+} from "@workspace/db/schema";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parseUserId } from "../lib/params.js";
@@ -10,7 +15,11 @@ import { z } from "zod";
 const router = Router();
 
 const subscriptionSchema = z.object({
-  name: z.string().min(1).max(100).transform(s => s.trim()),
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .transform((s) => s.trim()),
   duration: z.number().int().min(1).max(3650),
   price: z.number().min(0).max(1_000_000),
 });
@@ -40,11 +49,14 @@ router.post("/subscriptions", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const [sub] = await db.insert(subscriptionsTable).values({
-      name: body.data.name,
-      duration: body.data.duration,
-      price: String(body.data.price),
-    }).returning();
+    const [sub] = await db
+      .insert(subscriptionsTable)
+      .values({
+        name: body.data.name,
+        duration: body.data.duration,
+        price: String(body.data.price),
+      })
+      .returning();
     res.status(201).json(sub);
   } catch (err) {
     logger.error({ err }, "POST /subscriptions failed");
@@ -62,11 +74,15 @@ router.put("/subscriptions/:subscriptionId", authenticate, requireAdmin, async (
     return;
   }
   try {
-    const [sub] = await db.update(subscriptionsTable).set({
-      name: body.data.name,
-      duration: body.data.duration,
-      price: String(body.data.price),
-    }).where(eq(subscriptionsTable.id, id)).returning();
+    const [sub] = await db
+      .update(subscriptionsTable)
+      .set({
+        name: body.data.name,
+        duration: body.data.duration,
+        price: String(body.data.price),
+      })
+      .where(eq(subscriptionsTable.id, id))
+      .returning();
     if (!sub) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -100,7 +116,11 @@ router.post("/member-subscriptions", authenticate, requireAdmin, async (req, res
   }
   const { userId, subscriptionId, startDate, paymentAmount, paymentMethod } = body.data;
   try {
-    const [plan] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.id, subscriptionId)).limit(1);
+    const [plan] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.id, subscriptionId))
+      .limit(1);
     if (!plan) {
       res.status(404).json({ error: "Not found", message: "خطة الاشتراك غير موجودة" });
       return;
@@ -114,9 +134,16 @@ router.post("/member-subscriptions", authenticate, requireAdmin, async (req, res
     end.setDate(end.getDate() + plan.duration);
     const endDate = end.toISOString().split("T")[0];
 
-    const [ms] = await db.insert(memberSubscriptionsTable).values({
-      userId, subscriptionId, startDate, endDate, status: "active",
-    }).returning();
+    const [ms] = await db
+      .insert(memberSubscriptionsTable)
+      .values({
+        userId,
+        subscriptionId,
+        startDate,
+        endDate,
+        status: "active",
+      })
+      .returning();
 
     if (paymentAmount && paymentAmount > 0) {
       await db.insert(paymentsTable).values({
@@ -197,7 +224,11 @@ router.patch("/member-subscriptions/:id/freeze", authenticate, requireAdmin, asy
   const id = parseId(req.params.id, res, "معرّف الاشتراك");
   if (!id) return;
   try {
-    const [existing] = await db.select().from(memberSubscriptionsTable).where(eq(memberSubscriptionsTable.id, id)).limit(1);
+    const [existing] = await db
+      .select()
+      .from(memberSubscriptionsTable)
+      .where(eq(memberSubscriptionsTable.id, id))
+      .limit(1);
     if (!existing) {
       res.status(404).json({ error: "Not found", message: "الاشتراك غير موجود" });
       return;
@@ -226,7 +257,11 @@ router.patch("/member-subscriptions/:id/unfreeze", authenticate, requireAdmin, a
   const id = parseId(req.params.id, res, "معرّف الاشتراك");
   if (!id) return;
   try {
-    const [existing] = await db.select().from(memberSubscriptionsTable).where(eq(memberSubscriptionsTable.id, id)).limit(1);
+    const [existing] = await db
+      .select()
+      .from(memberSubscriptionsTable)
+      .where(eq(memberSubscriptionsTable.id, id))
+      .limit(1);
     if (!existing) {
       res.status(404).json({ error: "Not found", message: "الاشتراك غير موجود" });
       return;
@@ -400,10 +435,13 @@ router.post("/member-subscriptions/export-csv", authenticate, requireAdmin, asyn
 
     // Keep latest subscription per user (rows ordered by name; we'll dedupe
     // by id keeping the most recent endDate).
-    const seen = new Map<string, typeof rows[number]>();
+    const seen = new Map<string, (typeof rows)[number]>();
     for (const r of rows) {
       const prev = seen.get(r.id);
-      if (!prev) { seen.set(r.id, r); continue; }
+      if (!prev) {
+        seen.set(r.id, r);
+        continue;
+      }
       if ((r.endDate ?? "") > (prev.endDate ?? "")) seen.set(r.id, r);
     }
 
@@ -413,20 +451,41 @@ router.post("/member-subscriptions/export-csv", authenticate, requireAdmin, asyn
       return `"${s}"`;
     };
     const header = [
-      "ID", "الاسم", "الهاتف", "كود العضوية", "الفئة",
-      "الباقة", "سعر الباقة",
-      "بداية الاشتراك", "نهاية الاشتراك", "الحالة",
-      "تاريخ التجميد", "إجمالي أيام التجميد",
-    ].map(escape).join(",");
+      "ID",
+      "الاسم",
+      "الهاتف",
+      "كود العضوية",
+      "الفئة",
+      "الباقة",
+      "سعر الباقة",
+      "بداية الاشتراك",
+      "نهاية الاشتراك",
+      "الحالة",
+      "تاريخ التجميد",
+      "إجمالي أيام التجميد",
+    ]
+      .map(escape)
+      .join(",");
     const lines = [header];
     for (const r of seen.values()) {
-      lines.push([
-        r.id, r.name, r.phone, r.membershipNumber ?? "", r.category ?? "",
-        r.subName ?? "", r.subPrice ?? "",
-        r.startDate ?? "", r.endDate ?? "", r.status ?? "",
-        r.frozenAt ? new Date(r.frozenAt).toISOString().split("T")[0] : "",
-        r.totalFrozenDays ?? 0,
-      ].map(escape).join(","));
+      lines.push(
+        [
+          r.id,
+          r.name,
+          r.phone,
+          r.membershipNumber ?? "",
+          r.category ?? "",
+          r.subName ?? "",
+          r.subPrice ?? "",
+          r.startDate ?? "",
+          r.endDate ?? "",
+          r.status ?? "",
+          r.frozenAt ? new Date(r.frozenAt).toISOString().split("T")[0] : "",
+          r.totalFrozenDays ?? 0,
+        ]
+          .map(escape)
+          .join(","),
+      );
     }
     // BOM (\uFEFF) tells Excel "this is UTF-8" so Arabic renders correctly.
     const csv = "\uFEFF" + lines.join("\r\n") + "\r\n";

@@ -55,7 +55,10 @@ function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
   if (process.env.NODE_ENV !== "production") {
     const devRaw = process.env.CORS_ORIGIN_DEV;
     if (devRaw) {
-      const list = devRaw.split(",").map((o) => o.trim()).filter(Boolean);
+      const list = devRaw
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
       if (list.length === 0) return true;
       return list.length === 1 ? list[0] : list;
     }
@@ -74,7 +77,10 @@ function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
     );
     return null;
   }
-  const allowList = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  const allowList = raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
   if (allowList.length === 0) {
     logger.warn("CORS_ORIGIN is empty after parsing — running in same-origin only mode");
     return null;
@@ -135,7 +141,10 @@ const loginPerPhoneLimiter = rateLimit({
   max: isDev ? 50 : 8,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many login attempts", message: "تم تجاوز الحد المسموح به لهذا الرقم. حاول بعد 15 دقيقة" },
+  message: {
+    error: "Too many login attempts",
+    message: "تم تجاوز الحد المسموح به لهذا الرقم. حاول بعد 15 دقيقة",
+  },
   keyGenerator: (req) => {
     const raw = (req.body as { phone?: unknown } | undefined)?.phone;
     if (typeof raw === "string" && raw.length > 0 && raw.length <= 32) {

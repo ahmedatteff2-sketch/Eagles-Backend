@@ -1,7 +1,14 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { usersTable, memberSubscriptionsTable, subscriptionsTable, checkinsTable, paymentsTable, refreshTokensTable } from "@workspace/db/schema";
+import {
+  usersTable,
+  memberSubscriptionsTable,
+  subscriptionsTable,
+  checkinsTable,
+  paymentsTable,
+  refreshTokensTable,
+} from "@workspace/db/schema";
 import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
 import { authenticate, requireAdmin, requireAdminOrTrainer } from "../middlewares/auth.js";
 import { parseUserId, parsePagination } from "../lib/params.js";
@@ -26,9 +33,17 @@ const phoneInput = z
   });
 
 const createUserSchema = z.object({
-  name: z.string().min(2).max(100).transform(s => s.trim()),
+  name: z
+    .string()
+    .min(2)
+    .max(100)
+    .transform((s) => s.trim()),
   phone: phoneInput,
-  membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
+  membershipNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => s?.trim() || null),
   password: z.string().min(6).max(128),
   role: z.enum(["admin", "trainer", "member"]).default("member"),
   category: z.enum(["normal", "vip", "trial"]).default("normal"),
@@ -37,9 +52,18 @@ const createUserSchema = z.object({
 });
 
 const updateUserSchema = z.object({
-  name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
+  name: z
+    .string()
+    .min(2)
+    .max(100)
+    .transform((s) => s.trim())
+    .optional(),
   phone: phoneInput.optional(),
-  membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
+  membershipNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => (s !== undefined ? s.trim() || null : undefined)),
   role: z.enum(["admin", "trainer", "member"]).optional(),
   category: z.enum(["normal", "vip", "trial"]).optional(),
   assignedTrainerId: z.string().min(1).max(64).nullable().optional(),
@@ -51,10 +75,7 @@ const updateUserSchema = z.object({
  * role column is X" — we'd need a trigger or a separate trainers table for
  * that. Cheaper to just check at the API boundary.
  */
-async function ensureTrainerExists(
-  trainerId: string,
-  res: import("express").Response,
-): Promise<boolean> {
+async function ensureTrainerExists(trainerId: string, res: import("express").Response): Promise<boolean> {
   const [t] = await db
     .select({ id: usersTable.id, role: usersTable.role })
     .from(usersTable)
@@ -71,11 +92,12 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
   const rawSearch = typeof req.query.search === "string" ? req.query.search.slice(0, 100) : undefined;
   // Escape LIKE special characters to prevent wildcard injection
-  const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
+  const search = rawSearch?.replace(/[%_\\]/g, (c) => `\\${c}`);
   // Optional trainer filter (admins can pass ?trainerId=... explicitly to
   // see only members assigned to one trainer). Trainers always see their
   // own assigned members regardless of the query param.
-  const trainerFilterRaw = typeof req.query.trainerId === "string" ? req.query.trainerId.slice(0, 64) : undefined;
+  const trainerFilterRaw =
+    typeof req.query.trainerId === "string" ? req.query.trainerId.slice(0, 64) : undefined;
   const isTrainer = req.user!.role === "trainer";
   // Effective trainer filter: trainers see only their own; admins use the
   // optional query param.
@@ -104,13 +126,10 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       .orderBy(desc(usersTable.createdAt))
       .limit(limit)
       .offset(offset);
-    const [totalRow] = await db
-      .select({ count: count() })
-      .from(usersTable)
-      .where(whereClause);
+    const [totalRow] = await db.select({ count: count() }).from(usersTable).where(whereClause);
 
     // Single JOIN query for subscriptions (avoids N+1)
-    const userIds = users.map(u => u.id);
+    const userIds = users.map((u) => u.id);
     type SubInfo = {
       id: number;
       userId: string;
@@ -154,7 +173,7 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       }
     }
 
-    const usersWithSubs = users.map(u => {
+    const usersWithSubs = users.map((u) => {
       const { passwordHash: _, ...safe } = u;
       return { ...safe, currentSubscription: subsMap[u.id] ?? null };
     });
@@ -172,13 +191,21 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.phone)).limit(1);
+    const existing = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.phone, body.data.phone))
+      .limit(1);
     if (existing.length > 0) {
       res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
       return;
     }
     if (body.data.membershipNumber) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
+      const existingCode = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.membershipNumber, body.data.membershipNumber))
+        .limit(1);
       if (existingCode.length > 0) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;
@@ -189,16 +216,19 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       if (!ok) return;
     }
     const hashed = await bcrypt.hash(body.data.password, 12);
-    const [user] = await db.insert(usersTable).values({
-      id: crypto.randomUUID(),
-      name: body.data.name,
-      phone: body.data.phone,
-      membershipNumber: body.data.membershipNumber,
-      passwordHash: hashed,
-      role: body.data.role,
-      category: body.data.category ?? "normal",
-      assignedTrainerId: body.data.assignedTrainerId ?? null,
-    }).returning();
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        id: crypto.randomUUID(),
+        name: body.data.name,
+        phone: body.data.phone,
+        membershipNumber: body.data.membershipNumber,
+        passwordHash: hashed,
+        role: body.data.role,
+        category: body.data.category ?? "normal",
+        assignedTrainerId: body.data.assignedTrainerId ?? null,
+      })
+      .returning();
     const { passwordHash: _, ...safe } = user;
     res.status(201).json(safe);
   } catch {
@@ -257,11 +287,24 @@ router.get("/users/:userId", authenticate, async (req, res) => {
       .orderBy(desc(memberSubscriptionsTable.createdAt))
       .limit(1);
 
-    const recentCheckins = await db.select().from(checkinsTable).where(eq(checkinsTable.userId, userId)).orderBy(desc(checkinsTable.timestamp)).limit(5);
-    const [paySum] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(eq(paymentsTable.userId, userId));
+    const recentCheckins = await db
+      .select()
+      .from(checkinsTable)
+      .where(eq(checkinsTable.userId, userId))
+      .orderBy(desc(checkinsTable.timestamp))
+      .limit(5);
+    const [paySum] = await db
+      .select({ total: sum(paymentsTable.amount) })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.userId, userId));
 
     const { passwordHash: _, ...safe } = user;
-    res.json({ ...safe, currentSubscription: currentSubscription ?? null, recentCheckins, totalPayments: Number(paySum?.total ?? 0) });
+    res.json({
+      ...safe,
+      currentSubscription: currentSubscription ?? null,
+      recentCheckins,
+      totalPayments: Number(paySum?.total ?? 0),
+    });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب بيانات العضو" });
   }
@@ -272,10 +315,7 @@ router.get("/users/:userId", authenticate, async (req, res) => {
  * locked out of its own admin panel. Returns true if the operation should
  * proceed.
  */
-async function ensureNotLastAdmin(
-  userId: string,
-  res: import("express").Response,
-): Promise<boolean> {
+async function ensureNotLastAdmin(userId: string, res: import("express").Response): Promise<boolean> {
   const [target] = await db
     .select({ role: usersTable.role })
     .from(usersTable)
@@ -313,14 +353,22 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
       if (!ok) return;
     }
     if (body.data.phone) {
-      const existingPhone = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.phone)).limit(1);
+      const existingPhone = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.phone, body.data.phone))
+        .limit(1);
       if (existingPhone.length > 0 && existingPhone[0].id !== userId) {
         res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
         return;
       }
     }
     if (body.data.membershipNumber) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
+      const existingCode = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.membershipNumber, body.data.membershipNumber))
+        .limit(1);
       if (existingCode.length > 0 && existingCode[0].id !== userId) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;

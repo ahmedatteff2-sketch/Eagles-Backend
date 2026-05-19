@@ -10,8 +10,12 @@ import { memberSubscriptionsTable } from "./member-subscriptions.js";
  */
 export const renewalRemindersTable = pgTable("renewal_reminders", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  memberSubscriptionId: integer("member_subscription_id").references(() => memberSubscriptionsTable.id, { onDelete: "set null" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  memberSubscriptionId: integer("member_subscription_id").references(() => memberSubscriptionsTable.id, {
+    onDelete: "set null",
+  }),
   // Channel keeps things flexible if we add SMS / email later. For now the
   // admin-triggered link send is "whatsapp" and the cron-generated admin
   // notification is "system".

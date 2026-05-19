@@ -290,7 +290,7 @@ export async function runMigrations(): Promise<void> {
       const { rows } = await client.query(
         `SELECT data_type FROM information_schema.columns
          WHERE table_name = $1 AND column_name = 'user_id'`,
-        [table]
+        [table],
       );
       return rows[0]?.data_type ?? null;
     }
@@ -322,16 +322,18 @@ export async function runMigrations(): Promise<void> {
     // and `ADD COLUMN IF NOT EXISTS` to make the migration robust against any
     // residual inconsistency between the metadata check and the actual table.
     const { rows: hasLegacyTokenCol } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token'`
+      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token'`,
     );
     const { rows: hasTokenHashCol } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token_hash'`
+      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='refresh_tokens' AND column_name='token_hash'`,
     );
     if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length === 0) {
       logger.warn("Migrating refresh_tokens.token → token_hash (clearing existing rows)");
       await client.query(`TRUNCATE TABLE refresh_tokens`);
       await client.query(`ALTER TABLE refresh_tokens DROP COLUMN IF EXISTS token`);
-      await client.query(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS token_hash TEXT NOT NULL UNIQUE`);
+      await client.query(
+        `ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS token_hash TEXT NOT NULL UNIQUE`,
+      );
     } else if (hasLegacyTokenCol.length > 0 && hasTokenHashCol.length > 0) {
       logger.warn("Dropping legacy refresh_tokens.token column");
       await client.query(`ALTER TABLE refresh_tokens DROP COLUMN IF EXISTS token`);
@@ -401,7 +403,7 @@ export async function runMigrations(): Promise<void> {
 
     // ── Drop old training tables (replaced by exercises + workout_templates) ─
     const { rows: oldTrainingWeeks } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'training_weeks'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'training_weeks'`,
     );
     if (oldTrainingWeeks.length > 0) {
       logger.warn("Dropping legacy training tables (training_programs, training_weeks, old exercises)");
@@ -413,7 +415,7 @@ export async function runMigrations(): Promise<void> {
 
     // If exercises table exists but still has old columns (week_id), drop and recreate
     const { rows: oldExCol } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name = 'exercises' AND column_name = 'week_id'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'exercises' AND column_name = 'week_id'`,
     );
     if (oldExCol.length > 0) {
       logger.warn("Dropping old exercises table with week_id column");
@@ -463,22 +465,24 @@ export async function runMigrations(): Promise<void> {
 
     // ── Add day columns if missing ─────────────────────────────────────────
     const { rows: hasDaysCount } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_count'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_count'`,
     );
     if (hasDaysCount.length === 0) {
       logger.info("Adding days_count to workout_templates");
       await client.query(`ALTER TABLE workout_templates ADD COLUMN days_count INTEGER NOT NULL DEFAULT 1`);
     }
     const { rows: hasDayNumber } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='day_number'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='day_number'`,
     );
     if (hasDayNumber.length === 0) {
       logger.info("Adding day_number to workout_template_exercises");
-      await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN day_number INTEGER NOT NULL DEFAULT 1`);
+      await client.query(
+        `ALTER TABLE workout_template_exercises ADD COLUMN day_number INTEGER NOT NULL DEFAULT 1`,
+      );
     }
 
     const { rows: hasDaysPerWeek } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_per_week'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='days_per_week'`,
     );
     if (hasDaysPerWeek.length === 0) {
       logger.info("Adding days_per_week to workout_templates");
@@ -487,14 +491,14 @@ export async function runMigrations(): Promise<void> {
 
     // ── day_names & notes on templates ──────────────────────────────────────
     const { rows: hasDayNames } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='day_names'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='day_names'`,
     );
     if (hasDayNames.length === 0) {
       logger.info("Adding day_names to workout_templates");
       await client.query(`ALTER TABLE workout_templates ADD COLUMN day_names TEXT`);
     }
     const { rows: hasTemplateNotes } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='notes'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_templates' AND column_name='notes'`,
     );
     if (hasTemplateNotes.length === 0) {
       logger.info("Adding notes to workout_templates");
@@ -503,14 +507,14 @@ export async function runMigrations(): Promise<void> {
 
     // ── notes & rest_seconds on template exercises ──────────────────────────
     const { rows: hasExNotes } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='notes'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='notes'`,
     );
     if (hasExNotes.length === 0) {
       logger.info("Adding notes to workout_template_exercises");
       await client.query(`ALTER TABLE workout_template_exercises ADD COLUMN notes TEXT`);
     }
     const { rows: hasRestSec } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='rest_seconds'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name='workout_template_exercises' AND column_name='rest_seconds'`,
     );
     if (hasRestSec.length === 0) {
       logger.info("Adding rest_seconds to workout_template_exercises");
@@ -519,7 +523,7 @@ export async function runMigrations(): Promise<void> {
 
     // ── progress_photos table ────────────────────────────────────────────
     const { rows: hasProgressPhotos } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'progress_photos'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'progress_photos'`,
     );
     if (hasProgressPhotos.length === 0) {
       logger.info("Creating progress_photos table");
@@ -538,11 +542,13 @@ export async function runMigrations(): Promise<void> {
 
     // ── water_logs table ─────────────────────────────────────────────────
     const { rows: hasWaterLogs } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'water_logs'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'water_logs'`,
     );
     if (hasWaterLogs.length === 0) {
       logger.info("Creating water_logs table");
-      await client.query(`CREATE TABLE water_logs (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, glasses INTEGER NOT NULL DEFAULT 0, date DATE NOT NULL)`);
+      await client.query(
+        `CREATE TABLE water_logs (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, glasses INTEGER NOT NULL DEFAULT 0, date DATE NOT NULL)`,
+      );
     }
 
     // One row per (user, day) so upserts can use ON CONFLICT and we can't end
@@ -579,49 +585,61 @@ export async function runMigrations(): Promise<void> {
 
     // ── session_ratings table ─────────────────────────────────────────────
     const { rows: hasSessionRatings } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'session_ratings'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'session_ratings'`,
     );
     if (hasSessionRatings.length === 0) {
       logger.info("Creating session_ratings table");
-      await client.query(`CREATE TABLE session_ratings (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, rating INTEGER NOT NULL, note TEXT, date DATE NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      await client.query(
+        `CREATE TABLE session_ratings (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, rating INTEGER NOT NULL, note TEXT, date DATE NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+      );
     }
 
     // ── chat_messages table ───────────────────────────────────────────────
     const { rows: hasChatMessages } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'chat_messages'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'chat_messages'`,
     );
     if (hasChatMessages.length === 0) {
       logger.info("Creating chat_messages table");
-      await client.query(`CREATE TABLE chat_messages (id SERIAL PRIMARY KEY, sender_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, receiver_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, message TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      await client.query(
+        `CREATE TABLE chat_messages (id SERIAL PRIMARY KEY, sender_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, receiver_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, message TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+      );
     }
 
     // ── notifications table ───────────────────────────────────────────────
     const { rows: hasNotifications } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications'`,
     );
     if (hasNotifications.length === 0) {
       logger.info("Creating notifications table");
-      await client.query(`CREATE TABLE notifications (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT, type TEXT NOT NULL DEFAULT 'general', read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      await client.query(
+        `CREATE TABLE notifications (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT, type TEXT NOT NULL DEFAULT 'general', read INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+      );
     }
 
     // ── meal_plans + meal_plan_items tables ────────────────────────────────
     const { rows: hasMealPlans } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'meal_plans'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'meal_plans'`,
     );
     if (hasMealPlans.length === 0) {
       logger.info("Creating meal_plans table");
-      await client.query(`CREATE TABLE meal_plans (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, name TEXT NOT NULL, notes TEXT, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      await client.query(
+        `CREATE TABLE meal_plans (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, name TEXT NOT NULL, notes TEXT, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+      );
       logger.info("Creating meal_plan_items table");
-      await client.query(`CREATE TABLE meal_plan_items (id SERIAL PRIMARY KEY, plan_id INTEGER NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE, meal_name TEXT NOT NULL, time TEXT, calories INTEGER, protein INTEGER, carbs INTEGER, fats INTEGER, description TEXT, sort_order INTEGER NOT NULL DEFAULT 0)`);
+      await client.query(
+        `CREATE TABLE meal_plan_items (id SERIAL PRIMARY KEY, plan_id INTEGER NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE, meal_name TEXT NOT NULL, time TEXT, calories INTEGER, protein INTEGER, carbs INTEGER, fats INTEGER, description TEXT, sort_order INTEGER NOT NULL DEFAULT 0)`,
+      );
     }
 
     // ── wa_templates table ────────────────────────────────────────────────
     const { rows: hasWaTemplates } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'wa_templates'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'wa_templates'`,
     );
     if (hasWaTemplates.length === 0) {
       logger.info("Creating wa_templates table");
-      await client.query(`CREATE TABLE wa_templates (id SERIAL PRIMARY KEY, name TEXT NOT NULL, body TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+      await client.query(
+        `CREATE TABLE wa_templates (id SERIAL PRIMARY KEY, name TEXT NOT NULL, body TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+      );
       // Seed the three legacy templates the frontend used to ship hard-coded so
       // upgrades are zero-touch for existing operators.
       await client.query(
@@ -636,7 +654,7 @@ export async function runMigrations(): Promise<void> {
           "مرحباً {name} 👋\nاشتراكك في {gym_name} سينتهي قريباً بتاريخ {end_date}.\nجدد الآن واستمر في رحلتك 💪",
           "تجديد الاشتراك ✅",
           "أهلاً {name} 🎉\nتم تجديد اشتراكك بنجاح!\nاشتراكك الجديد فعّال حتى {end_date}.\nأبوابنا مفتوحة لك دائماً 🦅💪",
-        ]
+        ],
       );
     }
 
@@ -645,7 +663,7 @@ export async function runMigrations(): Promise<void> {
     // add it; without this every login 500s on databases provisioned before
     // the column was introduced.
     const { rows: hasUserCategory } = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name = 'User' AND column_name = 'category'`
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'User' AND column_name = 'category'`,
     );
     if (hasUserCategory.length === 0) {
       logger.info("Adding category to User");
@@ -654,7 +672,7 @@ export async function runMigrations(): Promise<void> {
 
     // Drop legacy lowercase 'checkins' table (the active code uses "CheckIn")
     const { rows: legacyCheckins } = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'checkins'`,
     );
     if (legacyCheckins.length > 0) {
       logger.warn("Dropping legacy 'checkins' table (replaced by \"CheckIn\")");
@@ -816,16 +834,13 @@ export async function runMigrations(): Promise<void> {
     `);
 
     // ── Seed default admin ─────────────────────────────────────────────────
-    const { rows } = await client.query(
-      `SELECT id FROM "User" WHERE phone = $1 LIMIT 1`,
-      ["01025754947"]
-    );
+    const { rows } = await client.query(`SELECT id FROM "User" WHERE phone = $1 LIMIT 1`, ["01025754947"]);
     if (rows.length === 0) {
       const hashed = await bcrypt.hash("admin123", 12);
       const { randomUUID } = await import("crypto");
       await client.query(
         `INSERT INTO "User" (id, name, phone, "passwordHash", role) VALUES ($1, $2, $3, $4, $5)`,
-        [randomUUID(), "Admin", "01025754947", hashed, "admin"]
+        [randomUUID(), "Admin", "01025754947", hashed, "admin"],
       );
       logger.info("Default admin user created");
     }

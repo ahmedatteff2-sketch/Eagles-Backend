@@ -28,23 +28,30 @@ const scheduleBase = z.object({
   location: z.string().max(100).optional(),
 });
 
-const scheduleSchema = scheduleBase.refine(
-  (d) => minutesOf(d.startTime) < minutesOf(d.endTime),
-  { message: "وقت البدء يجب أن يكون قبل وقت الانتهاء", path: ["endTime"] },
-);
+const scheduleSchema = scheduleBase.refine((d) => minutesOf(d.startTime) < minutesOf(d.endTime), {
+  message: "وقت البدء يجب أن يكون قبل وقت الانتهاء",
+  path: ["endTime"],
+});
 
 // For partial updates we only validate the time range when both ends are
 // present in the payload — a request that only updates startTime can't be
 // checked against the existing endTime without an extra DB roundtrip, and
 // the full schema is enforced on creation.
-const partialScheduleSchema = scheduleBase.partial().refine(
-  (d) => !(d.startTime && d.endTime) || minutesOf(d.startTime) < minutesOf(d.endTime),
-  { message: "وقت البدء يجب أن يكون قبل وقت الانتهاء", path: ["endTime"] },
-);
+const partialScheduleSchema = scheduleBase
+  .partial()
+  .refine((d) => !(d.startTime && d.endTime) || minutesOf(d.startTime) < minutesOf(d.endTime), {
+    message: "وقت البدء يجب أن يكون قبل وقت الانتهاء",
+    path: ["endTime"],
+  });
 
 const DAY_ORDER: Record<string, number> = {
-  saturday: 0, sunday: 1, monday: 2, tuesday: 3,
-  wednesday: 4, thursday: 5, friday: 6,
+  saturday: 0,
+  sunday: 1,
+  monday: 2,
+  tuesday: 3,
+  wednesday: 4,
+  thursday: 5,
+  friday: 6,
 };
 
 router.get("/schedule", authenticate, async (req, res) => {
@@ -88,7 +95,11 @@ router.put("/schedule/:scheduleId", authenticate, requireAdmin, async (req, res)
     return;
   }
   try {
-    const [entry] = await db.update(scheduleTable).set(body.data).where(eq(scheduleTable.id, scheduleId)).returning();
+    const [entry] = await db
+      .update(scheduleTable)
+      .set(body.data)
+      .where(eq(scheduleTable.id, scheduleId))
+      .returning();
     if (!entry) {
       res.status(404).json({ error: "Not found" });
       return;

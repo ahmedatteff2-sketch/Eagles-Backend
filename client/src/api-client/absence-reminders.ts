@@ -36,16 +36,12 @@ export interface AbsenceRunSummary {
 }
 
 export const getAbsentMembers = (days = 3) =>
-  customFetch<{ days: number; items: AbsentMember[] }>(
-    `/api/absence-reminders/absent?days=${days}`,
-    { method: "GET" },
-  );
+  customFetch<{ days: number; items: AbsentMember[] }>(`/api/absence-reminders/absent?days=${days}`, {
+    method: "GET",
+  });
 
 export const getAbsenceReminderLog = (limit = 200) =>
-  customFetch<AbsenceReminderLog[]>(
-    `/api/absence-reminders?limit=${limit}`,
-    { method: "GET" },
-  );
+  customFetch<AbsenceReminderLog[]>(`/api/absence-reminders?limit=${limit}`, { method: "GET" });
 
 export interface LogAbsenceReminderInput {
   userId: string;
@@ -61,13 +57,10 @@ export const logAbsenceReminder = (input: LogAbsenceReminderInput) =>
   });
 
 export const bulkLogAbsenceReminders = (userIds: string[], note?: string) =>
-  customFetch<{ insertedCount: number }>(
-    "/api/absence-reminders/bulk-log",
-    { method: "POST", body: JSON.stringify({ userIds, note }) },
-  );
+  customFetch<{ insertedCount: number }>("/api/absence-reminders/bulk-log", {
+    method: "POST",
+    body: JSON.stringify({ userIds, note }),
+  });
 
 export const runAbsenceRemindersNow = () =>
-  customFetch<AbsenceRunSummary>(
-    "/api/absence-reminders/run-now",
-    { method: "POST" },
-  );
+  customFetch<AbsenceRunSummary>("/api/absence-reminders/run-now", { method: "POST" });

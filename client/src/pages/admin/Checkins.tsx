@@ -1,7 +1,10 @@
 import { useState } from "react";
 import {
-  useListCheckins, useCreateCheckin, useListUsers,
-  getListCheckinsQueryKey, getListUsersQueryKey,
+  useListCheckins,
+  useCreateCheckin,
+  useListUsers,
+  getListCheckinsQueryKey,
+  getListUsersQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -21,36 +24,46 @@ export default function AdminCheckins() {
 
   const { data: checkins, isLoading } = useListCheckins(
     {},
-    { query: { queryKey: getListCheckinsQueryKey({}) } }
+    { query: { queryKey: getListCheckinsQueryKey({}) } },
   );
   const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}) } });
 
   const createCheckin = useCreateCheckin();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CheckinForm>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CheckinForm>({
     resolver: zodResolver(checkinSchema),
   });
 
   function onSubmit(data: CheckinForm) {
-    createCheckin.mutate({ data }, {
-      onSuccess: () => {
-        toast({ title: "تم تسجيل الحضور" });
-        queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey() });
-        reset();
-        setShowForm(false);
+    createCheckin.mutate(
+      { data },
+      {
+        onSuccess: () => {
+          toast({ title: "تم تسجيل الحضور" });
+          queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey() });
+          reset();
+          setShowForm(false);
+        },
+        onError: (err: any) => {
+          const serverMsg = err?.data?.message ?? err?.response?.data?.message;
+          const isDuplicate = err?.status === 409 || err?.response?.status === 409;
+          toast({
+            title: serverMsg ?? (isDuplicate ? "تم تسجيل الحضور مسبقاً اليوم" : "خطأ في تسجيل الحضور"),
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: any) => {
-        const serverMsg = err?.data?.message ?? err?.response?.data?.message;
-        const isDuplicate = err?.status === 409 || err?.response?.status === 409;
-        toast({
-          title: serverMsg ?? (isDuplicate ? "تم تسجيل الحضور مسبقاً اليوم" : "خطأ في تسجيل الحضور"),
-          variant: "destructive",
-        });
-      },
-    });
+    );
   }
 
-  const checkinList = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? (checkins as any)?.checkins ?? [];
-  const userList = Array.isArray(users) ? users : (users as any)?.data ?? (users as any)?.users ?? [];
+  const checkinList = Array.isArray(checkins)
+    ? checkins
+    : ((checkins as any)?.data ?? (checkins as any)?.checkins ?? []);
+  const userList = Array.isArray(users) ? users : ((users as any)?.data ?? (users as any)?.users ?? []);
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
@@ -59,7 +72,10 @@ export default function AdminCheckins() {
           <h1 className="text-xl font-bold text-foreground">الحضور</h1>
           <p className="text-muted-foreground text-sm">تسجيل ومتابعة الحضور</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+        <button
+          onClick={() => setShowForm(true)}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+        >
           تسجيل حضور
         </button>
       </div>
@@ -74,14 +90,27 @@ export default function AdminCheckins() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={2} className="text-center py-8 text-muted-foreground">جاري التحميل...</td></tr>
+              <tr>
+                <td colSpan={2} className="text-center py-8 text-muted-foreground">
+                  جاري التحميل...
+                </td>
+              </tr>
             ) : checkinList.length === 0 ? (
-              <tr><td colSpan={2} className="text-center py-8 text-muted-foreground">لا يوجد سجل حضور</td></tr>
+              <tr>
+                <td colSpan={2} className="text-center py-8 text-muted-foreground">
+                  لا يوجد سجل حضور
+                </td>
+              </tr>
             ) : (
               checkinList.map((c: any) => (
-                <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                <tr
+                  key={c.id}
+                  className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
+                >
                   <td className="px-4 py-3 font-medium text-foreground">{c.userName ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{new Date(c.date).toLocaleDateString("ar-EG")}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {new Date(c.date).toLocaleDateString("ar-EG")}
+                  </td>
                 </tr>
               ))
             )}
@@ -96,19 +125,34 @@ export default function AdminCheckins() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">العضو</label>
-                <select {...register("userId")} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                <select
+                  {...register("userId")}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
                   <option value="">اختر عضو</option>
-                  {userList.filter((u: any) => u.role !== "admin").map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
+                  {userList
+                    .filter((u: any) => u.role !== "admin")
+                    .map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
                 </select>
                 {errors.userId && <p className="text-destructive text-xs mt-1">{errors.userId.message}</p>}
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={createCheckin.isPending} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                <button
+                  type="submit"
+                  disabled={createCheckin.isPending}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                >
                   {createCheckin.isPending ? "جاري التسجيل..." : "تسجيل"}
                 </button>
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
                   إلغاء
                 </button>
               </div>

@@ -44,10 +44,7 @@ export async function revokeByHash(tokenHash: string): Promise<void> {
 }
 
 export async function revokeAllForUser(userId: string): Promise<void> {
-  await db
-    .update(refreshTokensTable)
-    .set({ revoked: true })
-    .where(eq(refreshTokensTable.userId, userId));
+  await db.update(refreshTokensTable).set({ revoked: true }).where(eq(refreshTokensTable.userId, userId));
 }
 
 /**
@@ -58,10 +55,5 @@ export async function revokeAllForUser(userId: string): Promise<void> {
 export async function deleteExpiredForUser(userId: string): Promise<void> {
   await db
     .delete(refreshTokensTable)
-    .where(
-      and(
-        eq(refreshTokensTable.userId, userId),
-        lt(refreshTokensTable.expiresAt, new Date()),
-      ),
-    );
+    .where(and(eq(refreshTokensTable.userId, userId), lt(refreshTokensTable.expiresAt, new Date())));
 }

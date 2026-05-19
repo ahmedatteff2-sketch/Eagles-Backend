@@ -38,7 +38,10 @@ export interface UpdateNoteInput {
   pinned?: boolean;
 }
 
-export async function updateNote(noteId: number, patch: UpdateNoteInput): Promise<TrainerNoteRow | undefined> {
+export async function updateNote(
+  noteId: number,
+  patch: UpdateNoteInput,
+): Promise<TrainerNoteRow | undefined> {
   const [row] = await db
     .update(trainerMemberNotesTable)
     .set({ ...patch, updatedAt: new Date() })
@@ -96,11 +99,6 @@ export async function listPinnedByTrainer(trainerId: string): Promise<TrainerNot
   return db
     .select()
     .from(trainerMemberNotesTable)
-    .where(
-      and(
-        eq(trainerMemberNotesTable.trainerId, trainerId),
-        eq(trainerMemberNotesTable.pinned, true),
-      ),
-    )
+    .where(and(eq(trainerMemberNotesTable.trainerId, trainerId), eq(trainerMemberNotesTable.pinned, true)))
     .orderBy(desc(trainerMemberNotesTable.createdAt));
 }

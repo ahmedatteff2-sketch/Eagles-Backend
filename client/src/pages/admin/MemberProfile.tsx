@@ -22,10 +22,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { customFetch } from "@/api-client/custom-fetch";
-import {
-  freezeMemberSubscription,
-  unfreezeMemberSubscription,
-} from "@/api-client/member-subscriptions";
+import { freezeMemberSubscription, unfreezeMemberSubscription } from "@/api-client/member-subscriptions";
 import { useToast } from "@/hooks/use-toast";
 import { memberNotesKey } from "@/lib/storage";
 
@@ -159,9 +156,7 @@ export default function AdminMemberProfile() {
       const assigned: any[] = [];
       for (const t of templates) {
         try {
-          const assignments = await customFetch<any[]>(
-            `/api/workout-templates/${t.id}/assignments`,
-          );
+          const assignments = await customFetch<any[]>(`/api/workout-templates/${t.id}/assignments`);
           const match = assignments.find((a: any) => a.userId === userId);
           if (match) assigned.push({ ...t, assignmentId: match.id });
         } catch {
@@ -323,20 +318,13 @@ export default function AdminMemberProfile() {
   // "Active" here means the subscription is in good standing — both
   // active *and* frozen count, since a frozen sub is not expired and the
   // member's account should still feel valid in the UI.
-  const isActive = activeSub?.endDate
-    ? isFrozen || new Date(activeSub.endDate) >= new Date()
-    : false;
+  const isActive = activeSub?.endDate ? isFrozen || new Date(activeSub.endDate) >= new Date() : false;
   const [freezeBusy, setFreezeBusy] = useState(false);
-  const historyList: any[] =
-    (subHistory as any)?.data ?? (Array.isArray(subHistory) ? subHistory : []);
-  const checkinList: any[] = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? [];
-  const statsList: any[] = Array.isArray(bodyStats) ? bodyStats : (bodyStats as any)?.data ?? [];
-  const subList: any[] = Array.isArray(subscriptions)
-    ? subscriptions
-    : (subscriptions as any)?.data ?? [];
-  const logList: any[] = Array.isArray(exerciseLogs)
-    ? exerciseLogs
-    : (exerciseLogs as any)?.data ?? [];
+  const historyList: any[] = (subHistory as any)?.data ?? (Array.isArray(subHistory) ? subHistory : []);
+  const checkinList: any[] = Array.isArray(checkins) ? checkins : ((checkins as any)?.data ?? []);
+  const statsList: any[] = Array.isArray(bodyStats) ? bodyStats : ((bodyStats as any)?.data ?? []);
+  const subList: any[] = Array.isArray(subscriptions) ? subscriptions : ((subscriptions as any)?.data ?? []);
+  const logList: any[] = Array.isArray(exerciseLogs) ? exerciseLogs : ((exerciseLogs as any)?.data ?? []);
 
   const qrValue = JSON.stringify({ userId, name: memberName });
   const color = avatarColor(memberName);
@@ -466,8 +454,7 @@ export default function AdminMemberProfile() {
       setShowQuickCheckin(false);
       queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey({ userId }) });
     } catch (err: any) {
-      const msg =
-        err?.payload?.message ?? err?.response?.data?.message ?? "فشل في تسجيل الحضور";
+      const msg = err?.payload?.message ?? err?.response?.data?.message ?? "فشل في تسجيل الحضور";
       toast({ title: msg, variant: "destructive" });
     } finally {
       setSavingCheckin(false);
@@ -547,13 +534,7 @@ export default function AdminMemberProfile() {
         <div className="flex items-center gap-4">
           <Link href="/admin/members">
             <button className="text-muted-foreground hover:text-foreground transition-colors">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                className="w-5 h-5"
-              >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -650,14 +631,14 @@ export default function AdminMemberProfile() {
             background: isFrozen
               ? "hsl(210 80% 55% / 0.08)"
               : isActive
-              ? "hsl(142 60% 50% / 0.08)"
-              : "hsl(0 60% 50% / 0.08)",
+                ? "hsl(142 60% 50% / 0.08)"
+                : "hsl(0 60% 50% / 0.08)",
             border: `1px solid ${
               isFrozen
                 ? "hsl(210 80% 55% / 0.25)"
                 : isActive
-                ? "hsl(142 60% 50% / 0.25)"
-                : "hsl(0 60% 50% / 0.25)"
+                  ? "hsl(142 60% 50% / 0.25)"
+                  : "hsl(0 60% 50% / 0.25)"
             }`,
           }}
         >
@@ -713,18 +694,10 @@ export default function AdminMemberProfile() {
             <p
               className="text-sm font-bold"
               style={{
-                color: isFrozen
-                  ? "hsl(210 80% 65%)"
-                  : isActive
-                  ? "hsl(142 60% 60%)"
-                  : "hsl(0 60% 60%)",
+                color: isFrozen ? "hsl(210 80% 65%)" : isActive ? "hsl(142 60% 60%)" : "hsl(0 60% 60%)",
               }}
             >
-              {isFrozen
-                ? "متوقف"
-                : isActive && daysLeft !== null
-                ? `باقي ${daysLeft} يوم`
-                : "منتهي"}
+              {isFrozen ? "متوقف" : isActive && daysLeft !== null ? `باقي ${daysLeft} يوم` : "منتهي"}
             </p>
           </div>
         </div>

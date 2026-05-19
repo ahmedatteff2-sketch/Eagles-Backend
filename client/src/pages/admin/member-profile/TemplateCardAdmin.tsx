@@ -80,10 +80,7 @@ export function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: Props
                 <span className="text-xs">
                   ({ex.sets}×{ex.reps})
                 </span>
-                <span
-                  className="text-xs px-1 py-0.5 rounded"
-                  style={{ background: `${color}15`, color }}
-                >
+                <span className="text-xs px-1 py-0.5 rounded" style={{ background: `${color}15`, color }}>
                   {ex.targetMuscle}
                 </span>
               </div>
@@ -91,9 +88,7 @@ export function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: Props
           })}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground text-center py-2">
-          لا توجد تمارين في يوم {day}
-        </p>
+        <p className="text-xs text-muted-foreground text-center py-2">لا توجد تمارين في يوم {day}</p>
       )}
     </div>
   );

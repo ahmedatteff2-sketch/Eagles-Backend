@@ -37,10 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.props.fallback) return this.props.fallback;
 
     return (
-      <div
-        dir="rtl"
-        className="min-h-screen flex items-center justify-center p-4 bg-[hsl(0_0%_4%)]"
-      >
+      <div dir="rtl" className="min-h-screen flex items-center justify-center p-4 bg-[hsl(0_0%_4%)]">
         <div className="max-w-md w-full rounded-2xl p-6 text-center space-y-4 bg-[hsl(0_0%_8%)] border border-[hsl(0_72%_50%/0.3)]">
           <div className="text-4xl">⚠️</div>
           <h1 className="text-lg font-bold text-[hsl(0_0%_90%)]">حصل خطأ غير متوقع</h1>

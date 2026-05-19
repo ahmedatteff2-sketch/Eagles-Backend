@@ -12,6 +12,10 @@ export const waTemplatesTable = pgTable("wa_templates", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertWaTemplateSchema = createInsertSchema(waTemplatesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWaTemplateSchema = createInsertSchema(waTemplatesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertWaTemplate = z.infer<typeof insertWaTemplateSchema>;
 export type WaTemplate = typeof waTemplatesTable.$inferSelect;

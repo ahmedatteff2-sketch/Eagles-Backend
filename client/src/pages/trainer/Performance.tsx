@@ -32,11 +32,7 @@ export default function TrainerPerformance() {
   }
 
   if (isError || !data) {
-    return (
-      <div className="p-6 text-center text-sm text-[hsl(0_72%_70%)]">
-        تعذّر تحميل الأداء.
-      </div>
-    );
+    return <div className="p-6 text-center text-sm text-[hsl(0_72%_70%)]">تعذّر تحميل الأداء.</div>;
   }
 
   const retentionPct = data.retentionRate != null ? Math.round(data.retentionRate * 100) : null;
@@ -46,9 +42,7 @@ export default function TrainerPerformance() {
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       <header>
         <h1 className="text-2xl font-black text-[hsl(40_65%_60%)]">أدائي</h1>
-        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">
-          مقاييس مبنية على بيانات أعضائك المخصّصين فقط
-        </p>
+        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">مقاييس مبنية على بيانات أعضائك المخصّصين فقط</p>
       </header>
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -120,9 +114,7 @@ export default function TrainerPerformance() {
 
       {/* Top members */}
       <section className="rounded-2xl p-4 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]">
-        <h2 className="text-sm font-bold text-[hsl(40_20%_85%)] mb-3">
-          الأكثر حضوراً (آخر 30 يوم)
-        </h2>
+        <h2 className="text-sm font-bold text-[hsl(40_20%_85%)] mb-3">الأكثر حضوراً (آخر 30 يوم)</h2>
         {data.topMembers.length === 0 ? (
           <p className="text-sm text-[hsl(0_0%_50%)]">لا توجد بيانات حضور كافية بعد.</p>
         ) : (
@@ -147,12 +139,8 @@ export default function TrainerPerformance() {
                     >
                       {i + 1}
                     </span>
-                    <span className="flex-1 text-sm text-[hsl(40_20%_85%)] truncate">
-                      {m.name}
-                    </span>
-                    <span className="text-xs text-[hsl(40_65%_60%)]">
-                      {m.checkinsLast30d} مرة
-                    </span>
+                    <span className="flex-1 text-sm text-[hsl(40_20%_85%)] truncate">{m.name}</span>
+                    <span className="text-xs text-[hsl(40_65%_60%)]">{m.checkinsLast30d} مرة</span>
                   </div>
                 </Link>
               </li>

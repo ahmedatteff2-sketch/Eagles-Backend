@@ -16,16 +16,19 @@ export function usePullRefresh(onRefresh: () => Promise<void> | void) {
     pulling.current = true;
   }, []);
 
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    if (!pulling.current) return;
-    const diff = e.changedTouches[0].clientY - startY.current;
-    pulling.current = false;
-    if (diff > 80) {
-      // Trigger haptic feedback if available
-      if (navigator.vibrate) navigator.vibrate(30);
-      onRefresh();
-    }
-  }, [onRefresh]);
+  const handleTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      if (!pulling.current) return;
+      const diff = e.changedTouches[0].clientY - startY.current;
+      pulling.current = false;
+      if (diff > 80) {
+        // Trigger haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(30);
+        onRefresh();
+      }
+    },
+    [onRefresh],
+  );
 
   useEffect(() => {
     const el = containerRef.current;

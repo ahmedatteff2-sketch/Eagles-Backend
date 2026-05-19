@@ -38,9 +38,7 @@ export default function TrainerMembers() {
         case "active":
           return Boolean(sub && sub.status === "active" && sub.endDate >= today);
         case "expiring":
-          return Boolean(
-            sub && sub.status === "active" && sub.endDate >= today && sub.endDate <= in7,
-          );
+          return Boolean(sub && sub.status === "active" && sub.endDate >= today && sub.endDate <= in7);
         case "expired":
           return Boolean(sub && sub.endDate < today);
       }
@@ -51,9 +49,7 @@ export default function TrainerMembers() {
     <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
       <header>
         <h1 className="text-2xl font-black text-[hsl(40_65%_60%)]">أعضائي</h1>
-        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">
-          {data ? `${data.total} عضو مخصص لك` : "..."}
-        </p>
+        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">{data ? `${data.total} عضو مخصص لك` : "..."}</p>
       </header>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -124,9 +120,7 @@ export default function TrainerMembers() {
                     {m.name?.[0] ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[hsl(40_20%_88%)] truncate">
-                      {m.name}
-                    </p>
+                    <p className="text-sm font-semibold text-[hsl(40_20%_88%)] truncate">{m.name}</p>
                     <p className="text-xs text-[hsl(0_0%_50%)] truncate">
                       {m.phone}
                       {m.membershipNumber ? ` • ${m.membershipNumber}` : ""}
@@ -154,18 +148,10 @@ export default function TrainerMembers() {
                                 }
                       }
                     >
-                      {!sub
-                        ? "بدون اشتراك"
-                        : sub.status === "frozen"
-                          ? "مجمَّد"
-                          : isActive
-                            ? "نشط"
-                            : "منتهٍ"}
+                      {!sub ? "بدون اشتراك" : sub.status === "frozen" ? "مجمَّد" : isActive ? "نشط" : "منتهٍ"}
                     </span>
                     {daysSince !== null && (
-                      <span className="text-[10px] text-[hsl(0_0%_45%)]">
-                        آخر حضور: منذ {daysSince} ي
-                      </span>
+                      <span className="text-[10px] text-[hsl(0_0%_45%)]">آخر حضور: منذ {daysSince} ي</span>
                     )}
                     {daysSince === null && (
                       <span className="text-[10px] text-[hsl(0_0%_45%)]">لم يحضر بعد</span>

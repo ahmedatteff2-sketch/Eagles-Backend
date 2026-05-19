@@ -155,19 +155,11 @@ async function main(): Promise<void> {
   }
   const hasCheckins = tableNames.includes("checkins");
 
-  const packages = sqlite
-    .prepare<[], LegacyPackage>("SELECT * FROM packages ORDER BY id")
-    .all();
-  const members = sqlite
-    .prepare<[], LegacyMember>("SELECT * FROM members ORDER BY id")
-    .all();
-  const payments = sqlite
-    .prepare<[], LegacyPayment>("SELECT * FROM payments ORDER BY id")
-    .all();
+  const packages = sqlite.prepare<[], LegacyPackage>("SELECT * FROM packages ORDER BY id").all();
+  const members = sqlite.prepare<[], LegacyMember>("SELECT * FROM members ORDER BY id").all();
+  const payments = sqlite.prepare<[], LegacyPayment>("SELECT * FROM payments ORDER BY id").all();
   const checkins = hasCheckins
-    ? sqlite
-        .prepare<[], LegacyCheckin>("SELECT * FROM checkins ORDER BY id")
-        .all()
+    ? sqlite.prepare<[], LegacyCheckin>("SELECT * FROM checkins ORDER BY id").all()
     : [];
 
   sqlite.close();
@@ -189,9 +181,7 @@ async function main(): Promise<void> {
   const defaultPasswordHash = await bcrypt.hash(args.defaultPassword, BCRYPT_COST);
 
   if (args.dryRun) {
-    logger.info(
-      "Dry run — not writing anything. Re-run without --dry-run to commit.",
-    );
+    logger.info("Dry run — not writing anything. Re-run without --dry-run to commit.");
     await pool.end();
     return;
   }
@@ -219,15 +209,11 @@ async function main(): Promise<void> {
       // Members first (cascade kills their member_subscriptions, payments,
       // CheckIns, exercise_logs, body_stats, etc). Admins and trainers are
       // preserved so the operator can still log in.
-      const deletedMembers = await client.query(
-        `DELETE FROM "User" WHERE role = 'member'`,
-      );
+      const deletedMembers = await client.query(`DELETE FROM "User" WHERE role = 'member'`);
       // Subscriptions/packages — no FK cascade from User, so wipe explicitly
       // now that nothing references them. Restart the SERIAL so freshly
       // imported packages get their numbers from 1.
-      const deletedSubs = await client.query(
-        `TRUNCATE TABLE subscriptions RESTART IDENTITY CASCADE`,
-      );
+      const deletedSubs = await client.query(`TRUNCATE TABLE subscriptions RESTART IDENTITY CASCADE`);
       logger.warn(
         {
           deletedMembers: deletedMembers.rowCount,
@@ -270,9 +256,7 @@ async function main(): Promise<void> {
 
       if (!name || !phone) {
         stats.membersSkipped++;
-        stats.errors.push(
-          `Member id=${m.id} skipped: missing name="${name}" or phone="${m.phone}"`,
-        );
+        stats.errors.push(`Member id=${m.id} skipped: missing name="${name}" or phone="${m.phone}"`);
         continue;
       }
 
@@ -296,8 +280,7 @@ async function main(): Promise<void> {
           `SELECT id FROM "User" WHERE "membershipNumber" = $1 LIMIT 1`,
           [membershipNumber],
         );
-        const membershipForInsert =
-          byMembership.length === 0 ? membershipNumber : null;
+        const membershipForInsert = byMembership.length === 0 ? membershipNumber : null;
 
         await client.query(
           `INSERT INTO "User" (id, name, phone, "membershipNumber",
@@ -311,9 +294,7 @@ async function main(): Promise<void> {
 
       // Always (re)attach a subscription row for the legacy member record so
       // the dashboard's "active subscription" widget has data to show.
-      const subscriptionId = m.package_id
-        ? subscriptionIdByLegacy.get(m.package_id)
-        : undefined;
+      const subscriptionId = m.package_id ? subscriptionIdByLegacy.get(m.package_id) : undefined;
       if (subscriptionId !== undefined) {
         const startDate = normalizeDate(m.start_date);
         const endDate = normalizeDate(m.expiry_date);
@@ -329,13 +310,7 @@ async function main(): Promise<void> {
             `INSERT INTO member_subscriptions
                (user_id, subscription_id, start_date, end_date, status)
              VALUES ($1, $2, $3, $4, $5)`,
-            [
-              userId,
-              subscriptionId,
-              startDate,
-              endDate,
-              normalizeStatus(m.status),
-            ],
+            [userId, subscriptionId, startDate, endDate, normalizeStatus(m.status)],
           );
           stats.memberSubscriptionsCreated++;
         }
@@ -352,9 +327,7 @@ async function main(): Promise<void> {
       const userId = userIdByLegacy.get(p.member_id);
       if (!userId) {
         stats.paymentsSkipped++;
-        stats.errors.push(
-          `Payment id=${p.id} skipped: legacy member_id=${p.member_id} was not imported`,
-        );
+        stats.errors.push(`Payment id=${p.id} skipped: legacy member_id=${p.member_id} was not imported`);
         continue;
       }
       await client.query(
@@ -379,9 +352,7 @@ async function main(): Promise<void> {
       const userId = userIdByLegacy.get(c.member_id);
       if (!userId) {
         stats.checkinsSkipped++;
-        stats.errors.push(
-          `Check-in id=${c.id} skipped: legacy member_id=${c.member_id} was not imported`,
-        );
+        stats.errors.push(`Check-in id=${c.id} skipped: legacy member_id=${c.member_id} was not imported`);
         continue;
       }
       // ON CONFLICT keeps the script idempotent against the (userId, day)

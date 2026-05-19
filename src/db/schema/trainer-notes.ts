@@ -24,7 +24,9 @@ export const trainerMemberNotesTable = pgTable(
     trainerId: text("trainer_id").references(() => usersTable.id, { onDelete: "set null" }),
     // The member the note is about. ON DELETE CASCADE — once the member is
     // gone, their notes have no reason to stick around.
-    memberId: text("member_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
     // Free-text body. Capped at 2000 chars at the API layer; the column is
     // TEXT (no DB-level limit) so a future bump doesn't need a migration.
     note: text("note").notNull(),

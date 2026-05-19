@@ -27,8 +27,18 @@ async function buildAll() {
       "@workspace/api-zod": path.resolve(artifactDir, "src/api-zod/index.ts"),
     },
     external: [
-      "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt",
-      "argon2", "fsevents", "pg-native", "mysql2", "oracledb", "mongodb-client-encryption",
+      "*.node",
+      "sharp",
+      "better-sqlite3",
+      "sqlite3",
+      "canvas",
+      "bcrypt",
+      "argon2",
+      "fsevents",
+      "pg-native",
+      "mysql2",
+      "oracledb",
+      "mongodb-client-encryption",
     ],
     sourcemap: "linked",
     plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
@@ -43,4 +53,7 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);`,
   });
 }
 
-buildAll().catch((err) => { console.error(err); process.exit(1); });
+buildAll().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

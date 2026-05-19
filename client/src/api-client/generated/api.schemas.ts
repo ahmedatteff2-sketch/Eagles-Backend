@@ -28,8 +28,7 @@ export interface RefreshTokenBody {
   refreshToken: string;
 }
 
-export type UserProfileRole =
-  (typeof UserProfileRole)[keyof typeof UserProfileRole];
+export type UserProfileRole = (typeof UserProfileRole)[keyof typeof UserProfileRole];
 
 export const UserProfileRole = {
   admin: "admin",
@@ -75,8 +74,7 @@ export interface User {
   createdAt: string;
 }
 
-export type UserDetailRole =
-  (typeof UserDetailRole)[keyof typeof UserDetailRole];
+export type UserDetailRole = (typeof UserDetailRole)[keyof typeof UserDetailRole];
 
 export const UserDetailRole = {
   admin: "admin",
@@ -154,8 +152,7 @@ export interface UserListResponse {
   limit: number;
 }
 
-export type CreateUserBodyRole =
-  (typeof CreateUserBodyRole)[keyof typeof CreateUserBodyRole];
+export type CreateUserBodyRole = (typeof CreateUserBodyRole)[keyof typeof CreateUserBodyRole];
 
 export const CreateUserBodyRole = {
   admin: "admin",
@@ -170,8 +167,7 @@ export interface CreateUserBody {
   role?: CreateUserBodyRole;
 }
 
-export type UpdateUserBodyRole =
-  (typeof UpdateUserBodyRole)[keyof typeof UpdateUserBodyRole];
+export type UpdateUserBodyRole = (typeof UpdateUserBodyRole)[keyof typeof UpdateUserBodyRole];
 
 export const UpdateUserBodyRole = {
   admin: "admin",
@@ -343,8 +339,7 @@ export interface Payment {
   userName?: string;
 }
 
-export type CreatePaymentBodyMethod =
-  (typeof CreatePaymentBodyMethod)[keyof typeof CreatePaymentBodyMethod];
+export type CreatePaymentBodyMethod = (typeof CreatePaymentBodyMethod)[keyof typeof CreatePaymentBodyMethod];
 
 export const CreatePaymentBodyMethod = {
   cash: "cash",
@@ -396,8 +391,7 @@ export interface MonthlyRevenuePoint {
   paymentCount: number;
 }
 
-export type ExpenseCategory =
-  (typeof ExpenseCategory)[keyof typeof ExpenseCategory];
+export type ExpenseCategory = (typeof ExpenseCategory)[keyof typeof ExpenseCategory];
 
 export const ExpenseCategory = {
   rent: "rent",
@@ -447,8 +441,7 @@ export interface ExpenseListResponse {
   limit: number;
 }
 
-export type ScheduleEntryDayOfWeek =
-  (typeof ScheduleEntryDayOfWeek)[keyof typeof ScheduleEntryDayOfWeek];
+export type ScheduleEntryDayOfWeek = (typeof ScheduleEntryDayOfWeek)[keyof typeof ScheduleEntryDayOfWeek];
 
 export const ScheduleEntryDayOfWeek = {
   saturday: "saturday",
@@ -520,8 +513,7 @@ export type ListUsersParams = {
   limit?: number;
 };
 
-export type ListUsersStatus =
-  (typeof ListUsersStatus)[keyof typeof ListUsersStatus];
+export type ListUsersStatus = (typeof ListUsersStatus)[keyof typeof ListUsersStatus];
 
 export const ListUsersStatus = {
   active: "active",

@@ -26,8 +26,12 @@ export const workoutTemplatesTable = pgTable("workout_templates", {
 // ── Exercises inside a template (with sets/reps) ────────────────────────────
 export const workoutTemplateExercisesTable = pgTable("workout_template_exercises", {
   id: serial("id").primaryKey(),
-  templateId: integer("template_id").notNull().references(() => workoutTemplatesTable.id, { onDelete: "cascade" }),
-  exerciseId: integer("exercise_id").notNull().references(() => exercisesTable.id, { onDelete: "cascade" }),
+  templateId: integer("template_id")
+    .notNull()
+    .references(() => workoutTemplatesTable.id, { onDelete: "cascade" }),
+  exerciseId: integer("exercise_id")
+    .notNull()
+    .references(() => exercisesTable.id, { onDelete: "cascade" }),
   sets: integer("sets").notNull(),
   reps: integer("reps").notNull(),
   dayNumber: integer("day_number").notNull().default(1),
@@ -39,16 +43,28 @@ export const workoutTemplateExercisesTable = pgTable("workout_template_exercises
 // ── Assign a template to a member ───────────────────────────────────────────
 export const memberWorkoutAssignmentsTable = pgTable("member_workout_assignments", {
   id: serial("id").primaryKey(),
-  templateId: integer("template_id").notNull().references(() => workoutTemplatesTable.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  templateId: integer("template_id")
+    .notNull()
+    .references(() => workoutTemplatesTable.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
   assignedAt: timestamp("assigned_at").notNull().defaultNow(),
 });
 
 // ── Zod / TS helpers ────────────────────────────────────────────────────────
 export const insertExerciseSchema = createInsertSchema(exercisesTable).omit({ id: true, createdAt: true });
-export const insertWorkoutTemplateSchema = createInsertSchema(workoutTemplatesTable).omit({ id: true, createdAt: true });
-export const insertWorkoutTemplateExerciseSchema = createInsertSchema(workoutTemplateExercisesTable).omit({ id: true });
-export const insertMemberWorkoutAssignmentSchema = createInsertSchema(memberWorkoutAssignmentsTable).omit({ id: true, assignedAt: true });
+export const insertWorkoutTemplateSchema = createInsertSchema(workoutTemplatesTable).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertWorkoutTemplateExerciseSchema = createInsertSchema(workoutTemplateExercisesTable).omit({
+  id: true,
+});
+export const insertMemberWorkoutAssignmentSchema = createInsertSchema(memberWorkoutAssignmentsTable).omit({
+  id: true,
+  assignedAt: true,
+});
 
 export type InsertExercise = z.infer<typeof insertExerciseSchema>;
 export type Exercise = typeof exercisesTable.$inferSelect;

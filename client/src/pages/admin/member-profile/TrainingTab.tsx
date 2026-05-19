@@ -1,12 +1,4 @@
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { GOLD } from "./helpers";
 import { TemplateCardAdmin } from "./TemplateCardAdmin";
 
@@ -96,9 +88,7 @@ export function TrainingTab({
       </div>
 
       {memberTemplates.length === 0 ? (
-        <p className="text-muted-foreground text-sm text-center py-10">
-          لا توجد قوالب تمرين معيّنة
-        </p>
+        <p className="text-muted-foreground text-sm text-center py-10">لا توجد قوالب تمرين معيّنة</p>
       ) : (
         <div className="grid gap-3">
           {memberTemplates.map((t) => {
@@ -125,9 +115,7 @@ export function TrainingTab({
           <>
             {selectedExName && progressData.length > 1 && (
               <div className="mb-4">
-                <p className="text-xs text-muted-foreground mb-2">
-                  تطور الأوزان — {selectedExName}
-                </p>
+                <p className="text-xs text-muted-foreground mb-2">تطور الأوزان — {selectedExName}</p>
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={progressData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 14%)" />
@@ -137,11 +125,7 @@ export function TrainingTab({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis
-                      tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
+                    <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{
                         background: "hsl(0 0% 10%)",
@@ -193,27 +177,17 @@ export function TrainingTab({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">
-                      التمرين
-                    </th>
+                    <th className="text-right text-muted-foreground font-medium py-2 px-2">التمرين</th>
                     <th className="text-right text-muted-foreground font-medium py-2 px-2">سيت</th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">
-                      تكرار
-                    </th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">
-                      الوزن
-                    </th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">
-                      التاريخ
-                    </th>
+                    <th className="text-right text-muted-foreground font-medium py-2 px-2">تكرار</th>
+                    <th className="text-right text-muted-foreground font-medium py-2 px-2">الوزن</th>
+                    <th className="text-right text-muted-foreground font-medium py-2 px-2">التاريخ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentLogs.map((l) => (
                     <tr key={l.id} className="border-b border-border last:border-0">
-                      <td className="py-2 px-2 font-medium text-foreground">
-                        {l.exercise?.name ?? "—"}
-                      </td>
+                      <td className="py-2 px-2 font-medium text-foreground">{l.exercise?.name ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{l.setNumber}</td>
                       <td className="py-2 px-2 text-muted-foreground">{l.reps}</td>
                       <td className="py-2 px-2 font-bold" style={{ color: GOLD }}>

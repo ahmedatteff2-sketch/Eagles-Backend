@@ -29,9 +29,9 @@ const DEDUPE_WINDOW_HOURS = 23; // 23 not 24, to avoid drift if a tick fires a f
 
 export interface RenewalPassSummary {
   candidates: number; // members in the upcoming-expiry window
-  logged: number;     // rows newly inserted into renewal_reminders
-  skipped: number;    // candidates skipped because they were already reminded
-  message: string;    // the WA template body, with no per-member substitution
+  logged: number; // rows newly inserted into renewal_reminders
+  skipped: number; // candidates skipped because they were already reminded
+  message: string; // the WA template body, with no per-member substitution
 }
 
 /**
@@ -49,9 +49,7 @@ export interface RenewalPassSummary {
  */
 export async function runRenewalReminderPass(): Promise<RenewalPassSummary> {
   const today = new Date().toISOString().split("T")[0];
-  const cutoff = new Date(Date.now() + REMINDER_WINDOW_DAYS * 86_400_000)
-    .toISOString()
-    .split("T")[0];
+  const cutoff = new Date(Date.now() + REMINDER_WINDOW_DAYS * 86_400_000).toISOString().split("T")[0];
   const dedupeSince = new Date(Date.now() - DEDUPE_WINDOW_HOURS * 60 * 60 * 1000);
 
   const candidates = await db

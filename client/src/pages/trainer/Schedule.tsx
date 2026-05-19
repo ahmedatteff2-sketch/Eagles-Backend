@@ -31,11 +31,7 @@ export default function TrainerSchedule() {
   }
 
   if (isError) {
-    return (
-      <div className="p-6 text-center text-sm text-[hsl(0_72%_70%)]">
-        تعذّر تحميل الجدول.
-      </div>
-    );
+    return <div className="p-6 text-center text-sm text-[hsl(0_72%_70%)]">تعذّر تحميل الجدول.</div>;
   }
 
   const sessions = data?.data ?? [];
@@ -69,10 +65,7 @@ export default function TrainerSchedule() {
       </header>
 
       {sortedDays.map((day) => (
-        <section
-          key={day}
-          className="rounded-2xl p-4 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]"
-        >
+        <section key={day} className="rounded-2xl p-4 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]">
           <h2 className="text-sm font-bold text-[hsl(40_65%_60%)] mb-3">{DAYS_AR[day]}</h2>
           <ul className="space-y-2">
             {grouped
@@ -89,9 +82,7 @@ export default function TrainerSchedule() {
                     <span className="text-[hsl(0_0%_40%)]">{s.endTime}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[hsl(40_20%_88%)] truncate">
-                      {s.className}
-                    </p>
+                    <p className="text-sm font-semibold text-[hsl(40_20%_88%)] truncate">{s.className}</p>
                     {(s.location || s.capacity != null) && (
                       <p className="text-[11px] text-[hsl(0_0%_50%)] mt-0.5">
                         {s.location ?? ""}

@@ -9,11 +9,9 @@ export interface Reminder {
   updatedAt: string;
 }
 
-export const getActiveReminders = () =>
-  customFetch<Reminder[]>("/api/reminders/active", { method: "GET" });
+export const getActiveReminders = () => customFetch<Reminder[]>("/api/reminders/active", { method: "GET" });
 
-export const getReminders = () =>
-  customFetch<Reminder[]>("/api/reminders", { method: "GET" });
+export const getReminders = () => customFetch<Reminder[]>("/api/reminders", { method: "GET" });
 
 export const createReminder = (data: { content: string; intervalMinutes: number; isActive: boolean }) =>
   customFetch<Reminder>("/api/reminders", {
@@ -21,7 +19,10 @@ export const createReminder = (data: { content: string; intervalMinutes: number;
     body: JSON.stringify(data),
   });
 
-export const updateReminder = (id: number, data: Partial<{ content: string; intervalMinutes: number; isActive: boolean }>) =>
+export const updateReminder = (
+  id: number,
+  data: Partial<{ content: string; intervalMinutes: number; isActive: boolean }>,
+) =>
   customFetch<Reminder>(`/api/reminders/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),

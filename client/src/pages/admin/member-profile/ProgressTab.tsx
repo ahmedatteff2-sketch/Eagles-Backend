@@ -1,13 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 interface ChartPoint {
   date: string;
@@ -47,7 +39,7 @@ const MEASUREMENTS = [
   { key: "neck", label: "الرقبة", unit: "سم", color: "#1abc9c" },
 ] as const;
 
-type MKey = typeof MEASUREMENTS[number]["key"];
+type MKey = (typeof MEASUREMENTS)[number]["key"];
 
 function num(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -63,10 +55,7 @@ function num(v: unknown): number | null {
  */
 export function ProgressTab({ stats }: Props) {
   const sorted = useMemo(
-    () =>
-      [...stats].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-      ),
+    () => [...stats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [stats],
   );
 
@@ -101,9 +90,7 @@ export function ProgressTab({ stats }: Props) {
 
   // Default the chart to weight only — showing every line on first open is
   // noise. The trainer enables what they want to see.
-  const [active, setActive] = useState<Set<MKey>>(
-    () => new Set(["weight"] as MKey[]),
-  );
+  const [active, setActive] = useState<Set<MKey>>(() => new Set(["weight"] as MKey[]));
 
   function toggle(k: MKey) {
     setActive((prev) => {
@@ -151,10 +138,7 @@ export function ProgressTab({ stats }: Props) {
                         }
                   }
                 >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: on ? "#000" : m.color }}
-                  />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: on ? "#000" : m.color }} />
                   {m.label}
                 </button>
               );
@@ -169,11 +153,7 @@ export function ProgressTab({ stats }: Props) {
                 axisLine={false}
                 tickLine={false}
               />
-              <YAxis
-                tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-              />
+              <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{
                   background: "hsl(0 0% 10%)",
@@ -216,9 +196,7 @@ export function ProgressTab({ stats }: Props) {
                       {m.label}
                     </th>
                   ))}
-                  <th className="text-right text-muted-foreground font-medium py-2 px-2">
-                    ملاحظة
-                  </th>
+                  <th className="text-right text-muted-foreground font-medium py-2 px-2">ملاحظة</th>
                 </tr>
               </thead>
               <tbody>
@@ -234,17 +212,12 @@ export function ProgressTab({ stats }: Props) {
                       {MEASUREMENTS.map((m) => {
                         const v = num((s as Record<string, unknown>)[m.key]);
                         return (
-                          <td
-                            key={m.key}
-                            className="py-2 px-2 font-medium text-foreground tabular-nums"
-                          >
+                          <td key={m.key} className="py-2 px-2 font-medium text-foreground tabular-nums">
                             {v != null ? v : "—"}
                           </td>
                         );
                       })}
-                      <td className="py-2 px-2 text-muted-foreground text-xs">
-                        {s.performanceNote ?? "—"}
-                      </td>
+                      <td className="py-2 px-2 text-muted-foreground text-xs">{s.performanceNote ?? "—"}</td>
                     </tr>
                   ))}
               </tbody>

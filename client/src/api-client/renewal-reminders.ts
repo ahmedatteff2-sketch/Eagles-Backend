@@ -35,16 +35,12 @@ export interface RenewalRunSummary {
 }
 
 export const getExpiringMembers = (days = 3) =>
-  customFetch<{ days: number; items: ExpiringMember[] }>(
-    `/api/renewal-reminders/expiring?days=${days}`,
-    { method: "GET" },
-  );
+  customFetch<{ days: number; items: ExpiringMember[] }>(`/api/renewal-reminders/expiring?days=${days}`, {
+    method: "GET",
+  });
 
 export const getRenewalReminderLog = (limit = 200) =>
-  customFetch<RenewalReminderLog[]>(
-    `/api/renewal-reminders?limit=${limit}`,
-    { method: "GET" },
-  );
+  customFetch<RenewalReminderLog[]>(`/api/renewal-reminders?limit=${limit}`, { method: "GET" });
 
 export interface LogRenewalReminderInput {
   userId: string;
@@ -61,13 +57,10 @@ export const logRenewalReminder = (input: LogRenewalReminderInput) =>
   });
 
 export const bulkLogRenewalReminders = (userIds: string[], note?: string) =>
-  customFetch<{ insertedCount: number }>(
-    "/api/renewal-reminders/bulk-log",
-    { method: "POST", body: JSON.stringify({ userIds, note }) },
-  );
+  customFetch<{ insertedCount: number }>("/api/renewal-reminders/bulk-log", {
+    method: "POST",
+    body: JSON.stringify({ userIds, note }),
+  });
 
 export const runRenewalRemindersNow = () =>
-  customFetch<RenewalRunSummary>(
-    "/api/renewal-reminders/run-now",
-    { method: "POST" },
-  );
+  customFetch<RenewalRunSummary>("/api/renewal-reminders/run-now", { method: "POST" });

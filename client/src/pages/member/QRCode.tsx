@@ -15,13 +15,7 @@ export default function MemberQRCode() {
 
       <div className="bg-card border border-card-border rounded-xl p-8 flex flex-col items-center gap-6">
         <div className="p-4 bg-white rounded-2xl shadow-lg">
-          <QRCodeSVG
-            value={qrData}
-            size={220}
-            bgColor="#ffffff"
-            fgColor="#0A0A0A"
-            level="M"
-          />
+          <QRCodeSVG value={qrData} size={220} bgColor="#ffffff" fgColor="#0A0A0A" level="M" />
         </div>
 
         <div className="text-center">

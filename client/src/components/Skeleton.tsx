@@ -4,7 +4,10 @@ export function Skeleton({ className = "" }: { className?: string }) {
 
 export function CardSkeleton() {
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+    <div
+      className="rounded-xl p-4 space-y-3"
+      style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+    >
       <Skeleton className="h-4 w-1/3" />
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-3 w-1/2" />
@@ -24,7 +27,10 @@ export function TableRowSkeleton({ cols = 4 }: { cols?: number }) {
 
 export function ListSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}>
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 14%)" }}
+    >
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} style={i > 0 ? { borderTop: "1px solid hsl(0 0% 12%)" } : undefined}>
           <TableRowSkeleton cols={cols} />
@@ -42,7 +48,9 @@ export function PageSkeleton() {
         <Skeleton className="h-9 w-24 rounded-xl" />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[1, 2, 3, 4].map(i => <CardSkeleton key={i} />)}
+        {[1, 2, 3, 4].map((i) => (
+          <CardSkeleton key={i} />
+        ))}
       </div>
       <ListSkeleton />
     </div>

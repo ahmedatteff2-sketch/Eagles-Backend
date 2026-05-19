@@ -21,15 +21,15 @@ export const AVATAR_COLORS = [
 ];
 
 export const MUSCLE_COLORS: Record<string, string> = {
-  "صدر": "#e74c3c",
-  "ظهر": "#3498db",
-  "أكتاف": "#2ecc71",
-  "بايسبس": "#f39c12",
-  "ترايسبس": "#e67e22",
-  "أرجل": "#9b59b6",
-  "بطن": "#1abc9c",
-  "كارديو": "#e91e63",
-  "أخرى": "#95a5a6",
+  صدر: "#e74c3c",
+  ظهر: "#3498db",
+  أكتاف: "#2ecc71",
+  بايسبس: "#f39c12",
+  ترايسبس: "#e67e22",
+  أرجل: "#9b59b6",
+  بطن: "#1abc9c",
+  كارديو: "#e91e63",
+  أخرى: "#95a5a6",
 };
 
 // Re-used everywhere as the standard <input>/<select> class string.

@@ -27,14 +27,7 @@ interface Props {
  * "Overview" tab body — KPI cards plus subscription history and the
  * member's recent check-ins.
  */
-export function OverviewTab({
-  totalCheckins,
-  thisMonth,
-  thisWeek,
-  templateCount,
-  history,
-  checkins,
-}: Props) {
+export function OverviewTab({ totalCheckins, thisMonth, thisWeek, templateCount, history, checkins }: Props) {
   const stats = [
     { label: "إجمالي الحضور", value: totalCheckins, color: GOLD },
     { label: "حضور الشهر", value: thisMonth, color: "hsl(142 60% 55%)" },
@@ -65,9 +58,7 @@ export function OverviewTab({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-card border border-card-border rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-3">
-            تاريخ الاشتراكات والمدفوعات
-          </h2>
+          <h2 className="text-sm font-semibold text-foreground mb-3">تاريخ الاشتراكات والمدفوعات</h2>
           {history.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا يوجد سجل اشتراكات</p>
           ) : (
@@ -78,9 +69,7 @@ export function OverviewTab({
                   className="flex items-center justify-between py-2 border-b border-border last:border-0"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {h.subscription?.name ?? "—"}
-                    </p>
+                    <p className="text-sm font-semibold text-foreground">{h.subscription?.name ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">
                       {h.startDate ? new Date(h.startDate).toLocaleDateString("ar-EG") : "—"} →{" "}
                       {h.endDate ? new Date(h.endDate).toLocaleDateString("ar-EG") : "—"}
@@ -94,11 +83,7 @@ export function OverviewTab({
                     )}
                     {h.paymentMethod && (
                       <p className="text-xs text-muted-foreground">
-                        {h.paymentMethod === "cash"
-                          ? "نقدي"
-                          : h.paymentMethod === "card"
-                            ? "بطاقة"
-                            : "تحويل"}
+                        {h.paymentMethod === "cash" ? "نقدي" : h.paymentMethod === "card" ? "بطاقة" : "تحويل"}
                       </p>
                     )}
                   </div>
@@ -109,9 +94,7 @@ export function OverviewTab({
         </div>
 
         <div className="bg-card border border-card-border rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-3">
-            آخر زيارات ({checkins.length})
-          </h2>
+          <h2 className="text-sm font-semibold text-foreground mb-3">آخر زيارات ({checkins.length})</h2>
           {checkins.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا يوجد حضور مسجل</p>
           ) : (

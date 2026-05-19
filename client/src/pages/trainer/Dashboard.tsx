@@ -19,11 +19,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, hint, tone = "neutral" }: StatCardProps) {
   const toneColor =
-    tone === "good"
-      ? "hsl(142 60% 60%)"
-      : tone === "warn"
-        ? "hsl(40 90% 60%)"
-        : "hsl(40 65% 58%)";
+    tone === "good" ? "hsl(142 60% 60%)" : tone === "warn" ? "hsl(40 90% 60%)" : "hsl(40 65% 58%)";
   return (
     <div className="rounded-2xl p-4 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]">
       <p className="text-xs text-[hsl(0_0%_50%)]">{label}</p>
@@ -52,9 +48,7 @@ export default function TrainerDashboard() {
 
   if (isError || !data) {
     return (
-      <div className="p-6 text-center text-[hsl(0_0%_50%)]">
-        تعذّر تحميل البيانات. حاول إعادة التحميل.
-      </div>
+      <div className="p-6 text-center text-[hsl(0_0%_50%)]">تعذّر تحميل البيانات. حاول إعادة التحميل.</div>
     );
   }
 
@@ -65,9 +59,7 @@ export default function TrainerDashboard() {
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
       <header>
         <h1 className="text-2xl font-black text-[hsl(40_65%_60%)]">لوحة المدرب</h1>
-        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">
-          نظرة سريعة على أعضائك ونشاط هذا الأسبوع
-        </p>
+        <p className="text-sm text-[hsl(0_0%_50%)] mt-1">نظرة سريعة على أعضائك ونشاط هذا الأسبوع</p>
       </header>
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -86,17 +78,8 @@ export default function TrainerDashboard() {
         />
         <StatCard label="حضور اليوم" value={summary.checkinsToday} />
         <StatCard label="حضور هذا الأسبوع" value={summary.checkinsThisWeek} />
-        <StatCard
-          label="متوسط التقييم"
-          value={ratingDisplay}
-          hint="آخر 30 يوم"
-          tone="good"
-        />
-        <StatCard
-          label="ملاحظات مثبّتة"
-          value={summary.pinnedNotesCount}
-          hint="تذكيرات مهمة"
-        />
+        <StatCard label="متوسط التقييم" value={ratingDisplay} hint="آخر 30 يوم" tone="good" />
+        <StatCard label="ملاحظات مثبّتة" value={summary.pinnedNotesCount} hint="تذكيرات مهمة" />
       </section>
 
       {/* Pinned notes — the "things to remember" widget */}
@@ -119,18 +102,13 @@ export default function TrainerDashboard() {
           </h2>
           <ul className="space-y-2">
             {pinnedNotes.map((n) => (
-              <li
-                key={n.id}
-                className="rounded-xl p-3 bg-[hsl(0_0%_8%)] border border-[hsl(0_0%_14%)]"
-              >
+              <li key={n.id} className="rounded-xl p-3 bg-[hsl(0_0%_8%)] border border-[hsl(0_0%_14%)]">
                 <Link href={`/trainer/members/${n.member.id}`}>
                   <div className="flex items-start justify-between gap-3 cursor-pointer">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-[hsl(40_65%_60%)] mb-1">
                         {n.member.name}{" "}
-                        <span className="text-[hsl(0_0%_40%)]">
-                          • {translateCategory(n.category)}
-                        </span>
+                        <span className="text-[hsl(0_0%_40%)]">• {translateCategory(n.category)}</span>
                       </p>
                       <p className="text-sm text-[hsl(40_20%_85%)]">{n.note}</p>
                     </div>
@@ -160,19 +138,14 @@ export default function TrainerDashboard() {
         ) : (
           <ul className="space-y-2">
             {recentNotes.map((n) => (
-              <li
-                key={n.id}
-                className="rounded-lg p-3 bg-[hsl(0_0%_7%)] border border-[hsl(0_0%_12%)]"
-              >
+              <li key={n.id} className="rounded-lg p-3 bg-[hsl(0_0%_7%)] border border-[hsl(0_0%_12%)]">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm text-[hsl(40_20%_85%)] flex-1">{n.note}</p>
                   <span className="text-[10px] text-[hsl(0_0%_40%)] whitespace-nowrap">
                     {formatRelative(n.createdAt)}
                   </span>
                 </div>
-                <p className="text-[11px] text-[hsl(0_0%_40%)] mt-1">
-                  {translateCategory(n.category)}
-                </p>
+                <p className="text-[11px] text-[hsl(0_0%_40%)] mt-1">{translateCategory(n.category)}</p>
               </li>
             ))}
           </ul>

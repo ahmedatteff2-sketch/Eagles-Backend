@@ -90,9 +90,7 @@ function deriveAction(req: Request): string {
     DELETE: "delete",
   };
   const verb = verbMap[req.method] ?? req.method.toLowerCase();
-  const tail = significant
-    .filter((s, i) => !(i > 0 && /^[0-9a-f-]{8,}$/i.test(s)))
-    .join(".");
+  const tail = significant.filter((s, i) => !(i > 0 && /^[0-9a-f-]{8,}$/i.test(s))).join(".");
   return tail ? `${tail}.${verb}` : verb;
 }
 
@@ -177,7 +175,13 @@ async function writeAuditEntry({ req, status, payload, actionOverride }: WriteEn
 export async function recordAuditEvent(
   req: Request,
   action: string,
-  options: { status?: number; payload?: unknown; actorIdOverride?: string; targetType?: string; targetId?: string } = {},
+  options: {
+    status?: number;
+    payload?: unknown;
+    actorIdOverride?: string;
+    targetType?: string;
+    targetId?: string;
+  } = {},
 ): Promise<void> {
   try {
     const status = options.status ?? 200;

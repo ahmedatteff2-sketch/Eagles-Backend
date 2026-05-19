@@ -54,9 +54,13 @@ const ACCESS_SECRET = getSecret("JWT_ACCESS_SECRET", "dev_access_secret_CHANGE_I
 const REFRESH_SECRET = getSecret("JWT_REFRESH_SECRET", "dev_refresh_secret_CHANGE_IN_PROD_32chars!!");
 
 const ACCESS_VERIFY_SECRETS: string[] = [ACCESS_SECRET, ...getFallbackSecrets("JWT_ACCESS_SECRETS_FALLBACK")];
-const REFRESH_VERIFY_SECRETS: string[] = [REFRESH_SECRET, ...getFallbackSecrets("JWT_REFRESH_SECRETS_FALLBACK")];
+const REFRESH_VERIFY_SECRETS: string[] = [
+  REFRESH_SECRET,
+  ...getFallbackSecrets("JWT_REFRESH_SECRETS_FALLBACK"),
+];
 
-const ACCESS_TTL: jwt.SignOptions["expiresIn"] = (process.env.JWT_ACCESS_TTL ?? "15m") as jwt.SignOptions["expiresIn"];
+const ACCESS_TTL: jwt.SignOptions["expiresIn"] = (process.env.JWT_ACCESS_TTL ??
+  "15m") as jwt.SignOptions["expiresIn"];
 
 // `Number("30d")` is NaN, which would make `signRefreshToken` blow up at
 // runtime ("NaNd" expiry → jwt.sign throws → every login 500s). Guard with
@@ -82,7 +86,10 @@ export function signAccessToken(payload: AuthPayload): string {
 }
 
 export function signRefreshToken(payload: AuthPayload): string {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: `${REFRESH_TTL_DAYS}d` as jwt.SignOptions["expiresIn"], algorithm: "HS256" });
+  return jwt.sign(payload, REFRESH_SECRET, {
+    expiresIn: `${REFRESH_TTL_DAYS}d` as jwt.SignOptions["expiresIn"],
+    algorithm: "HS256",
+  });
 }
 
 /**
