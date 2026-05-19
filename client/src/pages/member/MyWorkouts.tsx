@@ -104,6 +104,19 @@ export default function MemberMyWorkouts() {
   });
   const [exSearch, setExSearch] = useState("");
 
+  // Create-new-exercise sub-flow (lives inside the add-exercise modal).
+  // When `creatingNewEx` is true we show a tiny name/muscle/video form
+  // instead of the library list. On submit we POST /api/exercises (the
+  // server stamps it with the current user's id), then auto-select the
+  // freshly created exercise so the user can hit "إضافة" immediately.
+  const [creatingNewEx, setCreatingNewEx] = useState(false);
+  const [newExForm, setNewExForm] = useState({
+    name: "",
+    targetMuscle: "صدر",
+    videoUrl: "",
+  });
+  const [savingNewEx, setSavingNewEx] = useState(false);
+
   // Edit-exercise modal
   const [editingExercise, setEditingExercise] = useState<{
     id: number;
@@ -168,6 +181,39 @@ export default function MemberMyWorkouts() {
       await fetchAll();
     } catch {
       toast({ title: "فشل في الحذف", variant: "destructive" });
+    }
+  }
+
+  async function createNewExercise() {
+    const name = newExForm.name.trim();
+    if (!name) {
+      toast({ title: "أدخل اسم التمرين", variant: "destructive" });
+      return;
+    }
+    setSavingNewEx(true);
+    try {
+      // POST /api/exercises is open to members; the server stamps
+      // createdByUserId so it stays in this member's personal library.
+      const created = await customFetch<Exercise>("/api/exercises", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          targetMuscle: newExForm.targetMuscle,
+          videoUrl: newExForm.videoUrl.trim() || null,
+        }),
+      });
+      toast({ title: "تم إضافة التمرين لمكتبتك" });
+      // Refresh the exercise picker and auto-select the new entry so the
+      // user can confirm sets/reps and add it in one tap.
+      const next = await customFetch<Exercise[]>("/api/exercises");
+      setExercises(Array.isArray(next) ? next : []);
+      setAddForm((f) => ({ ...f, exerciseId: created.id }));
+      setCreatingNewEx(false);
+      setNewExForm({ name: "", targetMuscle: "صدر", videoUrl: "" });
+    } catch {
+      toast({ title: "فشل في إضافة التمرين", variant: "destructive" });
+    } finally {
+      setSavingNewEx(false);
     }
   }
 
@@ -380,34 +426,110 @@ export default function MemberMyWorkouts() {
           onClose={() => {
             setShowAddExercise(null);
             setExSearch("");
+            setCreatingNewEx(false);
+            setNewExForm({ name: "", targetMuscle: "صدر", videoUrl: "" });
           }}
         >
           <div className="space-y-3">
-            <Field label="ابحث في مكتبة التمارين">
-              <input
-                value={exSearch}
-                onChange={(e) => setExSearch(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted text-foreground"
-                placeholder="اسم التمرين أو العضلة"
-              />
-            </Field>
-            <div className="max-h-44 overflow-y-auto border border-card-border rounded-lg">
-              {filteredExercises.length === 0 ? (
-                <p className="p-3 text-center text-muted-foreground text-xs">لا توجد نتائج</p>
-              ) : (
-                filteredExercises.slice(0, 50).map((e) => (
+            {creatingNewEx ? (
+              // Inline "create a new exercise" form. Lives inside the same
+              // modal so the member never loses their place — once saved
+              // we drop them right back into the sets/reps panel below.
+              <div
+                className="p-3 rounded-lg space-y-3"
+                style={{ background: "hsl(40 65% 48% / 0.06)", border: "1px solid hsl(40 65% 48% / 0.25)" }}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-foreground">تمرين جديد</p>
                   <button
-                    key={e.id}
-                    onClick={() => setAddForm((f) => ({ ...f, exerciseId: e.id }))}
-                    className="w-full text-right px-3 py-2 text-sm hover:bg-muted/60 transition-colors flex items-center justify-between"
-                    style={addForm.exerciseId === e.id ? { background: "hsl(40 65% 48% / 0.15)" } : undefined}
+                    onClick={() => setCreatingNewEx(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    <span className="font-medium">{e.name}</span>
-                    <span className="text-xs text-muted-foreground">{e.targetMuscle}</span>
+                    رجوع للمكتبة
                   </button>
-                ))
-              )}
-            </div>
+                </div>
+                <Field label="اسم التمرين">
+                  <input
+                    value={newExForm.name}
+                    onChange={(e) => setNewExForm((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-muted text-foreground text-sm"
+                    placeholder="مثلاً: بنش برس بالدمبل"
+                    autoFocus
+                  />
+                </Field>
+                <Field label="العضلة المستهدفة">
+                  <select
+                    value={newExForm.targetMuscle}
+                    onChange={(e) => setNewExForm((f) => ({ ...f, targetMuscle: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-muted text-foreground text-sm"
+                  >
+                    {Object.keys(MUSCLE_COLORS).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="رابط فيديو (اختياري)">
+                  <input
+                    value={newExForm.videoUrl}
+                    onChange={(e) => setNewExForm((f) => ({ ...f, videoUrl: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-muted text-foreground text-sm"
+                    placeholder="https://..."
+                  />
+                </Field>
+                <button
+                  onClick={createNewExercise}
+                  disabled={savingNewEx}
+                  className="w-full py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                  style={{ background: "hsl(40 65% 48%)", color: "#000" }}
+                >
+                  {savingNewEx ? "..." : "حفظ التمرين"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    value={exSearch}
+                    onChange={(e) => setExSearch(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg bg-muted text-foreground text-sm"
+                    placeholder="ابحث: اسم التمرين أو العضلة"
+                  />
+                  <button
+                    onClick={() => setCreatingNewEx(true)}
+                    className="px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap"
+                    style={{
+                      background: "hsl(40 65% 48% / 0.18)",
+                      color: "hsl(40 65% 70%)",
+                      border: "1px solid hsl(40 65% 48% / 0.4)",
+                    }}
+                    title="أضف تمرين مش موجود في المكتبة"
+                  >
+                    + تمرين جديد
+                  </button>
+                </div>
+                <div className="max-h-44 overflow-y-auto border border-card-border rounded-lg">
+                  {filteredExercises.length === 0 ? (
+                    <p className="p-3 text-center text-muted-foreground text-xs">
+                      لا توجد نتائج — اضغط "+ تمرين جديد" لإضافته
+                    </p>
+                  ) : (
+                    filteredExercises.slice(0, 50).map((e) => (
+                      <button
+                        key={e.id}
+                        onClick={() => setAddForm((f) => ({ ...f, exerciseId: e.id }))}
+                        className="w-full text-right px-3 py-2 text-sm hover:bg-muted/60 transition-colors flex items-center justify-between"
+                        style={addForm.exerciseId === e.id ? { background: "hsl(40 65% 48% / 0.15)" } : undefined}
+                      >
+                        <span className="font-medium">{e.name}</span>
+                        <span className="text-xs text-muted-foreground">{e.targetMuscle}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <Field label="مجموعات">
                 <input
@@ -457,15 +579,18 @@ export default function MemberMyWorkouts() {
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => addExerciseToTemplate(showAddExercise)}
-                className="flex-1 py-2.5 rounded-lg text-sm font-bold"
+                disabled={creatingNewEx}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50"
                 style={{ background: "hsl(40 65% 48%)", color: "#000" }}
               >
-                إضافة
+                إضافة للبرنامج
               </button>
               <button
                 onClick={() => {
                   setShowAddExercise(null);
                   setExSearch("");
+                  setCreatingNewEx(false);
+                  setNewExForm({ name: "", targetMuscle: "صدر", videoUrl: "" });
                 }}
                 className="px-4 rounded-lg text-sm"
                 style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 60%)" }}

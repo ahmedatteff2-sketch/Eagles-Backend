@@ -4,11 +4,19 @@ import { z } from "zod/v4";
 import { usersTable } from "./users.js";
 
 // ── Exercise library ────────────────────────────────────────────────────────
+// `createdByUserId` mirrors `workout_templates.created_by_user_id`:
+//   - NULL          → global / admin-curated exercise (the shared library)
+//   - <userId>      → personal exercise owned by that member
+//
+// Members can create their own exercises (e.g. a custom variation the admin
+// hasn't catalogued) without polluting the admin's library. The admin
+// exercise picker filters to NULL; members see global PLUS their own.
 export const exercisesTable = pgTable("exercises", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   videoUrl: text("video_url"),
   targetMuscle: text("target_muscle").notNull(),
+  createdByUserId: text("created_by_user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -541,6 +541,24 @@ export async function runMigrations(): Promise<void> {
       );
     }
 
+    // ── created_by_user_id on exercises ─────────────────────────────────────
+    // Same partition story as workout_templates: NULL = the admin/global
+    // library, non-null = a custom exercise a member added for themselves.
+    // The admin /api/exercises list (when filtered) and the per-member picker
+    // both key off this column.
+    const { rows: hasExerciseCreatedBy } = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='exercises' AND column_name='created_by_user_id'`,
+    );
+    if (hasExerciseCreatedBy.length === 0) {
+      logger.info("Adding created_by_user_id to exercises");
+      await client.query(
+        `ALTER TABLE exercises ADD COLUMN created_by_user_id TEXT REFERENCES "User"(id) ON DELETE CASCADE`,
+      );
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS idx_exercises_created_by_user_id ON exercises(created_by_user_id)`,
+      );
+    }
+
     // ── progress_photos table ────────────────────────────────────────────
     const { rows: hasProgressPhotos } = await client.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'progress_photos'`,

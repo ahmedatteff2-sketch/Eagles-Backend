@@ -6,7 +6,7 @@ import {
   workoutTemplateExercisesTable,
   memberWorkoutAssignmentsTable,
 } from "@workspace/db/schema";
-import { eq, desc, asc, inArray, isNull } from "drizzle-orm";
+import { eq, desc, asc, inArray, isNull, or } from "drizzle-orm";
 import type { Response } from "express";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parseUserId } from "../lib/params.js";
@@ -101,29 +101,74 @@ const assignSchema = z.object({
 // EXERCISES  (library)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-router.get("/exercises", authenticate, async (_req, res) => {
-  const rows = await db.select().from(exercisesTable).orderBy(desc(exercisesTable.createdAt));
+// GET /api/exercises
+//   - admin: returns the global library only (createdByUserId IS NULL) so the
+//     admin Exercises page stays uncluttered by members' personal entries.
+//   - member: returns the global library PLUS exercises the member created
+//     themselves. This is the picker on /member/my-workouts.
+router.get("/exercises", authenticate, async (req, res) => {
+  const isAdmin = req.user!.role === "admin";
+  const userId = req.user!.userId;
+  const rows = await db
+    .select()
+    .from(exercisesTable)
+    .where(
+      isAdmin
+        ? isNull(exercisesTable.createdByUserId)
+        : or(isNull(exercisesTable.createdByUserId), eq(exercisesTable.createdByUserId, userId)),
+    )
+    .orderBy(desc(exercisesTable.createdAt));
   res.json(rows);
 });
 
-router.post("/exercises", authenticate, requireAdmin, async (req, res) => {
+// POST /api/exercises
+//   - admin: creates a global library entry (createdByUserId stays NULL).
+//   - member: creates a personal exercise stamped with their userId. They can
+//     then immediately add it to their own workout template. This is the path
+//     a member uses to add a custom exercise the admin hasn't catalogued.
+router.post("/exercises", authenticate, async (req, res) => {
   const body = exerciseSchema.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: "Validation error" });
     return;
   }
+  const isAdmin = req.user!.role === "admin";
+  const ownerId = isAdmin ? null : req.user!.userId;
   const [row] = await db
     .insert(exercisesTable)
     .values({
       name: body.data.name,
       videoUrl: body.data.videoUrl ?? null,
       targetMuscle: body.data.targetMuscle,
+      createdByUserId: ownerId,
     })
     .returning();
   res.status(201).json(row);
 });
 
-router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
+// Resolve an exercise row and authorize the current user to mutate it. Admins
+// can edit the global library; members can only edit exercises they created.
+async function loadExerciseForWrite(
+  exerciseId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<typeof exercisesTable.$inferSelect | null> {
+  const [row] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, exerciseId)).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  const isAdmin = role === "admin";
+  // Members can never touch a global (NULL-owner) exercise. Admins can.
+  if (!isAdmin && row.createdByUserId !== userId) {
+    res.status(403).json({ error: "Forbidden", message: "غير مسموح بتعديل هذا التمرين" });
+    return null;
+  }
+  return row;
+}
+
+router.put("/exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = exerciseSchema.safeParse(req.body);
@@ -131,21 +176,21 @@ router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Validation error" });
     return;
   }
+  const existing = await loadExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!existing) return;
   const [row] = await db
     .update(exercisesTable)
     .set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle })
     .where(eq(exercisesTable.id, id))
     .returning();
-  if (!row) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
   res.json(row);
 });
 
-router.delete("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
+router.delete("/exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
+  const existing = await loadExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!existing) return;
   await db.delete(exercisesTable).where(eq(exercisesTable.id, id));
   res.json({ success: true });
 });
