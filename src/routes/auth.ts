@@ -20,9 +20,16 @@ import { eq } from "drizzle-orm";
 const router = Router();
 
 const loginSchema = z.object({
-  phone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح"),
+  phone: z
+    .string()
+    .min(5)
+    .max(20)
+    .regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح"),
   password: z.string().min(1).max(128),
-  totpCode: z.string().regex(/^[0-9]{6}$/).optional(),
+  totpCode: z
+    .string()
+    .regex(/^[0-9]{6}$/)
+    .optional(),
 });
 
 const changePasswordSchema = z.object({
@@ -35,7 +42,11 @@ const refreshSchema = z.object({
 });
 
 const updatePhoneSchema = z.object({
-  newPhone: z.string().min(5).max(20).regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح"),
+  newPhone: z
+    .string()
+    .min(5)
+    .max(20)
+    .regex(/^[0-9+\-\s()]{5,20}$/, "رقم هاتف غير صالح"),
   password: z.string().min(1).max(128),
 });
 
@@ -76,7 +87,7 @@ function deviceLabel(req: Request): string {
 
 function sessionContextFromReq(req: Request): authService.SessionContext {
   return {
-    userAgent: ((req.headers["user-agent"] ?? "").toString().slice(0, 500) || null),
+    userAgent: (req.headers["user-agent"] ?? "").toString().slice(0, 500) || null,
     ip: req.ip ?? null,
     label: deviceLabel(req),
   };
@@ -127,9 +138,8 @@ router.post("/auth/login", async (req, res) => {
       });
       res.status(401).json({
         error: "Unauthorized",
-        message: outcome.reason === "bad_totp"
-          ? "رمز التحقق غير صحيح"
-          : "رقم الهاتف أو كلمة المرور غير صحيحة",
+        message:
+          outcome.reason === "bad_totp" ? "رمز التحقق غير صحيح" : "رقم الهاتف أو كلمة المرور غير صحيحة",
       });
       return;
 
@@ -305,11 +315,7 @@ router.post("/auth/update-phone", authenticate, async (req, res) => {
     res.status(400).json({ error: "Validation error", message: "رقم الهاتف غير صالح" });
     return;
   }
-  const outcome = await authService.updatePhone(
-    req.user!.userId,
-    normalizedNewPhone,
-    body.data.password,
-  );
+  const outcome = await authService.updatePhone(req.user!.userId, normalizedNewPhone, body.data.password);
   switch (outcome.type) {
     case "ok":
       res.json({ success: true, message: "تم تحديث رقم الهاتف بنجاح. يرجى تسجيل الدخول مجدداً" });
@@ -373,11 +379,7 @@ router.post("/auth/2fa/disable", authenticate, async (req, res) => {
     res.status(400).json({ error: "Validation error", message: "بيانات غير صالحة" });
     return;
   }
-  const outcome = await authService.disable2FA(
-    req.user!.userId,
-    body.data.password,
-    body.data.totpCode,
-  );
+  const outcome = await authService.disable2FA(req.user!.userId, body.data.password, body.data.totpCode);
   switch (outcome.type) {
     case "ok":
       void recordAuditEvent(req, "auth.2fa.disabled", { status: 200 });

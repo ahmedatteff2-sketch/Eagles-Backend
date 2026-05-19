@@ -3,11 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/store/auth";
 
 function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-card border border-card-border rounded-xl p-6">
-      {children}
-    </div>
-  );
+  return <div className="bg-card border border-card-border rounded-xl p-6">{children}</div>;
 }
 
 async function postCSV(url: string, csvText: string, token: string) {
@@ -54,7 +50,7 @@ function ImportSection({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setCsvText(ev.target?.result as string ?? "");
+    reader.onload = (ev) => setCsvText((ev.target?.result as string) ?? "");
     reader.readAsText(file, "UTF-8");
   }
 
@@ -110,7 +106,13 @@ function ImportSection({
         className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors mb-3"
         onClick={() => fileRef.current?.click()}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8 mx-auto mb-2 text-muted-foreground">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          className="w-8 h-8 mx-auto mb-2 text-muted-foreground"
+        >
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="12" y1="18" x2="12" y2="12" />
@@ -126,7 +128,7 @@ function ImportSection({
         <label className="block text-xs text-muted-foreground mb-1">أو الصق بيانات CSV مباشرة:</label>
         <textarea
           value={csvText}
-          onChange={e => setCsvText(e.target.value)}
+          onChange={(e) => setCsvText(e.target.value)}
           rows={4}
           dir="ltr"
           placeholder={sampleCsv}
@@ -143,17 +145,25 @@ function ImportSection({
       </button>
 
       {result && (
-        <div className={`mt-4 p-4 rounded-lg border ${result.errors.length > 0 ? "border-yellow-500/30 bg-yellow-500/5" : "border-green-500/30 bg-green-500/5"}`}>
+        <div
+          className={`mt-4 p-4 rounded-lg border ${result.errors.length > 0 ? "border-yellow-500/30 bg-yellow-500/5" : "border-green-500/30 bg-green-500/5"}`}
+        >
           <p className="text-sm font-semibold text-foreground mb-2">{result.message}</p>
           <div className="flex gap-4 text-xs mb-2">
             <span className="text-green-400">✓ تم إضافة: {result.created}</span>
-            {result.skipped !== undefined && <span className="text-muted-foreground">↷ مكرر: {result.skipped}</span>}
-            {result.errors.length > 0 && <span className="text-red-400">✗ أخطاء: {result.errors.length}</span>}
+            {result.skipped !== undefined && (
+              <span className="text-muted-foreground">↷ مكرر: {result.skipped}</span>
+            )}
+            {result.errors.length > 0 && (
+              <span className="text-red-400">✗ أخطاء: {result.errors.length}</span>
+            )}
           </div>
           {result.errors.length > 0 && (
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {result.errors.map((e, i) => (
-                <p key={i} className="text-xs text-red-400">{e}</p>
+                <p key={i} className="text-xs text-red-400">
+                  {e}
+                </p>
               ))}
             </div>
           )}

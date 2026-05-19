@@ -58,8 +58,18 @@ router.get("/exercises", authenticate, async (_req, res) => {
 
 router.post("/exercises", authenticate, requireAdmin, async (req, res) => {
   const body = exerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(exercisesTable).values({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle }).returning();
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const [row] = await db
+    .insert(exercisesTable)
+    .values({
+      name: body.data.name,
+      videoUrl: body.data.videoUrl ?? null,
+      targetMuscle: body.data.targetMuscle,
+    })
+    .returning();
   res.status(201).json(row);
 });
 
@@ -67,9 +77,19 @@ router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = exerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.update(exercisesTable).set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle }).where(eq(exercisesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const [row] = await db
+    .update(exercisesTable)
+    .set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle })
+    .where(eq(exercisesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(row);
 });
 
@@ -155,8 +175,20 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
 
 router.post("/workout-templates", authenticate, requireAdmin, async (req, res) => {
   const body = templateSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(workoutTemplatesTable).values({ name: body.data.name, daysCount: body.data.daysCount ?? 1, daysPerWeek: body.data.daysPerWeek ?? 4, dayNames: body.data.dayNames ?? null, notes: body.data.notes ?? null }).returning();
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const [row] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      name: body.data.name,
+      daysCount: body.data.daysCount ?? 1,
+      daysPerWeek: body.data.daysPerWeek ?? 4,
+      dayNames: body.data.dayNames ?? null,
+      notes: body.data.notes ?? null,
+    })
+    .returning();
   res.status(201).json({ ...row, exercises: [], assignedCount: 0 });
 });
 
@@ -164,15 +196,25 @@ router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = templateSchema.partial().safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   const updates: WorkoutTemplateUpdate = {};
   if (body.data.name) updates.name = body.data.name;
   if (body.data.daysCount) updates.daysCount = body.data.daysCount;
   if (body.data.daysPerWeek) updates.daysPerWeek = body.data.daysPerWeek;
   if (body.data.dayNames !== undefined) updates.dayNames = body.data.dayNames;
   if (body.data.notes !== undefined) updates.notes = body.data.notes;
-  const [row] = await db.update(workoutTemplatesTable).set(updates).where(eq(workoutTemplatesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  const [row] = await db
+    .update(workoutTemplatesTable)
+    .set(updates)
+    .where(eq(workoutTemplatesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(row);
 });
 
@@ -189,7 +231,10 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
   const body = templateExerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
 
   const maxOrder = await db
     .select({ sortOrder: workoutTemplateExercisesTable.sortOrder })
@@ -198,16 +243,19 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
     .orderBy(desc(workoutTemplateExercisesTable.sortOrder))
     .limit(1);
 
-  const [row] = await db.insert(workoutTemplateExercisesTable).values({
-    templateId,
-    exerciseId: body.data.exerciseId,
-    sets: body.data.sets,
-    reps: body.data.reps,
-    dayNumber: body.data.dayNumber ?? 1,
-    sortOrder: body.data.sortOrder ?? ((maxOrder[0]?.sortOrder ?? -1) + 1),
-    notes: body.data.notes ?? null,
-    restSeconds: body.data.restSeconds ?? 90,
-  }).returning();
+  const [row] = await db
+    .insert(workoutTemplateExercisesTable)
+    .values({
+      templateId,
+      exerciseId: body.data.exerciseId,
+      sets: body.data.sets,
+      reps: body.data.reps,
+      dayNumber: body.data.dayNumber ?? 1,
+      sortOrder: body.data.sortOrder ?? (maxOrder[0]?.sortOrder ?? -1) + 1,
+      notes: body.data.notes ?? null,
+      restSeconds: body.data.restSeconds ?? 90,
+    })
+    .returning();
 
   res.status(201).json(row);
 });
@@ -216,9 +264,19 @@ router.put("/workout-template-exercises/:id", authenticate, requireAdmin, async 
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = templateExerciseSchema.partial().safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.update(workoutTemplateExercisesTable).set(body.data).where(eq(workoutTemplateExercisesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const [row] = await db
+    .update(workoutTemplateExercisesTable)
+    .set(body.data)
+    .where(eq(workoutTemplateExercisesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(row);
 });
 
@@ -234,18 +292,30 @@ router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, asy
 router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
-  const [orig] = await db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id)).limit(1);
-  if (!orig) { res.status(404).json({ error: "Not found" }); return; }
+  const [orig] = await db
+    .select()
+    .from(workoutTemplatesTable)
+    .where(eq(workoutTemplatesTable.id, id))
+    .limit(1);
+  if (!orig) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
 
-  const [newTemplate] = await db.insert(workoutTemplatesTable).values({
-    name: orig.name + " (نسخة)",
-    daysCount: orig.daysCount,
-    daysPerWeek: orig.daysPerWeek,
-    dayNames: orig.dayNames,
-    notes: orig.notes,
-  }).returning();
+  const [newTemplate] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      name: orig.name + " (نسخة)",
+      daysCount: orig.daysCount,
+      daysPerWeek: orig.daysPerWeek,
+      dayNames: orig.dayNames,
+      notes: orig.notes,
+    })
+    .returning();
 
-  const origExercises = await db.select().from(workoutTemplateExercisesTable)
+  const origExercises = await db
+    .select()
+    .from(workoutTemplateExercisesTable)
     .where(eq(workoutTemplateExercisesTable.templateId, id))
     .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
@@ -270,7 +340,10 @@ router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, asyn
 router.get("/workout-templates/:templateId/assignments", authenticate, requireAdmin, async (req, res) => {
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
-  const rows = await db.select().from(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.templateId, templateId));
+  const rows = await db
+    .select()
+    .from(memberWorkoutAssignmentsTable)
+    .where(eq(memberWorkoutAssignmentsTable.templateId, templateId));
   res.json(rows);
 });
 
@@ -278,7 +351,10 @@ router.post("/workout-templates/:templateId/assign", authenticate, requireAdmin,
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
   const body = assignSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   const userId = parseUserId(body.data.userId, res);
   if (userId === null) return;
   const [row] = await db.insert(memberWorkoutAssignmentsTable).values({ templateId, userId }).returning();

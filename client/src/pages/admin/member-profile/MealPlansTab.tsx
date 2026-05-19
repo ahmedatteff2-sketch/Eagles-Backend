@@ -31,9 +31,7 @@ export function MealPlansTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">
-          🍽️ خطط التغذية المعيّنة ({plans.length})
-        </h2>
+        <h2 className="text-sm font-semibold text-foreground">🍽️ خطط التغذية المعيّنة ({plans.length})</h2>
         <button
           onClick={onCreate}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
@@ -52,9 +50,7 @@ export function MealPlansTab({
         <div className="bg-card border border-card-border rounded-xl p-8 text-center">
           <div className="text-4xl mb-3">🍽️</div>
           <p className="text-foreground font-medium mb-1">لا توجد خطط تغذية لهذا العضو</p>
-          <p className="text-muted-foreground text-sm">
-            اضغط على "خطة تغذية جديدة" لإنشاء أول خطة
-          </p>
+          <p className="text-muted-foreground text-sm">اضغط على "خطة تغذية جديدة" لإنشاء أول خطة</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -67,10 +63,7 @@ export function MealPlansTab({
             };
             const expanded = expandedPlanId === p.id;
             return (
-              <div
-                key={p.id}
-                className="bg-card border border-card-border rounded-xl overflow-hidden"
-              >
+              <div key={p.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
                 <div
                   className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer"
                   onClick={() => onToggleExpand(p.id)}
@@ -115,10 +108,7 @@ export function MealPlansTab({
                           className="rounded-lg p-2 text-center"
                           style={{ background: "hsl(0 0% 11%)", border: `1px solid ${m.color}20` }}
                         >
-                          <p
-                            className="text-base font-black tabular-nums"
-                            style={{ color: m.color }}
-                          >
+                          <p className="text-base font-black tabular-nums" style={{ color: m.color }}>
                             {totals[m.key]}
                           </p>
                           <p className="text-[10px] text-muted-foreground">{m.unit}</p>
@@ -141,28 +131,18 @@ export function MealPlansTab({
                               >
                                 {idx + 1}
                               </span>
-                              <p className="text-sm font-semibold text-foreground truncate">
-                                {it.mealName}
-                              </p>
+                              <p className="text-sm font-semibold text-foreground truncate">{it.mealName}</p>
                             </div>
                             <div className="flex items-center gap-2 text-xs">
-                              {it.time && (
-                                <span className="text-muted-foreground">🕐 {it.time}</span>
-                              )}
+                              {it.time && <span className="text-muted-foreground">🕐 {it.time}</span>}
                               {it.calories != null && (
-                                <span
-                                  className="font-bold tabular-nums"
-                                  style={{ color: "#f39c12" }}
-                                >
+                                <span className="font-bold tabular-nums" style={{ color: "#f39c12" }}>
                                   {it.calories} kcal
                                 </span>
                               )}
                             </div>
                           </div>
-                          {(it.description ||
-                            it.protein != null ||
-                            it.carbs != null ||
-                            it.fats != null) && (
+                          {(it.description || it.protein != null || it.carbs != null || it.fats != null) && (
                             <div className="mt-2 ms-8 space-y-1">
                               {it.description && (
                                 <p className="text-xs text-muted-foreground">{it.description}</p>

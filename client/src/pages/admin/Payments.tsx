@@ -1,7 +1,10 @@
 import { useState } from "react";
 import {
-  useListPayments, useCreatePayment, useListUsers,
-  getListPaymentsQueryKey, getListUsersQueryKey,
+  useListPayments,
+  useCreatePayment,
+  useListUsers,
+  getListPaymentsQueryKey,
+  getListUsersQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -26,30 +29,38 @@ export default function AdminPayments() {
 
   const { data: payments, isLoading } = useListPayments(
     { page: 1, limit: 50 },
-    { query: { queryKey: getListPaymentsQueryKey({ page: 1, limit: 50 }) } }
+    { query: { queryKey: getListPaymentsQueryKey({ page: 1, limit: 50 }) } },
   );
   const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}) } });
 
   const createPayment = useCreatePayment();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<PayForm>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<PayForm>({
     resolver: zodResolver(paySchema),
     defaultValues: { method: "cash", date: new Date().toISOString().split("T")[0] },
   });
 
   function onSubmit(data: PayForm) {
-    createPayment.mutate({ data }, {
-      onSuccess: () => {
-        toast({ title: "تم تسجيل الدفعة" });
-        queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
-        reset();
-        setShowForm(false);
+    createPayment.mutate(
+      { data },
+      {
+        onSuccess: () => {
+          toast({ title: "تم تسجيل الدفعة" });
+          queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
+          reset();
+          setShowForm(false);
+        },
+        onError: () => toast({ title: "خطأ في التسجيل", variant: "destructive" }),
       },
-      onError: () => toast({ title: "خطأ في التسجيل", variant: "destructive" }),
-    });
+    );
   }
 
-  const payList = Array.isArray(payments) ? payments : (payments as any)?.data ?? [];
-  const userList = Array.isArray(users) ? users : (users as any)?.data ?? [];
+  const payList = Array.isArray(payments) ? payments : ((payments as any)?.data ?? []);
+  const userList = Array.isArray(users) ? users : ((users as any)?.data ?? []);
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-4">
@@ -58,7 +69,10 @@ export default function AdminPayments() {
           <h1 className="text-xl font-bold text-foreground">المدفوعات</h1>
           <p className="text-muted-foreground text-sm">سجل المدفوعات</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+        <button
+          onClick={() => setShowForm(true)}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+        >
           تسجيل دفعة
         </button>
       </div>
@@ -75,12 +89,23 @@ export default function AdminPayments() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">جاري التحميل...</td></tr>
+              <tr>
+                <td colSpan={4} className="text-center py-8 text-muted-foreground">
+                  جاري التحميل...
+                </td>
+              </tr>
             ) : payList.length === 0 ? (
-              <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">لا توجد مدفوعات</td></tr>
+              <tr>
+                <td colSpan={4} className="text-center py-8 text-muted-foreground">
+                  لا توجد مدفوعات
+                </td>
+              </tr>
             ) : (
               payList.map((p: any) => (
-                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                <tr
+                  key={p.id}
+                  className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
+                >
                   <td className="px-4 py-3 font-medium text-foreground">{p.userName ?? "—"}</td>
                   <td className="px-4 py-3 text-primary font-bold">{p.amount} ج.م</td>
                   <td className="px-4 py-3">
@@ -88,7 +113,9 @@ export default function AdminPayments() {
                       {METHOD_LABELS[p.method] ?? p.method}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{new Date(p.date).toLocaleDateString("ar-EG")}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {new Date(p.date).toLocaleDateString("ar-EG")}
+                  </td>
                 </tr>
               ))
             )}
@@ -103,20 +130,34 @@ export default function AdminPayments() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">العضو</label>
-                <select {...register("userId")} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                <select
+                  {...register("userId")}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
                   <option value="">اختر عضو</option>
-                  {userList.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {userList.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
                 </select>
                 {errors.userId && <p className="text-destructive text-xs mt-1">{errors.userId.message}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">المبلغ (ج.م)</label>
-                <input {...register("amount")} type="number" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                <input
+                  {...register("amount")}
+                  type="number"
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
                 {errors.amount && <p className="text-destructive text-xs mt-1">{errors.amount.message}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">طريقة الدفع</label>
-                <select {...register("method")} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                <select
+                  {...register("method")}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
                   <option value="cash">نقدي</option>
                   <option value="card">بطاقة</option>
                   <option value="transfer">تحويل</option>
@@ -124,14 +165,26 @@ export default function AdminPayments() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">التاريخ</label>
-                <input {...register("date")} type="date" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                <input
+                  {...register("date")}
+                  type="date"
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
                 {errors.date && <p className="text-destructive text-xs mt-1">{errors.date.message}</p>}
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={createPayment.isPending} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                <button
+                  type="submit"
+                  disabled={createPayment.isPending}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                >
                   {createPayment.isPending ? "جاري التسجيل..." : "تسجيل"}
                 </button>
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
                   إلغاء
                 </button>
               </div>

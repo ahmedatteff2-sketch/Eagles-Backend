@@ -47,7 +47,10 @@ export function NotesTab({
 }: Props) {
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+      >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-foreground">ملاحظات خاصة</h2>
           <button
@@ -84,13 +87,14 @@ export function NotesTab({
           <p className="text-xs font-semibold mb-2" style={{ color: GOLD }}>
             معاينة
           </p>
-          <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">
-            {notes}
-          </pre>
+          <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">{notes}</pre>
         </div>
       )}
 
-      <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+      >
         <h2 className="text-sm font-semibold text-foreground mb-3">🏷️ فئة العضو</h2>
         <div className="flex gap-2">
           {CATEGORIES.map(([val, label, color]) => (
@@ -108,10 +112,12 @@ export function NotesTab({
         </div>
       </div>
 
-      <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+      >
         <h2 className="text-sm font-semibold text-foreground mb-3">
-          💬 ملاحظات المدرب{" "}
-          <span className="text-xs text-muted-foreground font-normal">(مرئية للعضو)</span>
+          💬 ملاحظات المدرب <span className="text-xs text-muted-foreground font-normal">(مرئية للعضو)</span>
         </h2>
         <div className="flex gap-2 mb-3">
           <input

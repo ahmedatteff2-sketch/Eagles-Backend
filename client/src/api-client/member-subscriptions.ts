@@ -25,28 +25,27 @@ export const freezeMemberSubscription = (id: number) =>
   });
 
 export const unfreezeMemberSubscription = (id: number) =>
-  customFetch<MemberSubscription & { addedDays: number }>(
-    `/api/member-subscriptions/${id}/unfreeze`,
-    { method: "PATCH" },
-  );
+  customFetch<MemberSubscription & { addedDays: number }>(`/api/member-subscriptions/${id}/unfreeze`, {
+    method: "PATCH",
+  });
 
 export const bulkExtendMemberSubscriptions = (ids: number[], days: number) =>
-  customFetch<{ updatedCount: number; days: number }>(
-    "/api/member-subscriptions/bulk-extend",
-    { method: "POST", body: JSON.stringify({ ids, days }) },
-  );
+  customFetch<{ updatedCount: number; days: number }>("/api/member-subscriptions/bulk-extend", {
+    method: "POST",
+    body: JSON.stringify({ ids, days }),
+  });
 
 export const bulkFreezeMemberSubscriptions = (ids: number[]) =>
-  customFetch<{ frozenCount: number }>(
-    "/api/member-subscriptions/bulk-freeze",
-    { method: "POST", body: JSON.stringify({ ids }) },
-  );
+  customFetch<{ frozenCount: number }>("/api/member-subscriptions/bulk-freeze", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
 
 export const bulkUnfreezeMemberSubscriptions = (ids: number[]) =>
-  customFetch<{ unfrozenCount: number }>(
-    "/api/member-subscriptions/bulk-unfreeze",
-    { method: "POST", body: JSON.stringify({ ids }) },
-  );
+  customFetch<{ unfrozenCount: number }>("/api/member-subscriptions/bulk-unfreeze", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
 
 /**
  * Triggers a CSV download. Doesn't return parsed JSON; instead writes a Blob

@@ -16,10 +16,9 @@ export const usersTable = pgTable("User", {
   // members not yet assigned to a trainer). Self-reference: points to another
   // row in the same table whose role is "trainer". `ON DELETE SET NULL` so
   // deleting a trainer row doesn't cascade-delete their members.
-  assignedTrainerId: text("assignedTrainerId").references(
-    (): AnyPgColumn => usersTable.id,
-    { onDelete: "set null" },
-  ),
+  assignedTrainerId: text("assignedTrainerId").references((): AnyPgColumn => usersTable.id, {
+    onDelete: "set null",
+  }),
   // Account lockout / brute-force protection. Both fields are best-effort
   // hints; the source of truth for "is this account locked right now" is
   // `lockedUntil > now()`. `failedLoginAttempts` is reset to 0 on every

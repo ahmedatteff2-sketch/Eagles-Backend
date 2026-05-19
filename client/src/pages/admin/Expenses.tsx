@@ -59,11 +59,15 @@ export default function AdminExpenses() {
       const json = await customFetch<{ data: Expense[]; totalAmount: number }>(`/api/expenses?${params}`);
       setExpenses(json.data ?? []);
       setTotalAmount(json.totalAmount ?? 0);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchExpenses(); }, [filterFrom, filterTo]);
+  useEffect(() => {
+    fetchExpenses();
+  }, [filterFrom, filterTo]);
 
   const handleSave = async () => {
     if (!form.description || !form.amount || !form.date) {
@@ -81,7 +85,13 @@ export default function AdminExpenses() {
       toast({ title: editingId ? "تم تحديث المصروف" : "تم إضافة المصروف" });
       setShowForm(false);
       setEditingId(null);
-      setForm({ description: "", amount: "", date: new Date().toISOString().split("T")[0]!, category: "other", notes: "" });
+      setForm({
+        description: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0]!,
+        category: "other",
+        notes: "",
+      });
       fetchExpenses();
     } catch {
       toast({ title: "فشل في الحفظ", variant: "destructive" });
@@ -102,15 +112,24 @@ export default function AdminExpenses() {
   };
 
   const handleEdit = (e: Expense) => {
-    setForm({ description: e.description, amount: String(Number(e.amount)), date: e.date, category: e.category, notes: e.notes ?? "" });
+    setForm({
+      description: e.description,
+      amount: String(Number(e.amount)),
+      date: e.date,
+      category: e.category,
+      notes: e.notes ?? "",
+    });
     setEditingId(e.id);
     setShowForm(true);
   };
 
-  const categoryTotals = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount);
-    return acc;
-  }, {} as Record<string, number>);
+  const categoryTotals = expenses.reduce(
+    (acc, e) => {
+      acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount);
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const pieData = Object.entries(categoryTotals).map(([cat, val]) => ({
     name: CATEGORIES[cat]?.label ?? cat,
@@ -126,7 +145,17 @@ export default function AdminExpenses() {
           <p className="text-muted-foreground text-sm">تتبع مصاريف النادي</p>
         </div>
         <button
-          onClick={() => { setShowForm(true); setEditingId(null); setForm({ description: "", amount: "", date: new Date().toISOString().split("T")[0]!, category: "other", notes: "" }); }}
+          onClick={() => {
+            setShowForm(true);
+            setEditingId(null);
+            setForm({
+              description: "",
+              amount: "",
+              date: new Date().toISOString().split("T")[0]!,
+              category: "other",
+              notes: "",
+            });
+          }}
           className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
           + إضافة مصروف
@@ -139,12 +168,16 @@ export default function AdminExpenses() {
           <p className="text-muted-foreground text-xs mb-1">إجمالي المصاريف</p>
           <p className="text-2xl font-bold text-destructive">{totalAmount.toLocaleString()} ج.م</p>
         </div>
-        {Object.entries(categoryTotals).slice(0, 3).map(([cat, val]) => (
-          <div key={cat} className="bg-card border border-card-border rounded-xl p-5">
-            <p className="text-muted-foreground text-xs mb-1">{CATEGORIES[cat]?.label}</p>
-            <p className="text-xl font-bold" style={{ color: CATEGORIES[cat]?.color }}>{Number(val).toLocaleString()} ج</p>
-          </div>
-        ))}
+        {Object.entries(categoryTotals)
+          .slice(0, 3)
+          .map(([cat, val]) => (
+            <div key={cat} className="bg-card border border-card-border rounded-xl p-5">
+              <p className="text-muted-foreground text-xs mb-1">{CATEGORIES[cat]?.label}</p>
+              <p className="text-xl font-bold" style={{ color: CATEGORIES[cat]?.color }}>
+                {Number(val).toLocaleString()} ج
+              </p>
+            </div>
+          ))}
       </div>
 
       {/* Chart + Filter */}
@@ -155,9 +188,19 @@ export default function AdminExpenses() {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  {pieData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
                 </Pie>
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} formatter={(v: number) => [`${Number(v).toLocaleString()} ج`, ""]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    color: "hsl(var(--foreground))",
+                  }}
+                  formatter={(v: number) => [`${Number(v).toLocaleString()} ج`, ""]}
+                />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -167,47 +210,105 @@ export default function AdminExpenses() {
           <h2 className="text-sm font-semibold text-foreground">تصفية بالتاريخ</h2>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">من</label>
-            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            <input
+              type="date"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">إلى</label>
-            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            <input
+              type="date"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+            />
           </div>
-          <button onClick={fetchExpenses} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold">تطبيق</button>
+          <button
+            onClick={fetchExpenses}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold"
+          >
+            تطبيق
+          </button>
         </div>
       </div>
 
       {/* Add/Edit Form */}
       {showForm && (
         <div className="bg-card border border-card-border rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-foreground">{editingId ? "تعديل المصروف" : "إضافة مصروف جديد"}</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            {editingId ? "تعديل المصروف" : "إضافة مصروف جديد"}
+          </h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-xs text-muted-foreground mb-1">الوصف *</label>
-              <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" placeholder="مثال: فاتورة كهرباء يناير" />
+              <input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+                placeholder="مثال: فاتورة كهرباء يناير"
+              />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">المبلغ (ج.م) *</label>
-              <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" placeholder="0" />
+              <input
+                type="number"
+                value={form.amount}
+                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+                placeholder="0"
+              />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">التاريخ *</label>
-              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">الفئة</label>
-              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground">
-                {Object.entries(CATEGORIES).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
+              <select
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              >
+                {Object.entries(CATEGORIES).map(([v, { label }]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">ملاحظات</label>
-              <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" placeholder="اختياري" />
+              <input
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+                placeholder="اختياري"
+              />
             </div>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-muted hover:bg-muted/80 text-muted-foreground py-2 rounded-lg text-sm font-medium">إلغاء</button>
-            <button onClick={handleSave} disabled={saving} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold disabled:opacity-50">
+            <button
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
+              }}
+              className="flex-1 bg-muted hover:bg-muted/80 text-muted-foreground py-2 rounded-lg text-sm font-medium"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+            >
               {saving ? "جاري الحفظ..." : "حفظ"}
             </button>
           </div>
@@ -219,35 +320,64 @@ export default function AdminExpenses() {
         <table className="w-full text-sm min-w-[600px]">
           <thead style={{ background: "hsl(0 0% 8%)" }}>
             <tr>
-              {["التاريخ", "الوصف", "الفئة", "المبلغ", "ملاحظات", ""].map(h => (
-                <th key={h} className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">{h}</th>
+              {["التاريخ", "الوصف", "الفئة", "المبلغ", "ملاحظات", ""].map((h) => (
+                <th key={h} className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">جاري التحميل...</td></tr>
-            ) : expenses.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">لا توجد مصاريف</td></tr>
-            ) : expenses.map(e => (
-              <tr key={e.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                <td className="px-4 py-3 text-foreground">{new Date(e.date).toLocaleDateString("ar-EG")}</td>
-                <td className="px-4 py-3 text-foreground font-medium">{e.description}</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ background: `${CATEGORIES[e.category]?.color}22`, color: CATEGORIES[e.category]?.color }}>
-                    {CATEGORIES[e.category]?.label}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-destructive font-bold">{Number(e.amount).toLocaleString()} ج</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{e.notes ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => handleEdit(e)} className="text-xs text-primary hover:underline">تعديل</button>
-                    <button onClick={() => handleDelete(e.id)} className="text-xs text-destructive hover:underline">حذف</button>
-                  </div>
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  جاري التحميل...
                 </td>
               </tr>
-            ))}
+            ) : expenses.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  لا توجد مصاريف
+                </td>
+              </tr>
+            ) : (
+              expenses.map((e) => (
+                <tr key={e.id} className="border-t border-border hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3 text-foreground">
+                    {new Date(e.date).toLocaleDateString("ar-EG")}
+                  </td>
+                  <td className="px-4 py-3 text-foreground font-medium">{e.description}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className="px-2 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        background: `${CATEGORIES[e.category]?.color}22`,
+                        color: CATEGORIES[e.category]?.color,
+                      }}
+                    >
+                      {CATEGORIES[e.category]?.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-destructive font-bold">
+                    {Number(e.amount).toLocaleString()} ج
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{e.notes ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => handleEdit(e)} className="text-xs text-primary hover:underline">
+                        تعديل
+                      </button>
+                      <button
+                        onClick={() => handleDelete(e.id)}
+                        className="text-xs text-destructive hover:underline"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

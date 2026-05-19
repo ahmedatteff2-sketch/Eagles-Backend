@@ -58,8 +58,7 @@ export const QRTab = forwardRef<HTMLDivElement, Props>(function QRTab(
                   }
             }
           >
-            {isActive ? "✅" : "⚠️"} {activeSub.subscription?.name ?? "—"} —{" "}
-            {isActive ? "نشط" : "منتهي"}
+            {isActive ? "✅" : "⚠️"} {activeSub.subscription?.name ?? "—"} — {isActive ? "نشط" : "منتهي"}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">بدون اشتراك</span>

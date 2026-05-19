@@ -47,7 +47,10 @@ export async function withAdvisoryLock<T>(
       try {
         await client.query("SELECT pg_advisory_unlock($1)", [key.toString()]);
       } catch (err) {
-        logger.warn({ err, key: key.toString() }, "Failed to release advisory lock — will be released on disconnect");
+        logger.warn(
+          { err, key: key.toString() },
+          "Failed to release advisory lock — will be released on disconnect",
+        );
       }
     }
   } finally {

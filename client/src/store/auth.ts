@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { UserProfile } from '@workspace/api-client-react';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { UserProfile } from "@workspace/api-client-react";
 
 interface AuthState {
   accessToken: string | null;
@@ -20,7 +20,7 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
-      name: 'gym-auth-storage',
-    }
-  )
+      name: "gym-auth-storage",
+    },
+  ),
 );

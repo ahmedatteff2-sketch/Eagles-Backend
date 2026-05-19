@@ -20,7 +20,10 @@ const templateSchema = z.object({
 
 router.get("/wa-templates", authenticate, requireAdmin, async (_req, res) => {
   try {
-    const rows = await db.select().from(waTemplatesTable).orderBy(asc(waTemplatesTable.sortOrder), asc(waTemplatesTable.id));
+    const rows = await db
+      .select()
+      .from(waTemplatesTable)
+      .orderBy(asc(waTemplatesTable.sortOrder), asc(waTemplatesTable.id));
     res.json(rows);
   } catch (err) {
     logger.error({ err }, "GET /wa-templates failed");
@@ -52,7 +55,11 @@ router.put("/wa-templates/:id", authenticate, requireAdmin, async (req, res) => 
     return;
   }
   try {
-    const [tpl] = await db.update(waTemplatesTable).set({ ...body.data, updatedAt: new Date() }).where(eq(waTemplatesTable.id, id)).returning();
+    const [tpl] = await db
+      .update(waTemplatesTable)
+      .set({ ...body.data, updatedAt: new Date() })
+      .where(eq(waTemplatesTable.id, id))
+      .returning();
     if (!tpl) {
       res.status(404).json({ error: "Not found", message: "القالب غير موجود" });
       return;

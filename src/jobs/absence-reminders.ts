@@ -27,9 +27,9 @@ const DEDUPE_WINDOW_HOURS = 23; // 23 not 24, to avoid drift if a tick fires a f
 
 export interface AbsencePassSummary {
   candidates: number; // members absent ≥ ABSENCE_DAYS
-  logged: number;     // new system rows inserted
-  skipped: number;    // candidates already pinged/flagged in the last 23h
-  message: string;    // the WA template body for the admin UI to preview
+  logged: number; // new system rows inserted
+  skipped: number; // candidates already pinged/flagged in the last 23h
+  message: string; // the WA template body for the admin UI to preview
 }
 
 /**

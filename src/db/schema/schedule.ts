@@ -3,7 +3,13 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const dayOfWeekEnum = pgEnum("day_of_week", [
-  "saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"
+  "saturday",
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
 ]);
 
 export const scheduleTable = pgTable("schedule", {

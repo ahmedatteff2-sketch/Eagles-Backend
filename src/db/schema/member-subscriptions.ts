@@ -8,8 +8,12 @@ export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "
 
 export const memberSubscriptionsTable = pgTable("member_subscriptions", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  subscriptionId: integer("subscription_id").notNull().references(() => subscriptionsTable.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  subscriptionId: integer("subscription_id")
+    .notNull()
+    .references(() => subscriptionsTable.id),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   status: subscriptionStatusEnum("status").notNull().default("active"),
@@ -22,6 +26,9 @@ export const memberSubscriptionsTable = pgTable("member_subscriptions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertMemberSubscriptionSchema = createInsertSchema(memberSubscriptionsTable).omit({ id: true, createdAt: true });
+export const insertMemberSubscriptionSchema = createInsertSchema(memberSubscriptionsTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertMemberSubscription = z.infer<typeof insertMemberSubscriptionSchema>;
 export type MemberSubscription = typeof memberSubscriptionsTable.$inferSelect;

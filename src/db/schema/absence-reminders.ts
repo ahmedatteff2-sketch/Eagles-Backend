@@ -13,7 +13,9 @@ import { usersTable } from "./users.js";
  */
 export const absenceRemindersTable = pgTable("absence_reminders", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
   // "whatsapp" = the admin opened a wa.me link in the UI
   // "system"   = the cron noticed the member hadn't checked in for ≥N days
   channel: text("channel").notNull().default("whatsapp"),

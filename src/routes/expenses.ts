@@ -13,7 +13,9 @@ const expenseSchema = z.object({
   description: z.string().min(1).max(300),
   amount: z.number().positive().max(10_000_000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  category: z.enum(["rent", "utilities", "salaries", "equipment", "maintenance", "marketing", "other"]).default("other"),
+  category: z
+    .enum(["rent", "utilities", "salaries", "equipment", "maintenance", "marketing", "other"])
+    .default("other"),
   notes: z.string().max(500).optional(),
 });
 
@@ -68,10 +70,13 @@ router.post("/expenses", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const [expense] = await db.insert(expensesTable).values({
-      ...body.data,
-      amount: String(body.data.amount),
-    }).returning();
+    const [expense] = await db
+      .insert(expensesTable)
+      .values({
+        ...body.data,
+        amount: String(body.data.amount),
+      })
+      .returning();
     res.status(201).json(expense);
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة المصروف" });
@@ -91,7 +96,11 @@ router.put("/expenses/:expenseId", authenticate, requireAdmin, async (req, res) 
     const updateData: Record<string, unknown> = { ...body.data };
     if (body.data.amount !== undefined) updateData.amount = String(body.data.amount);
 
-    const [expense] = await db.update(expensesTable).set(updateData).where(eq(expensesTable.id, expenseId)).returning();
+    const [expense] = await db
+      .update(expensesTable)
+      .set(updateData)
+      .where(eq(expensesTable.id, expenseId))
+      .returning();
     if (!expense) {
       res.status(404).json({ error: "Not found" });
       return;

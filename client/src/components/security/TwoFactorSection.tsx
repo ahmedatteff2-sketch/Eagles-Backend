@@ -4,7 +4,8 @@ import { useGetMe } from "@workspace/api-client-react";
 import { setup2FA, enable2FA, disable2FA } from "@/lib/auth-extras";
 
 const GOLD = "hsl(40 65% 52%)";
-const inp = "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
+const inp =
+  "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
 const inpSt = { background: "hsl(0 0% 12%)", border: "1px solid hsl(0 0% 22%)" };
 
 /**
@@ -99,7 +100,10 @@ export default function TwoFactorSection() {
   }
 
   return (
-    <div className="rounded-xl p-5 space-y-4" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+    <div
+      className="rounded-xl p-5 space-y-4"
+      style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-bold text-foreground tracking-wide">🔐 التحقق بخطوتين (2FA)</h2>
         <span
@@ -138,7 +142,11 @@ export default function TwoFactorSection() {
           onClick={() => void startSetup()}
           disabled={busy}
           className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40 transition-all"
-          style={{ background: "hsl(40 65% 48% / 0.15)", color: GOLD, border: "1px solid hsl(40 65% 48% / 0.25)" }}
+          style={{
+            background: "hsl(40 65% 48% / 0.15)",
+            color: GOLD,
+            border: "1px solid hsl(40 65% 48% / 0.25)",
+          }}
         >
           {busy ? "..." : "تفعيل 2FA"}
         </button>
@@ -148,7 +156,11 @@ export default function TwoFactorSection() {
         <button
           onClick={() => setPhase("disable")}
           className="px-4 py-2 rounded-lg text-xs font-bold transition-all"
-          style={{ background: "hsl(0 72% 51% / 0.15)", color: "hsl(0 72% 60%)", border: "1px solid hsl(0 72% 51% / 0.25)" }}
+          style={{
+            background: "hsl(0 72% 51% / 0.15)",
+            color: "hsl(0 72% 60%)",
+            border: "1px solid hsl(0 72% 51% / 0.25)",
+          }}
         >
           تعطيل 2FA
         </button>
@@ -156,8 +168,13 @@ export default function TwoFactorSection() {
 
       {/* Setup phase: scan QR + enter code */}
       {phase === "setup" && setupData && (
-        <div className="space-y-3 rounded-lg p-4" style={{ background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 13%)" }}>
-          <p className="text-xs font-bold text-foreground uppercase tracking-wide">1) امسح الكود بتطبيق المصادقة</p>
+        <div
+          className="space-y-3 rounded-lg p-4"
+          style={{ background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 13%)" }}
+        >
+          <p className="text-xs font-bold text-foreground uppercase tracking-wide">
+            1) امسح الكود بتطبيق المصادقة
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <img
               src={qrSrc(setupData.otpauthUrl)}
@@ -176,7 +193,9 @@ export default function TwoFactorSection() {
             </div>
           </div>
 
-          <p className="text-xs font-bold text-foreground uppercase tracking-wide pt-2">2) أدخل الرمز اللي ظهر في التطبيق</p>
+          <p className="text-xs font-bold text-foreground uppercase tracking-wide pt-2">
+            2) أدخل الرمز اللي ظهر في التطبيق
+          </p>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -203,7 +222,10 @@ export default function TwoFactorSection() {
               onClick={() => void confirmEnable()}
               disabled={busy}
               className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}
+              style={{
+                background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+                color: "hsl(0 0% 5%)",
+              }}
             >
               {busy ? "..." : "تأكيد التفعيل"}
             </button>
@@ -213,7 +235,10 @@ export default function TwoFactorSection() {
 
       {/* Disable phase: confirm with password + TOTP */}
       {phase === "disable" && (
-        <div className="space-y-3 rounded-lg p-4" style={{ background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 13%)" }}>
+        <div
+          className="space-y-3 rounded-lg p-4"
+          style={{ background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 13%)" }}
+        >
           <p className="text-xs text-muted-foreground">
             لتعطيل التحقق بخطوتين أدخل كلمة المرور والرمز الحالي من تطبيق المصادقة:
           </p>

@@ -36,10 +36,7 @@ export default function AdminRenewalReminders() {
   async function refresh(withDays = days) {
     setLoading(true);
     try {
-      const [exp, recent] = await Promise.all([
-        getExpiringMembers(withDays),
-        getRenewalReminderLog(200),
-      ]);
+      const [exp, recent] = await Promise.all([getExpiringMembers(withDays), getRenewalReminderLog(200)]);
       setItems(exp.items);
       setLog(recent);
     } catch (err) {
@@ -241,7 +238,11 @@ export default function AdminRenewalReminders() {
               onClick={selectAll}
               disabled={items.length === 0}
               className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
-              style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 75%)", border: "1px solid hsl(0 0% 22%)" }}
+              style={{
+                background: "hsl(0 0% 14%)",
+                color: "hsl(0 0% 75%)",
+                border: "1px solid hsl(0 0% 22%)",
+              }}
             >
               تحديد الكل
             </button>
@@ -292,7 +293,8 @@ export default function AdminRenewalReminders() {
             {items.map((m) => {
               const isSelected = selected.has(m.userId);
               const isOverdue = m.daysLeft <= 0;
-              const isFresh = m.lastReminderAt && Date.now() - new Date(m.lastReminderAt).getTime() < 23 * 3600 * 1000;
+              const isFresh =
+                m.lastReminderAt && Date.now() - new Date(m.lastReminderAt).getTime() < 23 * 3600 * 1000;
               return (
                 <li
                   key={m.memberSubscriptionId}
@@ -319,8 +321,7 @@ export default function AdminRenewalReminders() {
                       )}
                     </p>
                     <p className="text-xs" style={{ color: "hsl(0 0% 50%)" }}>
-                      {m.phone} · {m.subName} · ينتهي{" "}
-                      {new Date(m.endDate).toLocaleDateString("ar-EG")}
+                      {m.phone} · {m.subName} · ينتهي {new Date(m.endDate).toLocaleDateString("ar-EG")}
                     </p>
                   </div>
                   <span
@@ -329,8 +330,8 @@ export default function AdminRenewalReminders() {
                       isOverdue
                         ? { background: "hsl(0 70% 50% / 0.15)", color: "hsl(0 70% 65%)" }
                         : m.daysLeft === 1
-                        ? { background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 65%)" }
-                        : { background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 65%)" }
+                          ? { background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 65%)" }
+                          : { background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 65%)" }
                     }
                   >
                     {isOverdue ? "متأخر" : `${m.daysLeft} يوم`}

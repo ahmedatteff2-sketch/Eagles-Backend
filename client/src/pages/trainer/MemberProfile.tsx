@@ -79,12 +79,8 @@ export default function TrainerMemberProfile() {
           </p>
           {sub && (
             <p className="text-xs mt-1">
-              <span className="text-[hsl(0_0%_50%)]">
-                اشتراك {sub.plan} حتى{" "}
-              </span>
-              <span style={{ color: isActive ? "hsl(142 60% 65%)" : "hsl(0 60% 65%)" }}>
-                {sub.endDate}
-              </span>
+              <span className="text-[hsl(0_0%_50%)]">اشتراك {sub.plan} حتى </span>
+              <span style={{ color: isActive ? "hsl(142 60% 65%)" : "hsl(0 60% 65%)" }}>{sub.endDate}</span>
             </p>
           )}
         </div>
@@ -208,10 +204,7 @@ function WorkoutsTab({ logs }: { logs: ExerciseLog[] }) {
       {Array.from(groups.entries()).map(([key, sets]) => {
         const [date, name] = key.split("|");
         return (
-          <div
-            key={key}
-            className="rounded-2xl p-3 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]"
-          >
+          <div key={key} className="rounded-2xl p-3 bg-[hsl(0_0%_9%)] border border-[hsl(0_0%_14%)]">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-[hsl(40_20%_88%)]">{name}</p>
               <p className="text-[11px] text-[hsl(0_0%_45%)]">{date}</p>
@@ -280,10 +273,7 @@ function NotesTab({ memberId, notes }: { memberId: string; notes: Note[] }) {
   function saveEdit(id: number) {
     const text = editingText.trim();
     if (!text) return;
-    update.mutate(
-      { noteId: id, memberId, patch: { note: text } },
-      { onSuccess: () => setEditingId(null) },
-    );
+    update.mutate({ noteId: id, memberId, patch: { note: text } }, { onSuccess: () => setEditingId(null) });
   }
 
   return (
@@ -356,9 +346,7 @@ function NotesTab({ memberId, notes }: { memberId: string; notes: Note[] }) {
                     <p className="text-sm text-[hsl(40_20%_85%)] whitespace-pre-wrap">{n.note}</p>
                   )}
                   <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[hsl(0_0%_45%)]">
-                    {n.pinned && (
-                      <span className="text-[hsl(40_65%_60%)]">📌 مثبّتة</span>
-                    )}
+                    {n.pinned && <span className="text-[hsl(40_65%_60%)]">📌 مثبّتة</span>}
                     <span>{translateCategory(n.category)}</span>
                     <span>•</span>
                     <span>{new Date(n.createdAt).toLocaleDateString("ar-EG")}</span>

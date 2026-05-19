@@ -48,9 +48,7 @@ export function CreateMealPlanModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              ملاحظات (اختياري)
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-1">ملاحظات (اختياري)</label>
             <textarea
               value={planNotes}
               onChange={(e) => onPlanNotesChange(e.target.value)}
@@ -62,9 +60,7 @@ export function CreateMealPlanModal({
 
           <div className="border-t border-border pt-3 mt-2">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground">
-                الوجبات ({planItems.length})
-              </h3>
+              <h3 className="text-sm font-semibold text-foreground">الوجبات ({planItems.length})</h3>
               <button
                 type="button"
                 onClick={onAddItem}

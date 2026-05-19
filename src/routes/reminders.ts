@@ -60,7 +60,11 @@ router.put("/reminders/:id", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const [reminder] = await db.update(remindersTable).set({ ...body.data, updatedAt: new Date() }).where(eq(remindersTable.id, id)).returning();
+    const [reminder] = await db
+      .update(remindersTable)
+      .set({ ...body.data, updatedAt: new Date() })
+      .where(eq(remindersTable.id, id))
+      .returning();
     if (!reminder) {
       res.status(404).json({ error: "Not found", message: "الذكر غير موجود" });
       return;

@@ -7,16 +7,24 @@ export default function MemberAttendance() {
 
   const { data: checkins, isLoading } = useListCheckins(
     { userId: userId ?? undefined },
-    { query: { queryKey: getListCheckinsQueryKey({ userId: userId ?? undefined }), enabled: !!userId } }
+    { query: { queryKey: getListCheckinsQueryKey({ userId: userId ?? undefined }), enabled: !!userId } },
   );
 
-  const checkinList = Array.isArray(checkins) ? checkins : (checkins as any)?.checkins ?? [];
-  const sorted = checkinList.slice().sort((a: any, b: any) => new Date(b.timestamp ?? b.date).getTime() - new Date(a.timestamp ?? a.date).getTime());
+  const checkinList = Array.isArray(checkins) ? checkins : ((checkins as any)?.checkins ?? []);
+  const sorted = checkinList
+    .slice()
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.timestamp ?? b.date).getTime() - new Date(a.timestamp ?? a.date).getTime(),
+    );
 
   // Group by month
   const grouped: Record<string, any[]> = {};
   for (const c of sorted) {
-    const key = new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
+    const key = new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", {
+      year: "numeric",
+      month: "long",
+    });
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(c);
   }
@@ -38,11 +46,13 @@ export default function MemberAttendance() {
         <div className="bg-card border border-card-border rounded-xl p-5">
           <p className="text-muted-foreground text-xs mb-1">هذا الشهر</p>
           <p className="text-2xl font-bold text-foreground">
-            {checkinList.filter((c: any) => {
-              const d = new Date(c.timestamp ?? c.date);
-              const now = new Date();
-              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            }).length}
+            {
+              checkinList.filter((c: any) => {
+                const d = new Date(c.timestamp ?? c.date);
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              }).length
+            }
           </p>
           <p className="text-muted-foreground text-xs mt-1">يوم</p>
         </div>
@@ -52,7 +62,7 @@ export default function MemberAttendance() {
       <div className="bg-card border border-card-border rounded-xl p-5">
         {isLoading ? (
           <div className="space-y-3 py-2">
-            {[1,2,3,4,5].map(i => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex items-center gap-3 py-2">
                 <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
                 <div className="flex-1 space-y-1.5">
@@ -68,13 +78,23 @@ export default function MemberAttendance() {
           <div className="space-y-4">
             {Object.entries(grouped).map(([month, items]) => (
               <div key={month}>
-                <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{month} ({items.length})</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                  {month} ({items.length})
+                </h3>
                 <div className="space-y-1">
                   {items.map((c: any) => (
-                    <div key={c.id} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0"
+                    >
                       <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                       <p className="text-sm text-foreground">
-                        {new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                        {new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
                       </p>
                     </div>
                   ))}

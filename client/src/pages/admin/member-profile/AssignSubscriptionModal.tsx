@@ -43,9 +43,7 @@ export function AssignSubscriptionModal({
               ))}
             </select>
             {form.formState.errors.subscriptionId && (
-              <p className="text-destructive text-xs mt-1">
-                {form.formState.errors.subscriptionId.message}
-              </p>
+              <p className="text-destructive text-xs mt-1">{form.formState.errors.subscriptionId.message}</p>
             )}
           </div>
           <div>
@@ -53,9 +51,7 @@ export function AssignSubscriptionModal({
             <input {...form.register("startDate")} type="date" className={inp} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              مبلغ الدفع (اختياري)
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-1">مبلغ الدفع (اختياري)</label>
             <input {...form.register("paymentAmount")} type="number" className={inp} />
           </div>
           <div>

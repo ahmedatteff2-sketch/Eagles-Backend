@@ -2,12 +2,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./index.css";
-import {
-  setAuthTokenGetter,
-  setAuthRefreshHandler,
-  setUnauthorizedHandler,
-  setBaseUrl,
-} from "./api-client";
+import { setAuthTokenGetter, setAuthRefreshHandler, setUnauthorizedHandler, setBaseUrl } from "./api-client";
 import { STORAGE_KEYS } from "./lib/storage";
 import { initSentry } from "./lib/sentry";
 // Initialize i18n for its side effects (registers resources with i18next).
@@ -37,7 +32,10 @@ window.addEventListener("beforeinstallprompt", (e) => {
   window.dispatchEvent(new CustomEvent("pwa-installable"));
 });
 (window as unknown as { __pwaInstall?: () => void }).__pwaInstall = () => {
-  if (deferredPrompt) { void deferredPrompt.prompt(); deferredPrompt = null; }
+  if (deferredPrompt) {
+    void deferredPrompt.prompt();
+    deferredPrompt = null;
+  }
 };
 
 // ─── API Base URL (set VITE_API_URL env var when frontend & backend are on different domains)
@@ -192,6 +190,5 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>
     <App />
-  </QueryClientProvider>
+  </QueryClientProvider>,
 );
-

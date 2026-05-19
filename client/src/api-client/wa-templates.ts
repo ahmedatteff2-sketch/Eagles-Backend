@@ -17,8 +17,7 @@ export type WaTemplateInput = {
   sortOrder?: number;
 };
 
-export const getWaTemplates = () =>
-  customFetch<WaTemplate[]>("/api/wa-templates", { method: "GET" });
+export const getWaTemplates = () => customFetch<WaTemplate[]>("/api/wa-templates", { method: "GET" });
 
 export const createWaTemplate = (data: WaTemplateInput) =>
   customFetch<WaTemplate>("/api/wa-templates", {

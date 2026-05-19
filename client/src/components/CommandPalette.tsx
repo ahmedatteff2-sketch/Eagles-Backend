@@ -70,24 +70,126 @@ export function CommandPalette() {
     const trainerOnly: Array<"trainer"> = ["trainer"];
     return [
       // Admin commands
-      { id: "admin-dashboard", label: t("nav.dashboard"), hint: "Alt+D", group: "Admin", href: "/admin", roles: adminOnly },
-      { id: "admin-members", label: t("nav.members"), hint: "Alt+M", group: "Admin", href: "/admin/members", roles: adminOnly },
-      { id: "admin-attendance", label: t("nav.attendance"), hint: "Alt+A", group: "Admin", href: "/admin/attendance", roles: adminOnly },
-      { id: "admin-subscriptions", label: t("nav.subscriptions"), hint: "Alt+S", group: "Admin", href: "/admin/subscriptions", roles: adminOnly },
-      { id: "admin-payments", label: t("nav.payments"), hint: "Alt+P", group: "Admin", href: "/admin/payments", roles: adminOnly },
-      { id: "admin-expenses", label: t("nav.expenses"), group: "Admin", href: "/admin/expenses", roles: adminOnly },
-      { id: "admin-schedule", label: t("nav.schedule"), group: "Admin", href: "/admin/schedule", roles: adminOnly },
-      { id: "admin-analytics", label: t("nav.analytics"), group: "Admin", href: "/admin/analytics", roles: adminOnly },
-      { id: "admin-settings", label: t("nav.settings"), hint: "Alt+,", group: "Admin", href: "/admin/settings", roles: adminOnly },
-      { id: "admin-renewals", label: t("nav.renewalReminders"), group: "Admin", href: "/admin/renewal-reminders", roles: adminOnly },
-      { id: "admin-absent", label: t("nav.absentMembers"), group: "Admin", href: "/admin/absent-members", roles: adminOnly },
+      {
+        id: "admin-dashboard",
+        label: t("nav.dashboard"),
+        hint: "Alt+D",
+        group: "Admin",
+        href: "/admin",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-members",
+        label: t("nav.members"),
+        hint: "Alt+M",
+        group: "Admin",
+        href: "/admin/members",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-attendance",
+        label: t("nav.attendance"),
+        hint: "Alt+A",
+        group: "Admin",
+        href: "/admin/attendance",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-subscriptions",
+        label: t("nav.subscriptions"),
+        hint: "Alt+S",
+        group: "Admin",
+        href: "/admin/subscriptions",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-payments",
+        label: t("nav.payments"),
+        hint: "Alt+P",
+        group: "Admin",
+        href: "/admin/payments",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-expenses",
+        label: t("nav.expenses"),
+        group: "Admin",
+        href: "/admin/expenses",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-schedule",
+        label: t("nav.schedule"),
+        group: "Admin",
+        href: "/admin/schedule",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-analytics",
+        label: t("nav.analytics"),
+        group: "Admin",
+        href: "/admin/analytics",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-settings",
+        label: t("nav.settings"),
+        hint: "Alt+,",
+        group: "Admin",
+        href: "/admin/settings",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-renewals",
+        label: t("nav.renewalReminders"),
+        group: "Admin",
+        href: "/admin/renewal-reminders",
+        roles: adminOnly,
+      },
+      {
+        id: "admin-absent",
+        label: t("nav.absentMembers"),
+        group: "Admin",
+        href: "/admin/absent-members",
+        roles: adminOnly,
+      },
       { id: "admin-audit", label: t("nav.auditLog"), group: "Admin", href: "/admin/audit", roles: adminOnly },
       // Trainer commands
-      { id: "trainer-dashboard", label: t("nav.trainerDashboard"), group: "Trainer", href: "/trainer", roles: trainerOnly },
-      { id: "trainer-members", label: t("nav.trainerMembers"), group: "Trainer", href: "/trainer/members", roles: trainerOnly },
-      { id: "trainer-schedule", label: t("nav.trainerSchedule"), group: "Trainer", href: "/trainer/schedule", roles: trainerOnly },
-      { id: "trainer-performance", label: t("nav.trainerPerformance"), group: "Trainer", href: "/trainer/performance", roles: trainerOnly },
-      { id: "trainer-settings", label: t("nav.settings"), group: "Trainer", href: "/trainer/settings", roles: trainerOnly },
+      {
+        id: "trainer-dashboard",
+        label: t("nav.trainerDashboard"),
+        group: "Trainer",
+        href: "/trainer",
+        roles: trainerOnly,
+      },
+      {
+        id: "trainer-members",
+        label: t("nav.trainerMembers"),
+        group: "Trainer",
+        href: "/trainer/members",
+        roles: trainerOnly,
+      },
+      {
+        id: "trainer-schedule",
+        label: t("nav.trainerSchedule"),
+        group: "Trainer",
+        href: "/trainer/schedule",
+        roles: trainerOnly,
+      },
+      {
+        id: "trainer-performance",
+        label: t("nav.trainerPerformance"),
+        group: "Trainer",
+        href: "/trainer/performance",
+        roles: trainerOnly,
+      },
+      {
+        id: "trainer-settings",
+        label: t("nav.settings"),
+        group: "Trainer",
+        href: "/trainer/settings",
+        roles: trainerOnly,
+      },
       // Member commands
       { id: "member-dashboard", label: t("nav.dashboard"), group: "Member", href: "/member" },
       { id: "member-workouts", label: t("nav.workouts"), group: "Member", href: "/member/workouts" },
@@ -138,7 +240,11 @@ export function CommandPalette() {
               {t("common.noData")}
             </Command.Empty>
             {Array.from(new Set(visibleCommands.map((c) => c.group))).map((group) => (
-              <Command.Group key={group} heading={group} className="px-2 py-1.5 text-xs text-muted-foreground">
+              <Command.Group
+                key={group}
+                heading={group}
+                className="px-2 py-1.5 text-xs text-muted-foreground"
+              >
                 {visibleCommands
                   .filter((c) => c.group === group)
                   .map((cmd) => (
@@ -149,9 +255,7 @@ export function CommandPalette() {
                       className="flex items-center justify-between px-3 py-2 rounded-md text-sm cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground"
                     >
                       <span>{cmd.label}</span>
-                      {cmd.hint && (
-                        <kbd className="text-xs text-muted-foreground font-mono">{cmd.hint}</kbd>
-                      )}
+                      {cmd.hint && <kbd className="text-xs text-muted-foreground font-mono">{cmd.hint}</kbd>}
                     </Command.Item>
                   ))}
               </Command.Group>

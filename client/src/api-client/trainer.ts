@@ -136,8 +136,7 @@ export function useTrainerDashboard() {
 export function useTrainerMembers() {
   return useQuery({
     queryKey: trainerKeys.members(),
-    queryFn: () =>
-      customFetch<{ data: TrainerMember[]; total: number }>("/api/trainer/members"),
+    queryFn: () => customFetch<{ data: TrainerMember[]; total: number }>("/api/trainer/members"),
   });
 }
 
@@ -152,8 +151,7 @@ export function useTrainerMemberProfile(memberId: string | null) {
 export function useTrainerSchedule() {
   return useQuery({
     queryKey: trainerKeys.schedule(),
-    queryFn: () =>
-      customFetch<{ data: TrainerScheduleSession[] }>("/api/trainer/schedule"),
+    queryFn: () => customFetch<{ data: TrainerScheduleSession[] }>("/api/trainer/schedule"),
   });
 }
 

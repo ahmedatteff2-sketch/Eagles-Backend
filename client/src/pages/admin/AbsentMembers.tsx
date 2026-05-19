@@ -40,10 +40,7 @@ export default function AdminAbsentMembers() {
   async function refresh(withDays = days) {
     setLoading(true);
     try {
-      const [absent, recent] = await Promise.all([
-        getAbsentMembers(withDays),
-        getAbsenceReminderLog(200),
-      ]);
+      const [absent, recent] = await Promise.all([getAbsentMembers(withDays), getAbsenceReminderLog(200)]);
       setItems(absent.items);
       setLog(recent);
     } catch (err) {
@@ -100,11 +97,7 @@ export default function AdminAbsentMembers() {
         // Local Egyptian numbers come in as `01xxxxxxxxx` (leading 0);
         // strip that and prepend the `20` country code for wa.me. Numbers
         // that already start with `20` are left alone.
-        const intl = phone.startsWith("0")
-          ? "2" + phone
-          : phone.startsWith("20")
-          ? phone
-          : "20" + phone;
+        const intl = phone.startsWith("0") ? "2" + phone : phone.startsWith("20") ? phone : "20" + phone;
         const text = `أهلاً ${m.name} 👋\n\nلاحظنا إنك ما سجلتش حضور في Eagle Gym من ${m.daysAbsent} يوم.\n\nنفتقدك في النادي 💪 — احنا في انتظارك! 🦅`;
         const url = `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
         window.open(url, "_blank", "noopener,noreferrer");
@@ -250,7 +243,11 @@ export default function AdminAbsentMembers() {
               onClick={selectAll}
               disabled={items.length === 0}
               className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
-              style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 75%)", border: "1px solid hsl(0 0% 22%)" }}
+              style={{
+                background: "hsl(0 0% 14%)",
+                color: "hsl(0 0% 75%)",
+                border: "1px solid hsl(0 0% 22%)",
+              }}
             >
               تحديد الكل
             </button>
@@ -303,8 +300,7 @@ export default function AdminAbsentMembers() {
               const isCritical = m.daysAbsent >= 14;
               const isWarning = m.daysAbsent >= 7 && !isCritical;
               const isFresh =
-                m.lastReminderAt &&
-                Date.now() - new Date(m.lastReminderAt).getTime() < 23 * 3600 * 1000;
+                m.lastReminderAt && Date.now() - new Date(m.lastReminderAt).getTime() < 23 * 3600 * 1000;
               const lastCheckinLabel = m.lastCheckinAt
                 ? `آخر حضور: ${new Date(m.lastCheckinAt).toLocaleDateString("ar-EG")}`
                 : "لم يحضر أبداً";
@@ -343,8 +339,8 @@ export default function AdminAbsentMembers() {
                       isCritical
                         ? { background: "hsl(0 70% 50% / 0.15)", color: "hsl(0 70% 65%)" }
                         : isWarning
-                        ? { background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 65%)" }
-                        : { background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 65%)" }
+                          ? { background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 65%)" }
+                          : { background: "hsl(40 65% 48% / 0.15)", color: "hsl(40 65% 65%)" }
                     }
                   >
                     {m.daysAbsent} يوم
@@ -393,8 +389,7 @@ export default function AdminAbsentMembers() {
                     {row.userName ?? row.userId}
                   </p>
                   <p className="text-xs" style={{ color: "hsl(0 0% 50%)" }}>
-                    {row.userPhone ?? "—"} ·{" "}
-                    {new Date(row.sentAt).toLocaleString("ar-EG")}
+                    {row.userPhone ?? "—"} · {new Date(row.sentAt).toLocaleString("ar-EG")}
                   </p>
                 </div>
                 <span
