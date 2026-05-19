@@ -155,9 +155,24 @@ export default function MemberWorkouts() {
 
   return (
     <div className="p-4 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">تمريناتي</h1>
-        <p className="text-muted-foreground text-sm">القوالب المعيّنة لك من المدرب</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">تمريناتي</h1>
+          <p className="text-muted-foreground text-sm">القوالب المعيّنة لك من المدرب</p>
+        </div>
+        {/* Quick link to the member's own builder. Routed via wouter <Link> so
+            it doesn't trigger a full reload on mobile. */}
+        <Link href="/member/my-workouts">
+          <button
+            className="px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap"
+            style={{
+              background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+              color: "hsl(0 0% 5%)",
+            }}
+          >
+            + برنامج خاص بي
+          </button>
+        </Link>
       </div>
 
       {loading ? (
@@ -205,7 +220,18 @@ export default function MemberWorkouts() {
             <circle cx="17.5" cy="17.5" r="1.5" />
           </svg>
           <p className="text-foreground font-medium mb-1">لم يتم تعيين تمارين لك بعد</p>
-          <p className="text-muted-foreground text-sm">تواصل مع المدرب لتعيين قالب تمرين</p>
+          <p className="text-muted-foreground text-sm mb-4">تواصل مع المدرب — أو أنشئ برنامجك الخاص بنفسك</p>
+          <Link href="/member/my-workouts">
+            <button
+              className="px-4 py-2 rounded-lg text-xs font-bold"
+              style={{
+                background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+                color: "hsl(0 0% 5%)",
+              }}
+            >
+              + إنشاء برنامج
+            </button>
+          </Link>
         </div>
       ) : (
         templates.map((t) => <TemplateCard key={t.id} t={t} />)

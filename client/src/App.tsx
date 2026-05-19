@@ -37,6 +37,7 @@ const AdminWhatsAppTemplates = lazy(() => import("@/pages/admin/WhatsAppTemplate
 const AdminAuditLog = lazy(() => import("@/pages/admin/AuditLog"));
 const MemberDashboard = lazy(() => import("@/pages/member/Dashboard"));
 const MemberWorkouts = lazy(() => import("@/pages/member/Workouts"));
+const MemberMyWorkouts = lazy(() => import("@/pages/member/MyWorkouts"));
 const MemberLog = lazy(() => import("@/pages/member/Log"));
 const MemberStats = lazy(() => import("@/pages/member/Stats"));
 const MemberAttendance = lazy(() => import("@/pages/member/Attendance"));
@@ -371,6 +372,11 @@ export default function App() {
         <Route path="/member/workouts">
           <MemberRoute>
             <MemberWorkouts />
+          </MemberRoute>
+        </Route>
+        <Route path="/member/my-workouts">
+          <MemberRoute>
+            <MemberMyWorkouts />
           </MemberRoute>
         </Route>
         <Route path="/member/log">
