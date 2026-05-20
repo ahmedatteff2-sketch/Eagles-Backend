@@ -8,6 +8,7 @@ import {
   type ExpiringMember,
   type RenewalReminderLog,
 } from "@/api-client/renewal-reminders";
+import { toInternationalPhone } from "@/lib/phone";
 
 const GOLD = "hsl(40 65% 52%)";
 const GREEN = "#25D366";
@@ -91,7 +92,7 @@ export default function AdminRenewalReminders() {
       for (const m of targets) {
         const phone = (m.phone ?? "").replace(/\D/g, "");
         if (!phone) continue;
-        const intl = phone.startsWith("0") ? "2" + phone : phone.startsWith("20") ? phone : "20" + phone;
+        const intl = toInternationalPhone(phone);
         const text = `أهلاً ${m.name} 👋\n\nاشتراكك في Eagle Gym ينتهي يوم ${new Date(m.endDate).toLocaleDateString("ar-EG")} (باقي ${m.daysLeft} يوم).\n\nنتمنى تجديد اشتراكك للاستمرار في تحقيق أهدافك 💪`;
         const url = `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
         window.open(url, "_blank", "noopener,noreferrer");

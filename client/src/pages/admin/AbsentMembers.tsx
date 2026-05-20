@@ -8,6 +8,7 @@ import {
   type AbsenceReminderLog,
   type AbsentMember,
 } from "@/api-client/absence-reminders";
+import { toInternationalPhone } from "@/lib/phone";
 
 const GOLD = "hsl(40 65% 52%)";
 const GREEN = "#25D366";
@@ -97,7 +98,7 @@ export default function AdminAbsentMembers() {
         // Local Egyptian numbers come in as `01xxxxxxxxx` (leading 0);
         // strip that and prepend the `20` country code for wa.me. Numbers
         // that already start with `20` are left alone.
-        const intl = phone.startsWith("0") ? "2" + phone : phone.startsWith("20") ? phone : "20" + phone;
+        const intl = toInternationalPhone(phone);
         const text = `أهلاً ${m.name} 👋\n\nلاحظنا إنك ما سجلتش حضور في Eagle Gym من ${m.daysAbsent} يوم.\n\nنفتقدك في النادي 💪 — احنا في انتظارك! 🦅`;
         const url = `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
         window.open(url, "_blank", "noopener,noreferrer");
