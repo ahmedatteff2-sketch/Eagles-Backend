@@ -149,6 +149,16 @@ export default function MemberMyWorkouts() {
     fetchAll();
   }, [fetchAll]);
 
+  // Auto-expand the user's first personal template on initial load so the
+  // day tabs + "إضافة تمرين" button are visible without an extra tap.
+  // The collapsed state is only useful when there are many programs; for the
+  // common case (one program) the empty card below the day tabs is confusing.
+  useEffect(() => {
+    if (expandedId !== null) return;
+    const firstOwn = templates.find((t) => t.isOwn);
+    if (firstOwn) setExpandedId(firstOwn.id);
+  }, [templates, expandedId]);
+
   async function createTemplate() {
     if (!newName.trim()) {
       toast({ title: "أدخل اسم البرنامج", variant: "destructive" });
@@ -740,7 +750,10 @@ function TemplateCard({
               return (
                 <button
                   key={day}
-                  onClick={() => setActiveDay(day)}
+                  onClick={() => {
+                    setActiveDay(day);
+                    if (!expanded) onToggle();
+                  }}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     activeDay === day
                       ? "text-primary-foreground"
