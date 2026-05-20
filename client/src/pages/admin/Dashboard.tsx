@@ -10,6 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { customFetch } from "@/api-client/custom-fetch";
+import { toInternationalPhone } from "@/lib/phone";
 
 const GOLD = "hsl(40 65% 52%)";
 const TIP = {
@@ -470,7 +471,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <a
-                      href={"https://wa.me/2" + (m.phone ?? "").replace(/^0/, "")}
+                      href={`https://wa.me/${toInternationalPhone(m.phone ?? "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 rounded-lg"
@@ -537,7 +538,7 @@ export default function AdminDashboard() {
                       ينتهي اليوم
                     </span>
                     <a
-                      href={"https://wa.me/2" + (m.phone ?? "").replace(/^0/, "")}
+                      href={`https://wa.me/${toInternationalPhone(m.phone ?? "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 rounded-lg"
@@ -583,7 +584,7 @@ export default function AdminDashboard() {
                         بعد {daysLeft} يوم
                       </span>
                       <a
-                        href={"https://wa.me/2" + (m.phone ?? "").replace(/^0/, "")}
+                        href={`https://wa.me/${toInternationalPhone(m.phone ?? "")}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1.5 rounded-lg"
