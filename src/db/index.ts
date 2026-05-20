@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import { parseDatabaseUrl } from "../lib/db-url.js";
 import * as schema from "./schema/index.js";
 
 const { Pool } = pg;
@@ -12,7 +13,7 @@ if (!process.env.DATABASE_URL) {
 const isProduction = process.env.NODE_ENV === "production";
 const isTest = process.env.NODE_ENV === "test";
 
-const dbUrl = new URL(process.env.DATABASE_URL);
+const dbUrl = parseDatabaseUrl(process.env.DATABASE_URL);
 
 // Supabase Session Pooler uses pgbouncer — disable prepared statements.
 const isPooler = dbUrl.host.includes("pooler.supabase.com");
