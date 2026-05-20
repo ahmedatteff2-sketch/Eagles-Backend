@@ -11,7 +11,7 @@ interface HistoryRow {
 
 interface CheckinRow {
   id: number;
-  date?: string;
+  timestamp?: string;
 }
 
 interface Props {
@@ -36,7 +36,7 @@ export function OverviewTab({ totalCheckins, thisMonth, thisWeek, templateCount,
   ];
 
   const recentCheckins = [...checkins]
-    .sort((a, b) => new Date(b.date ?? "").getTime() - new Date(a.date ?? "").getTime())
+    .sort((a, b) => new Date(b.timestamp ?? "").getTime() - new Date(a.timestamp ?? "").getTime())
     .slice(0, 8);
 
   return (
@@ -100,7 +100,7 @@ export function OverviewTab({ totalCheckins, thisMonth, thisWeek, templateCount,
           ) : (
             <div className="space-y-1.5">
               {recentCheckins.map((c) => {
-                const d = new Date(c.date ?? "");
+                const d = new Date(c.timestamp ?? "");
                 return (
                   <div
                     key={c.id}

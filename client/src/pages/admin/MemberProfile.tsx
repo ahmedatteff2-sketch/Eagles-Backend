@@ -355,11 +355,11 @@ export default function AdminMemberProfile() {
   // Check-in roll-ups for the overview KPI cards.
   const now = new Date();
   const thisMonth = checkinList.filter((c: any) => {
-    const d = new Date(c.date ?? "");
+    const d = new Date(c.timestamp ?? "");
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
   const thisWeek = checkinList.filter((c: any) => {
-    const d = new Date(c.date ?? "");
+    const d = new Date(c.timestamp ?? "");
     const diff = (now.getTime() - d.getTime()) / 86400000;
     return diff <= 7;
   }).length;

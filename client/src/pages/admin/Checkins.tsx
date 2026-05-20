@@ -109,7 +109,7 @@ export default function AdminCheckins() {
                 >
                   <td className="px-4 py-3 font-medium text-foreground">{c.userName ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(c.date).toLocaleDateString("ar-EG")}
+                    {new Date(c.timestamp ?? c.date).toLocaleDateString("ar-EG")}
                   </td>
                 </tr>
               ))
