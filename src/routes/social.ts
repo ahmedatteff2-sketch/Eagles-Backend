@@ -116,7 +116,7 @@ router.post("/session-rating", authenticate, async (req, res) => {
   const schema = z.object({
     rating: z.number().int().min(1).max(5),
     note: z.string().max(500).optional(),
-    date: z.string(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
   });
   const body = schema.safeParse(req.body);
   if (!body.success) {
@@ -317,10 +317,10 @@ router.post("/notifications/read-all", authenticate, async (req, res) => {
 // Admin: send notification to user
 router.post("/notifications/send", authenticate, requireAdmin, async (req, res) => {
   const schema = z.object({
-    userId: z.string(),
-    title: z.string(),
-    body: z.string().optional(),
-    type: z.string().optional(),
+    userId: z.string().min(1).max(64),
+    title: z.string().min(1).max(200),
+    body: z.string().max(2000).optional(),
+    type: z.string().max(50).optional(),
   });
   const body = schema.safeParse(req.body);
   if (!body.success) {
@@ -392,15 +392,16 @@ router.post("/meal-plans", authenticate, requireAdmin, async (req, res) => {
     items: z
       .array(
         z.object({
-          mealName: z.string(),
-          time: z.string().optional(),
-          calories: z.number().optional(),
-          protein: z.number().optional(),
-          carbs: z.number().optional(),
-          fats: z.number().optional(),
-          description: z.string().optional(),
+          mealName: z.string().min(1).max(200),
+          time: z.string().max(20).optional(),
+          calories: z.number().min(0).max(100_000).optional(),
+          protein: z.number().min(0).max(100_000).optional(),
+          carbs: z.number().min(0).max(100_000).optional(),
+          fats: z.number().min(0).max(100_000).optional(),
+          description: z.string().max(1000).optional(),
         }),
       )
+      .max(100)
       .optional(),
   });
   const body = schema.safeParse(req.body);
