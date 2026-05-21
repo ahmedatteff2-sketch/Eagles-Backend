@@ -4,6 +4,7 @@ import {
   useCreateUser,
   useUpdateUser,
   useResetUserPassword,
+  useDeleteUser,
   getListUsersQueryKey,
   getGetUserQueryKey,
   useListSubscriptions,
@@ -292,6 +293,7 @@ export default function AdminMembers() {
     };
   }, []);
   const [confirmReset, setConfirmReset] = useState<any>(null);
+  const [confirmDelete, setConfirmDelete] = useState<any>(null);
   const [showBulkWa, setShowBulkWa] = useState(false);
   // Bulk-action state. We track the *user* IDs (string[]) instead of
   // member-subscription IDs because not every selected user has a current
@@ -334,6 +336,7 @@ export default function AdminMembers() {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const resetPwd = useResetUserPassword();
+  const deleteMember = useDeleteUser();
   const assignSub = useAssignSubscription();
 
   const createForm = useForm<CreateForm>({
@@ -692,6 +695,32 @@ export default function AdminMembers() {
           setConfirmReset(null);
         },
         onError: () => toast({ title: "خطأ في تغيير كلمة المرور", variant: "destructive" }),
+      },
+    );
+  }
+
+  function doDeleteMember(u: any) {
+    if (!u?.id) return;
+    deleteMember.mutate(
+      { userId: u.id },
+      {
+        onSuccess: () => {
+          toast({ title: "✅ تم حذف العضو" });
+          setSelectedUserIds((prev) => {
+            const next = new Set(prev);
+            next.delete(u.id);
+            return next;
+          });
+          setConfirmDelete(null);
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        },
+        onError: (err: any) => {
+          toast({
+            title: err?.data?.message ?? "فشل حذف العضو",
+            variant: "destructive",
+          });
+          setConfirmDelete(null);
+        },
       },
     );
   }
@@ -1088,6 +1117,36 @@ export default function AdminMembers() {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                   </button>
+                  <button
+                    onClick={() => setConfirmDelete(u)}
+                    title="حذف العضو"
+                    disabled={deleteMember.isPending}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-muted-foreground disabled:opacity-40"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "hsl(0 72% 51% / 0.12)";
+                      e.currentTarget.style.color = "hsl(0 72% 60%)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "";
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
                   <Link href={`/admin/members/${u.id}`}>
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-muted-foreground cursor-pointer"
@@ -1196,6 +1255,18 @@ export default function AdminMembers() {
             setConfirmReset(null);
             resetForm.reset();
           }}
+        />
+      )}
+
+      {/* Confirm delete member modal */}
+      {confirmDelete && (
+        <ConfirmModal
+          title="حذف العضو"
+          description={`هل تريد حذف العضو "${confirmDelete.name}" نهائياً؟ سيتم حذف كل بياناته (الاشتراكات، الحضور، السجلات…). لا يمكن التراجع.`}
+          confirmLabel={deleteMember.isPending ? "جاري الحذف..." : "نعم، احذف"}
+          danger={true}
+          onClose={() => setConfirmDelete(null)}
+          onConfirm={() => doDeleteMember(confirmDelete)}
         />
       )}
 

@@ -313,6 +313,7 @@ export default function AdminMemberProfile() {
   const userData: any = user;
   const memberName: string = userData?.name ?? "—";
   const memberPhone: string = userData?.phone ?? "—";
+  const membershipNumber: string | null = userData?.membershipNumber ?? null;
   const activeSub: any = (currentSub as any)?.data ?? currentSub;
   const isFrozen = activeSub?.status === "frozen";
   // "Active" here means the subscription is in good standing — both
@@ -502,6 +503,7 @@ export default function AdminMemberProfile() {
       userId,
       memberName,
       memberPhone,
+      membershipNumber,
       activeSub,
       isActive,
       daysLeft,
@@ -553,7 +555,8 @@ export default function AdminMemberProfile() {
           <div>
             <h1 className="text-xl font-bold text-foreground">{memberName}</h1>
             <p className="text-muted-foreground text-sm">
-              {memberPhone} • #{userId}
+              {memberPhone}
+              {membershipNumber ? <span> • #{membershipNumber}</span> : null}
             </p>
           </div>
         </div>
@@ -734,8 +737,8 @@ export default function AdminMemberProfile() {
       {activeTab === "qr" && (
         <QRTab
           ref={qrRef}
-          userId={userId}
           memberName={memberName}
+          membershipNumber={membershipNumber}
           qrValue={qrValue}
           activeSub={activeSub}
           isActive={isActive}

@@ -7,8 +7,8 @@ interface ActiveSub {
 }
 
 interface Props {
-  userId: string;
   memberName: string;
+  membershipNumber?: string | null;
   qrValue: string;
   activeSub: ActiveSub | null;
   isActive: boolean;
@@ -22,7 +22,7 @@ interface Props {
  * tab boundaries.
  */
 export const QRTab = forwardRef<HTMLDivElement, Props>(function QRTab(
-  { userId, memberName, qrValue, activeSub, isActive, onDownload, onPrint },
+  { memberName, membershipNumber, qrValue, activeSub, isActive, onDownload, onPrint },
   ref,
 ) {
   return (
@@ -36,7 +36,9 @@ export const QRTab = forwardRef<HTMLDivElement, Props>(function QRTab(
             🦅 Eagle Gym
           </p>
           <h2 className="text-lg font-bold text-foreground">{memberName}</h2>
-          <p className="text-xs text-muted-foreground">رقم العضوية: #{userId}</p>
+          {membershipNumber ? (
+            <p className="text-xs text-muted-foreground">رقم العضوية: #{membershipNumber}</p>
+          ) : null}
         </div>
         <div ref={ref} className="p-4 rounded-xl" style={{ background: "#ffffff" }}>
           <QRCodeSVG value={qrValue} size={200} level="H" includeMargin={false} />

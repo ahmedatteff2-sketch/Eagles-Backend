@@ -14,6 +14,7 @@ interface ExportPdfArgs {
   userId: string;
   memberName: string;
   memberPhone: string;
+  membershipNumber?: string | null;
   activeSub: { subscription?: { name?: string }; startDate?: string; endDate?: string } | null;
   isActive: boolean;
   daysLeft: number | null;
@@ -36,6 +37,7 @@ export function exportMemberPdf(args: ExportPdfArgs): void {
     userId,
     memberName,
     memberPhone,
+    membershipNumber,
     activeSub,
     isActive,
     daysLeft,
@@ -65,7 +67,7 @@ export function exportMemberPdf(args: ExportPdfArgs): void {
     body: [
       ["Name", memberName],
       ["Phone", memberPhone],
-      ["Member ID", "#" + userId],
+      ...(membershipNumber ? [["Membership No.", "#" + membershipNumber]] : []),
       ["Current Plan", activeSub?.subscription?.name ?? "None"],
       ["Status", isActive ? "Active" : activeSub ? "Expired" : "No Subscription"],
       [
