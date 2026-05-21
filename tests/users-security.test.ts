@@ -85,9 +85,15 @@ describe("GET /api/users/:userId", () => {
 
   it("strips totpSecret when a member views their own row", async () => {
     const member = await createTestUser({ role: "member" });
+    // Seed the secret but keep `totpEnabled=false` so the login endpoint
+    // hands back a full access token directly instead of a partial token
+    // that demands a TOTP code (which the test has no way to compute against
+    // an unrelated bogus secret). The audit finding is about the response
+    // shape — the secret must not leak whether 2FA is enabled or merely
+    // mid-setup.
     await db
       .update(usersTable)
-      .set({ totpSecret: "JBSWY3DPEHPK3PXP", totpEnabled: true })
+      .set({ totpSecret: "JBSWY3DPEHPK3PXP", totpEnabled: false })
       .where(eq(usersTable.id, member.id));
 
     const token = await loginAs(member.phone, member.password);
