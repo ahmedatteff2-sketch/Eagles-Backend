@@ -164,7 +164,7 @@ export default function AdminSchedule() {
     <h1>🦅 ${gymName} — الجدول الأسبوعي</h1>
     <div class="sub">طُبع في: ${dateLabel}</div>
     ${printContent}
-    <script>window.onload = () => { window.print(); }<\/script>
+    <script>window.onload = () => { window.print(); }</script>
     </body></html>`);
     win.document.close();
   };
