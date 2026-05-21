@@ -156,8 +156,8 @@ const loginPerPhoneLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use(
   pinoHttp({
@@ -185,7 +185,7 @@ app.use("/api/auth/2fa/setup", authLimiter);
 app.use("/api/auth/2fa/enable", authLimiter);
 app.use("/api/auth/2fa/disable", authLimiter);
 app.use("/api/users/:id/reset-password", authLimiter);
-app.use("/api/imports", authLimiter);
+app.use("/api/imports", authLimiter, express.json({ limit: "3mb" }));
 // Audit middleware records every state-changing API request for compliance
 // review. Mounted under /api so the SPA / static asset paths above don't
 // generate audit churn.

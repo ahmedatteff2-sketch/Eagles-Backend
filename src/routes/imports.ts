@@ -333,13 +333,17 @@ router.post(
         return;
       }
 
-      // Delete all existing members (cascade handles related data)
-      const deletedRows = await db
-        .delete(usersTable)
-        .where(eq(usersTable.role, "member"))
-        .returning({ id: usersTable.id });
-
-      const results = { deleted: deletedRows.length, created: 0, errors: [] as string[] };
+      // Pre-hash passwords outside the transaction to keep the DB
+      // transaction as short as possible (bcrypt is CPU-heavy).
+      const prepared: {
+        name: string;
+        phone: string;
+        role: "admin" | "member";
+        category: string;
+        membershipNumber: string | null;
+        passwordHash: string;
+      }[] = [];
+      const prepErrors: string[] = [];
 
       for (const row of rows) {
         const name = String(row.name ?? row["الاسم"] ?? "").trim();
@@ -352,12 +356,11 @@ router.post(
         const membershipNum = row.membershipNumber ? String(row.membershipNumber).trim() : null;
 
         if (!name || !phone) {
-          results.errors.push(`صف مفقود البيانات: الاسم="${name}" الهاتف="${rawPhone}"`);
+          prepErrors.push(`صف مفقود البيانات: الاسم="${name}" الهاتف="${rawPhone}"`);
           continue;
         }
 
         try {
-          // If the SQLite row already has a bcrypt hash, reuse it directly
           let hashed: string;
           const existingHash = row.passwordHash ?? row.password_hash;
           if (typeof existingHash === "string" && existingHash.startsWith("$2")) {
@@ -367,23 +370,52 @@ router.post(
             const password = rawPassword.length > 72 ? rawPassword.slice(0, 72) : rawPassword;
             hashed = await bcrypt.hash(password, BCRYPT_COST);
           }
-
-          await db.insert(usersTable).values({
-            id: randomUUID(),
+          prepared.push({
             name,
             phone,
-            passwordHash: hashed,
             role,
             category: validCategory,
             membershipNumber: membershipNum,
+            passwordHash: hashed,
           });
-          results.created++;
         } catch (rowErr) {
           const msg = rowErr instanceof Error ? rowErr.message : "خطأ غير معروف";
-          logger.error({ err: rowErr, name, phone }, "SQLite member import row failed");
-          results.errors.push(`خطأ في إضافة ${name} (${phone}): ${msg}`);
+          logger.error({ err: rowErr, name, phone }, "SQLite member import row hash failed");
+          prepErrors.push(`خطأ في تجهيز ${name} (${phone}): ${msg}`);
         }
       }
+
+      // Run delete + insert inside a transaction so a mid-import failure
+      // rolls back instead of leaving the DB with zero members.
+      const results = await db.transaction(async (tx) => {
+        const deletedRows = await tx
+          .delete(usersTable)
+          .where(eq(usersTable.role, "member"))
+          .returning({ id: usersTable.id });
+
+        const txResults = { deleted: deletedRows.length, created: 0, errors: [...prepErrors] };
+
+        for (const p of prepared) {
+          try {
+            await tx.insert(usersTable).values({
+              id: randomUUID(),
+              name: p.name,
+              phone: p.phone,
+              passwordHash: p.passwordHash,
+              role: p.role,
+              category: p.category,
+              membershipNumber: p.membershipNumber,
+            });
+            txResults.created++;
+          } catch (rowErr) {
+            const msg = rowErr instanceof Error ? rowErr.message : "خطأ غير معروف";
+            logger.error({ err: rowErr, name: p.name, phone: p.phone }, "SQLite member import row failed");
+            txResults.errors.push(`خطأ في إضافة ${p.name} (${p.phone}): ${msg}`);
+          }
+        }
+
+        return txResults;
+      });
 
       res.json({
         message: `تم الاستيراد: حذف ${results.deleted} عضو قديم، إضافة ${results.created} عضو جديد، ${results.errors.length} خطأ`,

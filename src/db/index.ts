@@ -62,7 +62,9 @@ export const pool = new Pool({
   // connect time on perfectly valid passwords.
   password: decodeURIComponent(dbUrl.password),
   database: decodeURIComponent(dbUrl.pathname.slice(1)),
-  ssl: isProduction ? { rejectUnauthorized: false } : false,
+  ssl: isProduction
+    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
+    : false,
   max: poolMax(),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 15_000,
