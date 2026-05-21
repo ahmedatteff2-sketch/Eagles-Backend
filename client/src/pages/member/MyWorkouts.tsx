@@ -530,7 +530,9 @@ export default function MemberMyWorkouts() {
                         key={e.id}
                         onClick={() => setAddForm((f) => ({ ...f, exerciseId: e.id }))}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-muted/60 transition-colors flex items-center justify-between"
-                        style={addForm.exerciseId === e.id ? { background: "hsl(40 65% 48% / 0.15)" } : undefined}
+                        style={
+                          addForm.exerciseId === e.id ? { background: "hsl(40 65% 48% / 0.15)" } : undefined
+                        }
                       >
                         <span className="font-medium">{e.name}</span>
                         <span className="text-xs text-muted-foreground">{e.targetMuscle}</span>
