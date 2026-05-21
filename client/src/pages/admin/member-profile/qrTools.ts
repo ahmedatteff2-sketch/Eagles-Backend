@@ -52,7 +52,7 @@ export function printQR(qrEl: HTMLElement | null, memberName: string, userId: st
   win.document.write(
     `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>QR - ${safeName}</title>
     <style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;direction:rtl;}h2{color:#C9A84C;}p{color:#666;font-size:13px;}@media print{button{display:none}}</style></head>
-    <body><h2>🦅 Eagle Gym</h2><h3>${safeName}</h3><p>رقم العضوية: #${safeId}</p><div style="display:inline-block;padding:16px;background:#fff;border:2px solid #C9A84C;border-radius:12px;margin:16px 0">${svgEl.outerHTML}</div><p>امسح الكود لتسجيل الحضور</p><script>window.onload=()=>window.print()<\/script></body></html>`,
+    <body><h2>🦅 Eagle Gym</h2><h3>${safeName}</h3><p>رقم العضوية: #${safeId}</p><div style="display:inline-block;padding:16px;background:#fff;border:2px solid #C9A84C;border-radius:12px;margin:16px 0">${svgEl.outerHTML}</div><p>امسح الكود لتسجيل الحضور</p><script>window.onload=()=>window.print()</script></body></html>`,
   );
   win.document.close();
 }
