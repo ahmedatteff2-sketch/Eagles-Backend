@@ -1,8 +1,20 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// `__dirname` isn't defined when this config is loaded as ESM, so derive it
+// from `import.meta.url` like build.mjs does.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Vitest config mirrors the path aliases used by tsx + esbuild so the same
 // import specifiers (`@workspace/db`, etc.) resolve in tests too.
+//
+// IMPORTANT: we use the array form with regex `find` patterns instead of a
+// plain object. With the object form Vite does *prefix* matching, so
+// `@workspace/db` matches `@workspace/db/schema` first and rewrites the
+// specifier to `<src/db/index.ts>/schema` — which doesn't exist and
+// breaks the test loader with a misleading "Cannot find module" error.
+// Regex patterns anchored with `$` force an exact match per alias.
 export default defineConfig({
   test: {
     environment: "node",
@@ -21,10 +33,19 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@workspace/db": path.resolve(__dirname, "src/db/index.ts"),
-      "@workspace/db/schema": path.resolve(__dirname, "src/db/schema/index.ts"),
-      "@workspace/api-zod": path.resolve(__dirname, "src/api-zod/index.ts"),
-    },
+    alias: [
+      {
+        find: /^@workspace\/db\/schema$/,
+        replacement: path.resolve(__dirname, "src/db/schema/index.ts"),
+      },
+      {
+        find: /^@workspace\/db$/,
+        replacement: path.resolve(__dirname, "src/db/index.ts"),
+      },
+      {
+        find: /^@workspace\/api-zod$/,
+        replacement: path.resolve(__dirname, "src/api-zod/index.ts"),
+      },
+    ],
   },
 });

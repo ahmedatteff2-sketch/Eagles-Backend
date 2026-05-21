@@ -8,11 +8,14 @@ export interface AuthPayload {
   role: Role;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthPayload;
-    }
+// Augment Express's Request with a typed `user` field populated by
+// `authenticate()`. We extend `express-serve-static-core` (the package that
+// actually declares the Request interface) instead of `namespace Express`
+// so eslint's `no-namespace` rule doesn't trip — the namespace form is the
+// same trick, just expressed through the deprecated TS namespace syntax.
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: AuthPayload;
   }
 }
 
