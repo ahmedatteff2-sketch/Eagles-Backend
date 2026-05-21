@@ -8,6 +8,7 @@ import {
   checkinsTable,
   paymentsTable,
   refreshTokensTable,
+  type User,
 } from "@workspace/db/schema";
 import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
 import { authenticate, requireAdmin, requireAdminOrTrainer } from "../middlewares/auth.js";
@@ -17,6 +18,26 @@ import { normalizePhone } from "../lib/phone.js";
 import { z } from "zod";
 
 const router = Router();
+
+/**
+ * Strip sensitive columns from a user row before returning it to clients.
+ *
+ * `passwordHash` is the bcrypt digest used at login. `totpSecret` is the
+ * base32 shared secret for the user's 2FA authenticator — exposing it lets
+ * anyone with the response enroll the same secret in their own authenticator
+ * and bypass the second factor. Both fields are scrubbed here so callers
+ * can't forget on a per-route basis.
+ *
+ * Add any new sensitive column (e.g. recovery codes, encrypted MFA blobs)
+ * to this function rather than re-implementing the projection inline.
+ */
+type SafeUser = Omit<User, "passwordHash" | "totpSecret">;
+function toSafeUser(user: User): SafeUser {
+  // Discard names are `_`-prefixed so the project's no-unused-vars rule
+  // (which allows /^_/u) skips them; we just want them off the object.
+  const { passwordHash: _ph, totpSecret: _ts, ...safe } = user;
+  return safe;
+}
 
 // Phone fields are normalized to digits-only at parse time so every storage
 // path (create / update / import) lands the same canonical form, matching
@@ -173,10 +194,10 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       }
     }
 
-    const usersWithSubs = users.map((u) => {
-      const { passwordHash: _, ...safe } = u;
-      return { ...safe, currentSubscription: subsMap[u.id] ?? null };
-    });
+    const usersWithSubs = users.map((u) => ({
+      ...toSafeUser(u),
+      currentSubscription: subsMap[u.id] ?? null,
+    }));
 
     res.json({ data: usersWithSubs, total: totalRow?.count ?? 0, page, limit });
   } catch {
@@ -229,8 +250,7 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
         assignedTrainerId: body.data.assignedTrainerId ?? null,
       })
       .returning();
-    const { passwordHash: _, ...safe } = user;
-    res.status(201).json(safe);
+    res.status(201).json(toSafeUser(user));
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة العضو" });
   }
@@ -298,9 +318,8 @@ router.get("/users/:userId", authenticate, async (req, res) => {
       .from(paymentsTable)
       .where(eq(paymentsTable.userId, userId));
 
-    const { passwordHash: _, ...safe } = user;
     res.json({
-      ...safe,
+      ...toSafeUser(user),
       currentSubscription: currentSubscription ?? null,
       recentCheckins,
       totalPayments: Number(paySum?.total ?? 0),
@@ -384,8 +403,7 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const { passwordHash: _, ...safe } = user;
-    res.json(safe);
+    res.json(toSafeUser(user));
   } catch (err) {
     logger.error({ err, userId }, "PUT /users/:userId failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء التحديث" });
@@ -416,11 +434,13 @@ const resetPasswordSchema = z.object({
 /**
  * List all users with role="trainer". Used by the admin members page to
  * populate the "assign trainer" dropdown. Returns a minimal projection
- * (id + name) since the dropdown doesn't need anything else.
+ * (id + name) since the dropdown doesn't need anything else — phone numbers
+ * were previously exposed here and let any trainer harvest every other
+ * trainer's contact info.
  */
 router.get("/trainers", authenticate, requireAdminOrTrainer, async (_req, res) => {
   const trainers = await db
-    .select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone })
+    .select({ id: usersTable.id, name: usersTable.name })
     .from(usersTable)
     .where(eq(usersTable.role, "trainer"))
     .orderBy(usersTable.name);

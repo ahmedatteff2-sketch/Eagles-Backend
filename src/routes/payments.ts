@@ -18,6 +18,10 @@ const paymentSchema = z.object({
 
 router.get("/payments", authenticate, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
+  // Resolve the target user:
+  //   - explicit `?userId=...` → use it, but enforce admin-or-self below
+  //   - no `?userId` from a member → restrict to their own payments
+  //   - no `?userId` from an admin → list everyone's payments
   const targetUserId = req.query.userId
     ? parseUserId(String(req.query.userId), res)
     : req.user!.role === "member"
@@ -25,6 +29,14 @@ router.get("/payments", authenticate, async (req, res) => {
       : undefined;
 
   if (req.query.userId && targetUserId === null) return;
+
+  // Access control. Without this, a logged-in member could pass
+  // ?userId=<some_other_member_id> and read another user's payment history.
+  // Members may only see their own; trainers and admins may see any user.
+  if (targetUserId && req.user!.role === "member" && req.user!.userId !== targetUserId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   try {
     const conditions = [];
