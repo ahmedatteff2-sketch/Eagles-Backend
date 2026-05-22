@@ -32,6 +32,7 @@ export type UserProfileRole = (typeof UserProfileRole)[keyof typeof UserProfileR
 
 export const UserProfileRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -62,6 +63,7 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export const UserRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -71,6 +73,8 @@ export interface User {
   phone: string;
   membershipNumber?: string | null;
   role: UserRole;
+  category?: string;
+  assignedTrainerId?: string | null;
   createdAt: string;
 }
 
@@ -78,6 +82,7 @@ export type UserDetailRole = (typeof UserDetailRole)[keyof typeof UserDetailRole
 
 export const UserDetailRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -87,6 +92,7 @@ export type MemberSubscriptionStatus =
 export const MemberSubscriptionStatus = {
   active: "active",
   expired: "expired",
+  frozen: "frozen",
 } as const;
 
 export interface Subscription {
@@ -132,6 +138,7 @@ export type UserWithSubscriptionRole =
 
 export const UserWithSubscriptionRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -156,6 +163,7 @@ export type CreateUserBodyRole = (typeof CreateUserBodyRole)[keyof typeof Create
 
 export const CreateUserBodyRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -165,12 +173,15 @@ export interface CreateUserBody {
   password: string;
   membershipNumber?: string;
   role?: CreateUserBodyRole;
+  category?: string;
+  assignedTrainerId?: string | null;
 }
 
 export type UpdateUserBodyRole = (typeof UpdateUserBodyRole)[keyof typeof UpdateUserBodyRole];
 
 export const UpdateUserBodyRole = {
   admin: "admin",
+  trainer: "trainer",
   member: "member",
 } as const;
 
@@ -179,6 +190,8 @@ export interface UpdateUserBody {
   phone?: string;
   membershipNumber?: string;
   role?: UpdateUserBodyRole;
+  category?: string;
+  assignedTrainerId?: string | null;
 }
 
 export interface CreateSubscriptionBody {
