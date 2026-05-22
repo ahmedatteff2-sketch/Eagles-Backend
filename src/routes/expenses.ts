@@ -21,12 +21,13 @@ const expenseSchema = z.object({
 
 router.get("/expenses", authenticate, requireAdmin, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
-  const from = req.query.from as string | undefined;
-  const to = req.query.to as string | undefined;
+  const from = typeof req.query.from === "string" ? req.query.from : undefined;
+  const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
   const conditions = [];
-  if (from) conditions.push(gte(expensesTable.date, from));
-  if (to) conditions.push(lte(expensesTable.date, to));
+  if (from && dateRe.test(from)) conditions.push(gte(expensesTable.date, from));
+  if (to && dateRe.test(to)) conditions.push(lte(expensesTable.date, to));
 
   try {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
