@@ -586,16 +586,18 @@ export default function MemberLog() {
             toast({ title: `✓ مجموعة ${quickLog.setNumber} تم تسجيلها` });
           }
           setQuickLog(null);
-          if (restSecs > 0 && !isLastSet && !data?.isPR) {
-            setRestNextSet({
-              exerciseId: quickLog.exerciseId,
-              exerciseName: quickLog.exerciseName,
-              totalSets: quickLog.totalSets,
-              targetReps: quickLog.targetReps,
-              weight: quickLog.weight,
-              reps: quickLog.targetReps,
-              setNumber: quickLog.setNumber + 1,
-            });
+          if (restSecs > 0 && !data?.isPR) {
+            if (!isLastSet) {
+              setRestNextSet({
+                exerciseId: quickLog.exerciseId,
+                exerciseName: quickLog.exerciseName,
+                totalSets: quickLog.totalSets,
+                targetReps: quickLog.targetReps,
+                weight: quickLog.weight,
+                reps: quickLog.targetReps,
+                setNumber: quickLog.setNumber + 1,
+              });
+            }
             setRestTimer(restSecs);
           }
         },
