@@ -147,6 +147,7 @@ function GlobalKeyboardShortcuts() {
 }
 
 import { ReminderPopup } from "@/components/ReminderPopup";
+import { Toaster } from "@/components/ui/toaster";
 
 function SplashScreen({ onDone }: { onDone: () => void }) {
   // Cap the splash to ~1.4s. We use the first paint as the "started" marker
@@ -224,6 +225,7 @@ export default function App() {
       <CommandPalette />
       <GlobalKeyboardShortcuts />
       <PWAInstallPrompt />
+      <Toaster />
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin">
