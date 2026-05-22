@@ -25,6 +25,14 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      # Render-managed Postgres terminates SSL with a self-signed certificate
+      # chain, so strict verification (the secure default introduced in #38)
+      # fails with SELF_SIGNED_CERT_IN_CHAIN at boot. The connection still
+      # runs over Render's private network and is encrypted; we just can't
+      # validate the chain against a public CA bundle. Keep this opt-out
+      # scoped to this render.yaml so other deployments stay strict.
+      - key: DB_SSL_REJECT_UNAUTHORIZED
+        value: "false"
       # CORS_ORIGIN must be set explicitly to your frontend's origin in
       # production — leaving it unset will refuse to start by design.
       # - key: CORS_ORIGIN

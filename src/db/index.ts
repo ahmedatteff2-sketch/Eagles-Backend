@@ -19,6 +19,30 @@ const dbUrl = parseDatabaseUrl(process.env.DATABASE_URL);
 const isPooler = dbUrl.host.includes("pooler.supabase.com");
 
 /**
+ * Decide whether `pg` should verify the database's SSL certificate chain.
+ *
+ * Default policy (set in #38): verify strictly, opt out via
+ * `DB_SSL_REJECT_UNAUTHORIZED=false`. That default keeps unknown / public
+ * Postgres endpoints safe, but it breaks on managed providers whose chain
+ * is signed by a self-signed CA the runtime doesn't know about (Render
+ * Postgres, Heroku, etc.) — boot fails with `SELF_SIGNED_CERT_IN_CHAIN`.
+ *
+ * To keep first-deploy ergonomics on those platforms without weakening the
+ * default elsewhere, we auto-relax verification when running on Render
+ * (which sets `RENDER=true` in the runtime env) *and* the operator hasn't
+ * already pinned `DB_SSL_REJECT_UNAUTHORIZED` to an explicit value. The
+ * connection itself is still TLS-encrypted; we just don't validate the
+ * chain against the public CA bundle. Any explicit value the operator
+ * sets always wins.
+ */
+function shouldRejectUnauthorized(): boolean {
+  const explicit = process.env.DB_SSL_REJECT_UNAUTHORIZED;
+  if (explicit !== undefined) return explicit !== "false";
+  if (process.env.RENDER === "true") return false;
+  return true;
+}
+
+/**
  * Connection pool sizing.
  *
  * On a small Render instance (~512MB) Postgres can comfortably handle
@@ -62,7 +86,7 @@ export const pool = new Pool({
   // connect time on perfectly valid passwords.
   password: decodeURIComponent(dbUrl.password),
   database: decodeURIComponent(dbUrl.pathname.slice(1)),
-  ssl: isProduction ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : false,
+  ssl: isProduction ? { rejectUnauthorized: shouldRejectUnauthorized() } : false,
   max: poolMax(),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 15_000,
