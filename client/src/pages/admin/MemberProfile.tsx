@@ -455,7 +455,7 @@ export default function AdminMemberProfile() {
       setShowQuickCheckin(false);
       queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey({ userId }) });
     } catch (err: any) {
-      const msg = err?.payload?.message ?? err?.response?.data?.message ?? "فشل في تسجيل الحضور";
+      const msg = err?.data?.message ?? err?.payload?.message ?? "فشل في تسجيل الحضور";
       toast({ title: msg, variant: "destructive" });
     } finally {
       setSavingCheckin(false);

@@ -625,7 +625,7 @@ export default function AdminMembers() {
         onError: (err: any) =>
           toast({
             title: "خطأ في التحديث",
-            description: err?.response?.data?.message,
+            description: err?.data?.message ?? "تحقق من البيانات",
             variant: "destructive",
           }),
       },
@@ -666,7 +666,7 @@ export default function AdminMembers() {
         onError: (err: any) =>
           toast({
             title: "خطأ",
-            description: err?.response?.data?.message ?? "تحقق من البيانات",
+            description: err?.data?.message ?? "تحقق من البيانات",
             variant: "destructive",
           }),
       },
