@@ -918,26 +918,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </Link>
           {!collapsed && (
-            <button
-              onClick={() => setCollapsed(true)}
-              className="mr-auto p-1 rounded-lg transition-colors"
-              style={{ color: "hsl(0 0% 35%)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = GOLD)}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "hsl(0 0% 35%)")}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                className="w-4 h-4"
+            <>
+              <NotificationBell collapsed={false} />
+              <button
+                onClick={() => setCollapsed(true)}
+                className="mr-auto p-1 rounded-lg transition-colors"
+                style={{ color: "hsl(0 0% 35%)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = GOLD)}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "hsl(0 0% 35%)")}
               >
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  className="w-4 h-4"
+                >
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+            </>
           )}
           {collapsed && (
             <button
@@ -958,6 +961,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
           )}
         </div>
+
+        {/* Notification bell in collapsed mode — shown at the top */}
+        {collapsed && (
+          <div className="flex justify-center py-2" style={{ borderBottom: "1px solid hsl(0 0% 8%)" }}>
+            <NotificationBell collapsed={true} />
+          </div>
+        )}
 
         {/* Search */}
         <div className="px-3 py-2.5" style={{ borderBottom: "1px solid hsl(0 0% 8%)" }}>
@@ -1032,7 +1042,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   مسؤول
                 </p>
               </div>
-              <NotificationBell collapsed={false} />
               <button
                 onClick={toggleTheme}
                 className="p-1.5 rounded-lg transition-colors flex-shrink-0"
@@ -1109,7 +1118,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 {user?.name?.[0] ?? "A"}
               </div>
-              <NotificationBell collapsed={true} />
               <button
                 onClick={toggleTheme}
                 className="p-1.5 rounded-lg"
