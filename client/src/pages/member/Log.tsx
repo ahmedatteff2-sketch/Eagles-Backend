@@ -418,6 +418,7 @@ export default function MemberLog() {
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [loaded, setLoaded] = useState(false);
   const [restTimer, setRestTimer] = useState<number | null>(null);
+  const [restNextSet, setRestNextSet] = useState<QuickLogState | null>(null);
   const [prCelebration, setPrCelebration] = useState<{
     exerciseName: string;
     weight: number;
@@ -586,6 +587,17 @@ export default function MemberLog() {
           }
           setQuickLog(null);
           if (restSecs > 0 && !data?.isPR) {
+            if (!isLastSet) {
+              setRestNextSet({
+                exerciseId: quickLog.exerciseId,
+                exerciseName: quickLog.exerciseName,
+                totalSets: quickLog.totalSets,
+                targetReps: quickLog.targetReps,
+                weight: quickLog.weight,
+                reps: quickLog.targetReps,
+                setNumber: quickLog.setNumber + 1,
+              });
+            }
             setRestTimer(restSecs);
           }
         },
@@ -944,7 +956,18 @@ export default function MemberLog() {
           isPending={logExercise.isPending}
         />
       )}
-      {restTimer !== null && <RestTimer seconds={restTimer} onDone={() => setRestTimer(null)} />}
+      {restTimer !== null && (
+        <RestTimer
+          seconds={restTimer}
+          onDone={() => {
+            setRestTimer(null);
+            if (restNextSet) {
+              setQuickLog(restNextSet);
+              setRestNextSet(null);
+            }
+          }}
+        />
+      )}
 
       {/* Session Rating Modal */}
       {showRating && (
