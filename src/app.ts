@@ -206,6 +206,14 @@ if (process.env.NODE_ENV === "production") {
   const frontendPath = path.resolve(__dirname, "..", "public");
 
   if (existsSync(frontendPath)) {
+    // The site root is the public marketing landing page (its own static
+    // build under /landing/). Redirect at the server so the entry point never
+    // depends on the SPA's client-side routing or a stale service worker. Sent
+    // with no-store so browsers/CDNs don't cache the redirect itself.
+    app.get("/", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.redirect(302, "/landing/");
+    });
     // Cache JS/CSS/images for 7 days (they have hashed filenames)
     app.use(express.static(frontendPath, { maxAge: "7d", immutable: true }));
     // Never cache index.html — always serve fresh

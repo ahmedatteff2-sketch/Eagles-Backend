@@ -44,8 +44,10 @@ export default defineConfig(({ mode }) => {
         navigateFallback: "/index.html",
         // Don't try to cache /api/* — they're authenticated and must always
         // hit the network. /landing/* is the standalone marketing site (its
-        // own build) so the SPA shell must never be served in its place.
-        navigateFallbackDenylist: [/^\/api\//, /^\/landing/],
+        // own build) so the SPA shell must never be served in its place. The
+        // bare root (/) must reach the server too: it 302s to /landing/, so
+        // letting the SW app-shell it would trap visitors on a stale page.
+        navigateFallbackDenylist: [/^\/api\//, /^\/landing/, /^\/$/],
         runtimeCaching: [
           {
             // Google Fonts CSS — small, infrequently changed.
