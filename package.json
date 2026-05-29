@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build:client": "cd client && npm install --include=dev && npm run build",
+    "build:landing": "cd landing && npm install --include=dev && npm run build",
     "build:server": "node ./build.mjs",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:landing && npm run build:server",
     "start": "node --enable-source-maps dist/index.mjs",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",

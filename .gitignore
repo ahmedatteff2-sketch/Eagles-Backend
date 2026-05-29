@@ -8,8 +8,11 @@ public/assets/
 public/index.html
 public/manifest.json
 public/sw.js
+public/landing/
 client/dist/
 client/.vite/
+landing/dist/
+landing/.vite/
 *.tsbuildinfo
 
 # ────────── Environment ──────────
