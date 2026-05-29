@@ -43,8 +43,9 @@ export default defineConfig(({ mode }) => {
         // shell responsive even on flaky networks.
         navigateFallback: "/index.html",
         // Don't try to cache /api/* — they're authenticated and must always
-        // hit the network.
-        navigateFallbackDenylist: [/^\/api\//],
+        // hit the network. /landing/* is the standalone marketing site (its
+        // own build) so the SPA shell must never be served in its place.
+        navigateFallbackDenylist: [/^\/api\//, /^\/landing/],
         runtimeCaching: [
           {
             // Google Fonts CSS — small, infrequently changed.

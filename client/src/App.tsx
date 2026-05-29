@@ -117,6 +117,18 @@ function TrainerRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
+// The site root shows the public marketing landing page (an isolated static
+// build served at /landing/) to anyone who isn't signed in. Authenticated
+// users skip it and go straight to their role home.
+function HomeRoute() {
+  const { accessToken } = useAuthStore();
+  useEffect(() => {
+    if (!accessToken) window.location.replace("/landing/");
+  }, [accessToken]);
+  if (!accessToken) return null;
+  return <RoleHomeRedirect />;
+}
+
 function RoleHomeRedirect() {
   const { accessToken, user } = useAuthStore();
   if (!accessToken) return <Redirect to="/login" />;
@@ -462,7 +474,7 @@ export default function App() {
           </MemberRoute>
         </Route>
         <Route path="/">
-          <RoleHomeRedirect />
+          <HomeRoute />
         </Route>
         <Route>
           <RoleHomeRedirect />
