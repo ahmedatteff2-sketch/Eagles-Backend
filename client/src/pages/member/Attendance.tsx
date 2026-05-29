@@ -10,7 +10,7 @@ export default function MemberAttendance() {
     { query: { queryKey: getListCheckinsQueryKey({ userId: userId ?? undefined }), enabled: !!userId } },
   );
 
-  const checkinList = Array.isArray(checkins) ? checkins : ((checkins as any)?.checkins ?? []);
+  const checkinList = Array.isArray(checkins) ? checkins : ((checkins as any)?.data ?? []);
   const sorted = checkinList
     .slice()
     .sort(
