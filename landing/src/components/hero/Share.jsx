@@ -1,47 +1,54 @@
-import { FaTiktok, FaInstagram, FaSquareFacebook  ,FaWhatsapp } from "react-icons/fa6";
+import { FaTiktok, FaInstagram, FaSquareFacebook, FaWhatsapp } from "react-icons/fa6";
+import { useLandingContent } from "../../content/LandingContentContext";
 
 function Share() {
+  const { social } = useLandingContent();
   return (
     <div className="hidden rotate-[270deg] items-center justify-center gap-4 xl:flex">
       <div className="flex gap-4 text-white">
-        {/* TikTok */}
-        <a
-          href="https://www.tiktok.com/@shazly.gym?_t=ZS-90onHCZMJSp&_r=1"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors duration-300 hover:text-red"
-        >
-          <FaTiktok className="h-auto w-7 rotate-90" />
-        </a>
+        {social.tiktok ? (
+          <a
+            href={social.tiktok}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-300 hover:text-red"
+          >
+            <FaTiktok className="h-auto w-7 rotate-90" />
+          </a>
+        ) : null}
 
-        {/* Instagram */}
-        <a
-          href="https://www.instagram.com/shazly_gym?igsh=MXZhZXllOTdsaHkz&utm_source=qr"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors duration-300 hover:text-red"
-        >
-          <FaInstagram className="h-auto w-7 rotate-90" />
-        </a>
+        {social.instagram ? (
+          <a
+            href={social.instagram}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-300 hover:text-red"
+          >
+            <FaInstagram className="h-auto w-7 rotate-90" />
+          </a>
+        ) : null}
 
-        {/* Facebook */}
-        <a
-          href="https://www.facebook.com/share/1SiyGixMRB/?mibextid=wwXIfr"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors duration-300 hover:text-red"
-        >
-          <FaSquareFacebook className="h-auto w-7 rotate-90" />
-        </a>
-          {/* WhatsApp */}
-              <a
-                  href="https://wa.me/201124045247"
-                target="_blank"
-                rel="noopener noreferrer"
-                 className="transition-colors duration-300 hover:text-red"
-              >
-                <FaWhatsapp className="h-auto w-7 rotate-90" />
-              </a>
+        {social.facebook ? (
+          <a
+            href={social.facebook}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-300 hover:text-red"
+          >
+            <FaSquareFacebook className="h-auto w-7 rotate-90" />
+          </a>
+        ) : null}
+
+        {social.whatsapp ? (
+          <a
+            href={social.whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-300 hover:text-red"
+          >
+            <FaWhatsapp className="h-auto w-7 rotate-90" />
+          </a>
+        ) : null}
       </div>
 
       <div className="h-0.5 w-12 bg-red"></div>

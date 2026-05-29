@@ -1,6 +1,7 @@
 import { pool } from "./index.js";
 import bcrypt from "bcryptjs";
 import { logger } from "../lib/logger.js";
+import { DEFAULT_LANDING_CONTENT } from "../lib/landing-content.js";
 
 /**
  * Idempotent bootstrap migration that aligns the database with the Drizzle
@@ -870,6 +871,22 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS trainer_member_notes_trainer_id_idx
         ON trainer_member_notes (trainer_id);
     `);
+
+    // ── landing_content table ──────────────────────────────────────────────
+    // Singleton row (id = 1) holding the marketing landing page CMS document.
+    // Seeded once with the default copy; admins edit it via /api/landing-content.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS landing_content (
+        id         INTEGER PRIMARY KEY,
+        content    JSONB NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(
+      `INSERT INTO landing_content (id, content) VALUES (1, $1)
+       ON CONFLICT (id) DO NOTHING`,
+      [JSON.stringify(DEFAULT_LANDING_CONTENT)],
+    );
 
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(`SELECT id FROM "User" WHERE phone = $1 LIMIT 1`, ["01025754947"]);
