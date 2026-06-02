@@ -65,7 +65,10 @@ const createUserSchema = z.object({
     .max(50)
     .optional()
     .transform((s) => s?.trim() || null),
-  password: z.string().min(6).max(128),
+  // Minimum 8 to match change-password / reset-password / login policy —
+  // admin-created accounts shouldn't get a weaker password floor than
+  // self-service ones.
+  password: z.string().min(8).max(128),
   role: z.enum(["admin", "trainer", "member"]).default("member"),
   category: z.enum(["normal", "vip", "trial"]).default("normal"),
   // Optional trainer assignment. Empty string is treated as "unassign".
