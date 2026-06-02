@@ -7,22 +7,16 @@ import {
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   AreaChart,
   Area,
   Cell,
 } from "recharts";
-import { useState, useEffect, useMemo } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import { customFetch } from "@/api-client/custom-fetch";
+import { useMemo } from "react";
 
 const GOLD = "hsl(40 65% 52%)";
 const TIP = {
@@ -48,41 +42,17 @@ function StatBadge({ label, value, sub, color = GOLD }: any) {
   );
 }
 
-const MONTH_AR = [
-  "يناير",
-  "فبراير",
-  "مارس",
-  "أبريل",
-  "مايو",
-  "يونيو",
-  "يوليو",
-  "أغسطس",
-  "سبتمبر",
-  "أكتوبر",
-  "نوفمبر",
-  "ديسمبر",
-];
 const DAYS_AR = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
-const COLORS_PIE = [GOLD, "hsl(142 60% 50%)", "hsl(0 72% 55%)", "hsl(220 70% 60%)", "hsl(280 60% 60%)"];
 
 export default function AdminAnalytics() {
-  const { data: stats, isLoading } = useGetDashboardStats({
+  const { data: stats } = useGetDashboardStats({
     query: { queryKey: getGetDashboardStatsQueryKey() },
   });
   const { data: attendance } = useGetAttendanceAnalytics(
     {},
     { query: { queryKey: getGetAttendanceAnalyticsQueryKey({}) } },
   );
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [loadingMonthly, setLoadingMonthly] = useState(true);
   const st = stats as any;
-
-  useEffect(() => {
-    customFetch<any[]>("/api/analytics/monthly-revenue")
-      .then((d) => setMonthlyData(Array.isArray(d) ? d : []))
-      .catch(() => {})
-      .finally(() => setLoadingMonthly(false));
-  }, []);
 
   const attendanceData: any[] = Array.isArray(attendance) ? attendance : ((attendance as any)?.data ?? []);
 
@@ -105,203 +75,39 @@ export default function AdminAnalytics() {
     return [6, 0, 1, 2, 3, 4, 5].map((day, i) => ({ name: DAYS_AR[i], حضور: counts[day] ?? 0 }));
   }, [attendanceData]);
 
-  // Month-over-month with percentage change
-  const enrichedMonthly = useMemo(
-    () =>
-      monthlyData.map((d: any, i: number) => {
-        const prev = monthlyData[i - 1];
-        const change =
-          prev && prev.revenue > 0 ? Math.round(((d.revenue - prev.revenue) / prev.revenue) * 100) : null;
-        return { ...d, monthAr: MONTH_AR[new Date(d.month + "-01").getMonth()] ?? d.month, change };
-      }),
-    [monthlyData],
-  );
-
+  // Expiring subscriptions come back from /analytics/dashboard with
+  // { userId, userName, userPhone, endDate } — tolerate both shapes so names
+  // render correctly regardless of the serializer.
   const expiringMembers: any[] = st?.expiringMembers ?? [];
-
-  // Subscription plan distribution (mock from total vs active)
-  const memberDistribution = [
-    { name: "نشطين", value: st?.activeMembers ?? 0 },
-    { name: "منتهي", value: Math.max(0, (st?.totalMembers ?? 0) - (st?.activeMembers ?? 0)) },
-  ].filter((d) => d.value > 0);
-
-  const totalRevenue = monthlyData.reduce((acc, d) => acc + (d.revenue ?? 0), 0);
-  const avgMonthlyRevenue = monthlyData.length ? Math.round(totalRevenue / monthlyData.length) : 0;
-  const bestMonth = [...monthlyData].sort((a, b) => b.revenue - a.revenue)[0];
-  const totalProfit = monthlyData.reduce((acc, d) => acc + (d.profit ?? 0), 0);
-
-  function exportPDF() {
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    doc.setFillColor(201, 164, 60);
-    doc.rect(0, 0, 297, 20, "F");
-    doc.setTextColor(10, 10, 10);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Eagle Gym — Analytics Report", 148, 13, { align: "center" });
-    doc.setTextColor(180, 180, 180);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" }),
-      148,
-      26,
-      { align: "center" },
-    );
-    autoTable(doc, {
-      startY: 32,
-      head: [["الشهر", "الإيرادات", "المصاريف", "الربح", "عدد المدفوعات"]],
-      body: enrichedMonthly.map((d) => [
-        d.monthAr,
-        `${Number(d.revenue ?? 0).toLocaleString()} ج`,
-        `${Number(d.expenses ?? 0).toLocaleString()} ج`,
-        `${Number(d.profit ?? 0).toLocaleString()} ج`,
-        d.paymentCount ?? 0,
-      ]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [30, 30, 30], textColor: [201, 164, 60] },
-      alternateRowStyles: { fillColor: [20, 20, 20] },
-      bodyStyles: { fillColor: [14, 14, 14], textColor: [200, 200, 200] },
-      theme: "plain",
-    });
-    doc.save(`eagle-gym-analytics-${new Date().toISOString().slice(0, 10)}.pdf`);
-  }
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6" dir="rtl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">الإحصائيات</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">تحليل أداء النادي بالكامل</p>
-        </div>
-        <button
-          onClick={exportPDF}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
-          style={{
-            background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
-            color: "hsl(0 0% 5%)",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-4 h-4"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          تصدير PDF
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-foreground">الإحصائيات</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">تحليل أداء النادي</p>
       </div>
 
-      {/* Top KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Membership KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatBadge
-          label="إجمالي الإيرادات"
-          value={`${Number(totalRevenue).toLocaleString()} ج`}
-          sub="كل الفترات"
-          color={GOLD}
-        />
-        <StatBadge
-          label="صافي الأرباح"
-          value={`${Number(totalProfit).toLocaleString()} ج`}
-          sub="بعد المصاريف"
-          color="hsl(142 60% 55%)"
-        />
-        <StatBadge
-          label="متوسط الإيرادات/شهر"
-          value={`${Number(avgMonthlyRevenue).toLocaleString()} ج`}
-          sub={`أفضل شهر: ${bestMonth?.monthAr ?? "—"}`}
+          label="إجمالي الأعضاء"
+          value={st?.totalMembers ?? "—"}
+          sub="عضو مسجل"
+          color="hsl(0 0% 70%)"
         />
         <StatBadge
           label="أعضاء نشطين"
           value={st?.activeMembers ?? "—"}
           sub={`من ${st?.totalMembers ?? "—"} إجمالي`}
-          color="hsl(220 70% 65%)"
+          color="hsl(142 60% 55%)"
+        />
+        <StatBadge
+          label="ينتهي هذا الأسبوع"
+          value={st?.expiringThisWeek ?? "—"}
+          sub="اشتراك قارب على الانتهاء"
+          color="hsl(30 90% 58%)"
         />
       </div>
-
-      {/* Monthly revenue vs expenses */}
-      <div
-        className="rounded-xl p-5"
-        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
-      >
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-sm font-semibold text-foreground">الإيرادات والمصاريف — شهر بشهر</h2>
-          {bestMonth && (
-            <span
-              className="text-xs px-2.5 py-1 rounded-full"
-              style={{ background: "hsl(142 60% 50% / 0.15)", color: "hsl(142 60% 60%)" }}
-            >
-              🏆 أفضل شهر: {bestMonth.monthAr} ({Number(bestMonth.revenue).toLocaleString()} ج)
-            </span>
-          )}
-        </div>
-        {loadingMonthly ? (
-          <SkeletonChart />
-        ) : enrichedMonthly.length === 0 ? (
-          <p className="text-center text-muted-foreground text-sm py-10">لا توجد بيانات مالية بعد</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={enrichedMonthly} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 14%)" />
-              <XAxis
-                dataKey="monthAr"
-                tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={TIP}
-                formatter={(v: number, name: string) => [`${Number(v).toLocaleString()} ج`, name]}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, color: "hsl(0 0% 60%)" }} />
-              <Bar dataKey="revenue" name="إيرادات" fill={GOLD} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expenses" name="مصاريف" fill="hsl(0 72% 51% / 0.7)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="profit" name="ربح" fill="hsl(142 60% 50%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Month-over-month change */}
-      {enrichedMonthly.filter((d) => d.change !== null).length > 0 && (
-        <div
-          className="rounded-xl p-5"
-          style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
-        >
-          <h2 className="text-sm font-semibold text-foreground mb-4">نمو الإيرادات شهر بشهر</h2>
-          <div className="flex gap-3 flex-wrap">
-            {enrichedMonthly
-              .filter((d) => d.change !== null)
-              .slice(-6)
-              .map((d: any) => (
-                <div
-                  key={d.month}
-                  className="flex-1 min-w-[80px] text-center py-3 px-2 rounded-xl"
-                  style={{
-                    background: d.change >= 0 ? "hsl(142 60% 50% / 0.1)" : "hsl(0 60% 50% / 0.1)",
-                    border: `1px solid ${d.change >= 0 ? "hsl(142 60% 50% / 0.25)" : "hsl(0 60% 50% / 0.25)"}`,
-                  }}
-                >
-                  <p
-                    className="text-lg font-bold"
-                    style={{ color: d.change >= 0 ? "hsl(142 60% 60%)" : "hsl(0 60% 60%)" }}
-                  >
-                    {d.change >= 0 ? "+" : ""}
-                    {d.change}%
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">{d.monthAr}</p>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
 
       {/* Attendance charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -414,13 +220,13 @@ export default function AdminAnalytics() {
           <div className="space-y-2">
             {expiringMembers.slice(0, 8).map((m: any) => (
               <div
-                key={m.id}
+                key={m.id ?? m.userId}
                 className="flex items-center justify-between px-3 py-2 rounded-lg"
                 style={{ background: "hsl(0 0% 12%)" }}
               >
-                <p className="text-sm font-medium text-foreground">{m.name}</p>
+                <p className="text-sm font-medium text-foreground">{m.name ?? m.userName}</p>
                 <div className="flex items-center gap-3">
-                  <p className="text-xs text-muted-foreground">{m.phone}</p>
+                  <p className="text-xs text-muted-foreground">{m.phone ?? m.userPhone}</p>
                   <span
                     className="text-xs px-2 py-0.5 rounded-full"
                     style={{ background: "hsl(30 90% 55% / 0.15)", color: "hsl(30 90% 60%)" }}

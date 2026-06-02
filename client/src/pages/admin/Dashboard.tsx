@@ -6,19 +6,12 @@ import {
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { customFetch } from "@/api-client/custom-fetch";
 import { toInternationalPhone } from "@/lib/phone";
 
 const GOLD = "hsl(40 65% 52%)";
-const TIP = {
-  background: "hsl(0 0% 10%)",
-  border: "1px solid hsl(0 0% 18%)",
-  borderRadius: 10,
-  color: "hsl(0 0% 90%)",
-};
 
 function useAnimatedCounter(target: number | undefined, duration = 800) {
   const [count, setCount] = useState(0);
@@ -102,7 +95,6 @@ export default function AdminDashboard() {
     { status: "active", limit: 100 },
     { query: { queryKey: getListUsersQueryKey({ status: "active", limit: 100 }) } },
   );
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [gymName, setGymName] = useState("Eagle Gym");
   const [inactiveMembers, setInactiveMembers] = useState<any[]>([]);
   const [topAttendees, setTopAttendees] = useState<any[]>([]);
@@ -113,9 +105,6 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    customFetch<any[]>("/api/analytics/monthly-revenue")
-      .then((d) => setMonthlyData(Array.isArray(d) ? d : []))
-      .catch(() => {});
     customFetch<any>("/api/analytics/dashboard")
       .then((d) => {
         setInactiveMembers(d?.inactiveMembers ?? []);
@@ -137,26 +126,6 @@ export default function AdminDashboard() {
     return diff > 0 && diff <= 7;
   });
 
-  const MONTH_AR = [
-    "يناير",
-    "فبراير",
-    "مارس",
-    "أبريل",
-    "مايو",
-    "يونيو",
-    "يوليو",
-    "أغسطس",
-    "سبتمبر",
-    "أكتوبر",
-    "نوفمبر",
-    "ديسمبر",
-  ];
-  const chartData = monthlyData.slice(-6).map((d: any) => ({
-    month: MONTH_AR[new Date(d.month + "-01").getMonth()] ?? d.month,
-    إيرادات: d.revenue,
-    مصاريف: d.expenses,
-  }));
-
   function exportPDF() {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     doc.setFillColor(201, 164, 60);
@@ -177,9 +146,6 @@ export default function AdminDashboard() {
         ["اشتراكات نشطة", st?.activeMembers ?? 0],
         ["حضور اليوم", st?.todayCheckins ?? 0],
         ["ينتهي هذا الأسبوع", st?.expiringThisWeek ?? 0],
-        ["إيرادات هذا الشهر (ج)", Number(st?.monthlyRevenue ?? 0).toLocaleString()],
-        ["مصاريف هذا الشهر (ج)", Number(st?.monthlyExpenses ?? 0).toLocaleString()],
-        ["ربح هذا الشهر (ج)", Number(st?.monthlyProfit ?? 0).toLocaleString()],
       ],
       styles: { fontSize: 9 },
       headStyles: { fillColor: [30, 30, 30], textColor: [201, 164, 60] },
@@ -328,75 +294,6 @@ export default function AdminDashboard() {
           </>
         )}
       </div>
-
-      {/* Financial cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[
-          { label: "إيرادات الشهر", value: st?.monthlyRevenue, color: GOLD },
-          { label: "مصاريف الشهر", value: st?.monthlyExpenses, color: "hsl(0 72% 55%)" },
-          { label: "صافي الربح", value: st?.monthlyProfit, color: "hsl(142 60% 55%)" },
-        ].map((c) => (
-          <div
-            key={c.label}
-            className="rounded-xl p-4 text-center"
-            style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
-          >
-            <p className="text-xs text-muted-foreground mb-1">{c.label}</p>
-            <p className="text-xl font-black" style={{ color: c.color }}>
-              {Number(c.value ?? 0).toLocaleString()} ج
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Area chart */}
-      {chartData.length > 0 && (
-        <div
-          className="rounded-xl p-5"
-          style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
-        >
-          <h2 className="text-sm font-semibold text-foreground mb-4">الإيرادات — آخر 6 أشهر</h2>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={GOLD} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={GOLD} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 13%)" />
-              <XAxis
-                dataKey="month"
-                tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={TIP}
-                formatter={(v: number, n: string) => [Number(v).toLocaleString() + " ج", n]}
-              />
-              <Area
-                type="monotone"
-                dataKey="إيرادات"
-                stroke={GOLD}
-                strokeWidth={2}
-                fill="url(#g1)"
-                dot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="مصاريف"
-                stroke="hsl(0 72% 51%)"
-                strokeWidth={1.5}
-                fill="transparent"
-                dot={false}
-                strokeDasharray="4 2"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
       {/* Smart widgets: top attendees + inactive */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

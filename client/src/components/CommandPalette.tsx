@@ -111,13 +111,6 @@ export function CommandPalette() {
         roles: adminOnly,
       },
       {
-        id: "admin-expenses",
-        label: t("nav.expenses"),
-        group: "Admin",
-        href: "/admin/expenses",
-        roles: adminOnly,
-      },
-      {
         id: "admin-schedule",
         label: t("nav.schedule"),
         group: "Admin",
