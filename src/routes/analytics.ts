@@ -7,10 +7,9 @@ import {
   checkinsTable,
   exerciseLogsTable,
   bodyStatsTable,
-  expensesTable,
   notificationsTable,
 } from "@workspace/db/schema";
-import { eq, count, sum, gte, lte, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, count, gte, lte, desc, and, sql, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseUserId } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
@@ -78,9 +77,6 @@ async function checkExpiringSubscriptions() {
 router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) => {
   checkExpiringSubscriptions();
   const today = new Date().toISOString().split("T")[0]!;
-  const thisMonth = new Date();
-  thisMonth.setDate(1);
-  const monthStart = thisMonth.toISOString().split("T")[0]!;
   const nextWeek = new Date();
   nextWeek.setDate(nextWeek.getDate() + 7);
   const weekEnd = nextWeek.toISOString().split("T")[0]!;
@@ -98,15 +94,6 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     .select({ count: count() })
     .from(memberSubscriptionsTable)
     .where(eq(memberSubscriptionsTable.status, "active"));
-  const [totalRevenueRow] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable);
-  const [monthlyRevenueRow] = await db
-    .select({ total: sum(paymentsTable.amount) })
-    .from(paymentsTable)
-    .where(gte(paymentsTable.date, monthStart));
-  const [monthlyExpensesRow] = await db
-    .select({ total: sum(expensesTable.amount) })
-    .from(expensesTable)
-    .where(gte(expensesTable.date, monthStart));
   const [todayCheckinsRow] = await db
     .select({ count: count() })
     .from(checkinsTable)
@@ -203,10 +190,6 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     totalMembers,
     activeMembers,
     expiredMembers: totalMembers - activeMembers,
-    totalRevenue: Number(totalRevenueRow?.total ?? 0),
-    monthlyRevenue: Number(monthlyRevenueRow?.total ?? 0),
-    monthlyExpenses: Number(monthlyExpensesRow?.total ?? 0),
-    monthlyProfit: Number(monthlyRevenueRow?.total ?? 0) - Number(monthlyExpensesRow?.total ?? 0),
     todayCheckins: todayCheckinsRow?.count ?? 0,
     expiringThisWeek: expiringRow?.count ?? 0,
     expiringMembers,
@@ -214,67 +197,6 @@ router.get("/analytics/dashboard", authenticate, requireAdmin, async (req, res) 
     topAttendees,
     inactiveMembers: inactiveMembers.slice(0, 10),
   });
-});
-
-router.get("/analytics/monthly-revenue", authenticate, requireAdmin, async (req, res) => {
-  try {
-    const revenueRows = await db.execute(sql`
-      SELECT
-        TO_CHAR(date::date, 'YYYY-MM') as month,
-        SUM(amount::numeric) as revenue,
-        COUNT(*) as payment_count
-      FROM payments
-      WHERE date >= NOW() - INTERVAL '12 months'
-      GROUP BY month
-      ORDER BY month ASC
-    `);
-
-    const expenseRows = await db.execute(sql`
-      SELECT
-        TO_CHAR(date::date, 'YYYY-MM') as month,
-        SUM(amount::numeric) as expenses
-      FROM expenses
-      WHERE date >= NOW() - INTERVAL '12 months'
-      GROUP BY month
-      ORDER BY month ASC
-    `);
-
-    const expenseMap: Record<string, number> = {};
-    for (const row of expenseRows.rows as any[]) {
-      expenseMap[row.month] = Number(row.expenses ?? 0);
-    }
-
-    const MONTH_AR: Record<string, string> = {
-      "01": "يناير",
-      "02": "فبراير",
-      "03": "مارس",
-      "04": "أبريل",
-      "05": "مايو",
-      "06": "يونيو",
-      "07": "يوليو",
-      "08": "أغسطس",
-      "09": "سبتمبر",
-      "10": "أكتوبر",
-      "11": "نوفمبر",
-      "12": "ديسمبر",
-    };
-
-    const data = (revenueRows.rows as any[]).map((row) => {
-      const [, month] = (row.month as string).split("-");
-      return {
-        month: MONTH_AR[month ?? ""] ?? row.month,
-        monthKey: row.month,
-        revenue: Number(row.revenue ?? 0),
-        expenses: expenseMap[row.month] ?? 0,
-        profit: Number(row.revenue ?? 0) - (expenseMap[row.month] ?? 0),
-        paymentCount: Number(row.payment_count ?? 0),
-      };
-    });
-
-    res.json(data);
-  } catch {
-    res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب بيانات الإيرادات" });
-  }
 });
 
 router.get("/analytics/member/:userId", authenticate, async (req, res) => {

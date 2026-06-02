@@ -10,7 +10,7 @@ import {
   refreshTokensTable,
   type User,
 } from "@workspace/db/schema";
-import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
+import { eq, ilike, or, count, sum, desc, and, ne, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, requireAdminOrTrainer } from "../middlewares/auth.js";
 import { parseUserId, parsePagination } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
@@ -123,6 +123,10 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
   // Effective trainer filter: trainers see only their own; admins use the
   // optional query param.
   const effectiveTrainerId = isTrainer ? req.user!.userId : trainerFilterRaw;
+  // Optional sort: "renewal" orders members by their most recent subscription
+  // (i.e. last renewal) first, so a member who just renewed surfaces at the
+  // top of the list. Anything else falls back to newest-registered first.
+  const sortByRenewal = req.query.sort === "renewal";
 
   try {
     const baseFilters = [eq(usersTable.role, "member")];
@@ -144,7 +148,14 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       .select()
       .from(usersTable)
       .where(whereClause)
-      .orderBy(desc(usersTable.createdAt))
+      // Sort by last renewal (most recent member_subscription) when requested,
+      // otherwise by signup date. The correlated subquery keeps the SELECT
+      // shape flat (just User columns) so downstream mapping is unchanged.
+      .orderBy(
+        sortByRenewal
+          ? sql`(SELECT MAX(${memberSubscriptionsTable.createdAt}) FROM ${memberSubscriptionsTable} WHERE ${memberSubscriptionsTable.userId} = ${usersTable.id}) DESC NULLS LAST`
+          : desc(usersTable.createdAt),
+      )
       .limit(limit)
       .offset(offset);
     const [totalRow] = await db.select({ count: count() }).from(usersTable).where(whereClause);

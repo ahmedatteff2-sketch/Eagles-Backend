@@ -69,11 +69,23 @@ const inputCls =
   "w-full rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
 const inputSt = { background: "hsl(0 0% 12%)", border: "1px solid hsl(0 0% 22%)" };
 
-type StatusFilter = "all" | "active" | "expired" | "none";
+type StatusFilter = "all" | "active" | "expiring" | "expired" | "none";
 
 function getSubStatus(u: any): "active" | "expired" | "none" {
   if (!u.currentSubscription?.endDate) return "none";
   return new Date(u.currentSubscription.endDate) >= new Date() ? "active" : "expired";
+}
+
+// "Expiring soon" = an active subscription whose endDate falls within the next
+// EXPIRING_SOON_DAYS days (inclusive of today). Powers the "قارب على الانتهاء"
+// members filter tab.
+const EXPIRING_SOON_DAYS = 7;
+function isExpiringSoon(u: any): boolean {
+  if (!u.currentSubscription?.endDate) return false;
+  const end = new Date(u.currentSubscription.endDate);
+  const now = new Date();
+  const soon = new Date(now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000);
+  return end >= now && end <= soon;
 }
 
 function Field({ label, error, children }: any) {
@@ -252,6 +264,9 @@ export default function AdminMembers() {
   }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [trainerFilter, setTrainerFilter] = useState<string>("");
+  // Sort order: "newest" (default, by signup date) or "renewal" (most recently
+  // renewed members first — sent to the API as ?sort=renewal).
+  const [sortBy, setSortBy] = useState<"newest" | "renewal">("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
@@ -321,6 +336,7 @@ export default function AdminMembers() {
   };
   if (trainerFilter === "none") qp.assignedTrainerId = "none";
   else if (trainerFilter) qp.assignedTrainerId = trainerFilter;
+  if (sortBy === "renewal") qp.sort = "renewal";
   const {
     data: users,
     isLoading,
@@ -360,6 +376,7 @@ export default function AdminMembers() {
 
   const userList = useMemo(() => {
     if (statusFilter === "all") return rawList;
+    if (statusFilter === "expiring") return rawList.filter((u) => isExpiringSoon(u));
     return rawList.filter((u) => getSubStatus(u) === statusFilter);
   }, [rawList, statusFilter]);
 
@@ -377,6 +394,7 @@ export default function AdminMembers() {
     () => ({
       all: rawList.length,
       active: rawList.filter((u) => getSubStatus(u) === "active").length,
+      expiring: rawList.filter((u) => isExpiringSoon(u)).length,
       expired: rawList.filter((u) => getSubStatus(u) === "expired").length,
       none: rawList.filter((u) => getSubStatus(u) === "none").length,
     }),
@@ -728,6 +746,7 @@ export default function AdminMembers() {
   const STATUS_TABS: { key: StatusFilter; label: string; color: string }[] = [
     { key: "all", label: "الكل", color: "hsl(0 0% 50%)" },
     { key: "active", label: "نشط ✅", color: "hsl(142 60% 55%)" },
+    { key: "expiring", label: "قارب على الانتهاء ⏰", color: "hsl(30 90% 58%)" },
     { key: "expired", label: "منتهي ⚠️", color: "hsl(30 90% 55%)" },
     { key: "none", label: "بدون اشتراك", color: "hsl(0 0% 40%)" },
   ];
@@ -835,6 +854,19 @@ export default function AdminMembers() {
             }}
           />
         </div>
+        <select
+          value={sortBy}
+          onChange={(e) => {
+            setSortBy(e.target.value as "newest" | "renewal");
+            setPage(1);
+          }}
+          title="ترتيب الأعضاء"
+          className="rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none flex-shrink-0"
+          style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 18%)" }}
+        >
+          <option value="newest">الأحدث تسجيلاً</option>
+          <option value="renewal">آخر تجديد</option>
+        </select>
         <select
           value={pageSize}
           onChange={(e) => {
