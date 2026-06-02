@@ -7,7 +7,9 @@ export const paymentMethodEnum = pgEnum("payment_method", ["cash", "card", "tran
 
 export const paymentsTable = pgTable("payments", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   date: date("date").notNull(),
   method: paymentMethodEnum("method").notNull().default("cash"),

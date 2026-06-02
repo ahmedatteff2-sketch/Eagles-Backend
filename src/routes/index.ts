@@ -11,11 +11,14 @@ import paymentsRouter from "./payments.js";
 import analyticsRouter from "./analytics.js";
 import exportsRouter from "./exports.js";
 import importsRouter from "./imports.js";
-import expensesRouter from "./expenses.js";
 import scheduleRouter from "./schedule.js";
 import remindersRouter from "./reminders.js";
 import socialRouter from "./social.js";
 import waTemplatesRouter from "./wa-templates.js";
+import renewalRemindersRouter from "./renewal-reminders.js";
+import absenceRemindersRouter from "./absence-reminders.js";
+import trainerRouter from "./trainer.js";
+import landingContentRouter from "./landing-content.js";
 
 const router: IRouter = Router();
 
@@ -31,10 +34,13 @@ router.use(paymentsRouter);
 router.use(analyticsRouter);
 router.use(exportsRouter);
 router.use(importsRouter);
-router.use(expensesRouter);
 router.use(scheduleRouter);
 router.use(remindersRouter);
 router.use(socialRouter);
 router.use(waTemplatesRouter);
+router.use(renewalRemindersRouter);
+router.use(absenceRemindersRouter);
+router.use(trainerRouter);
+router.use(landingContentRouter);
 
 export default router;

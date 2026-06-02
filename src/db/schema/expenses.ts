@@ -3,7 +3,13 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const expenseCategoryEnum = pgEnum("expense_category", [
-  "rent", "utilities", "salaries", "equipment", "maintenance", "marketing", "other"
+  "rent",
+  "utilities",
+  "salaries",
+  "equipment",
+  "maintenance",
+  "marketing",
+  "other",
 ]);
 
 export const expensesTable = pgTable("expenses", {

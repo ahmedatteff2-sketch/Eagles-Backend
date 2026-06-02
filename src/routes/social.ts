@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
-  waterLogsTable, sessionRatingsTable, chatMessagesTable,
-  notificationsTable, mealPlansTable, mealPlanItemsTable, usersTable,
-  exerciseLogsTable, checkinsTable, bodyStatsTable, coachNotesTable,
+  waterLogsTable,
+  sessionRatingsTable,
+  chatMessagesTable,
+  notificationsTable,
+  mealPlansTable,
+  mealPlanItemsTable,
+  usersTable,
+  exerciseLogsTable,
+  checkinsTable,
+  bodyStatsTable,
+  coachNotesTable,
 } from "@workspace/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
@@ -50,33 +58,54 @@ async function ensureChatAllowed(
 router.get("/water", authenticate, async (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date : new Date().toISOString().split("T")[0];
   try {
-    const [row] = await db.select().from(waterLogsTable)
+    const [row] = await db
+      .select()
+      .from(waterLogsTable)
       .where(and(eq(waterLogsTable.userId, req.user!.userId), eq(waterLogsTable.date, date)));
     res.json({ glasses: row?.glasses ?? 0, date });
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const waterSchema = z.object({
   glasses: z.number().int().min(0).max(50),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 router.post("/water", authenticate, async (req, res) => {
   const parsed = waterSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Validation error", message: "بيانات غير صالحة" }); return; }
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation error", message: "بيانات غير صالحة" });
+    return;
+  }
   const { glasses } = parsed.data;
   const d = parsed.data.date || new Date().toISOString().split("T")[0];
   try {
-    const [existing] = await db.select().from(waterLogsTable)
+    const [existing] = await db
+      .select()
+      .from(waterLogsTable)
       .where(and(eq(waterLogsTable.userId, req.user!.userId), eq(waterLogsTable.date, d)));
     if (existing) {
-      const [updated] = await db.update(waterLogsTable).set({ glasses }).where(eq(waterLogsTable.id, existing.id)).returning();
+      const [updated] = await db
+        .update(waterLogsTable)
+        .set({ glasses })
+        .where(eq(waterLogsTable.id, existing.id))
+        .returning();
       res.json(updated);
     } else {
-      const [created] = await db.insert(waterLogsTable).values({ userId: req.user!.userId, glasses, date: d }).returning();
+      const [created] = await db
+        .insert(waterLogsTable)
+        .values({ userId: req.user!.userId, glasses, date: d })
+        .returning();
       res.status(201).json(created);
     }
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -84,24 +113,44 @@ router.post("/water", authenticate, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.post("/session-rating", authenticate, async (req, res) => {
-  const schema = z.object({ rating: z.number().int().min(1).max(5), note: z.string().max(500).optional(), date: z.string() });
+  const schema = z.object({
+    rating: z.number().int().min(1).max(5),
+    note: z.string().max(500).optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تنسيق التاريخ غير صحيح"),
+  });
   const body = schema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   try {
-    const [r] = await db.insert(sessionRatingsTable).values({
-      userId: req.user!.userId, rating: body.data.rating, note: body.data.note ?? null, date: body.data.date,
-    }).returning();
+    const [r] = await db
+      .insert(sessionRatingsTable)
+      .values({
+        userId: req.user!.userId,
+        rating: body.data.rating,
+        note: body.data.note ?? null,
+        date: body.data.date,
+      })
+      .returning();
     res.status(201).json(r);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/session-ratings", authenticate, async (req, res) => {
   try {
-    const ratings = await db.select().from(sessionRatingsTable)
+    const ratings = await db
+      .select()
+      .from(sessionRatingsTable)
       .where(eq(sessionRatingsTable.userId, req.user!.userId))
-      .orderBy(desc(sessionRatingsTable.date)).limit(30);
+      .orderBy(desc(sessionRatingsTable.date))
+      .limit(30);
     res.json(ratings);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -119,22 +168,34 @@ router.get("/chat/:otherId", authenticate, async (req, res) => {
       res.status(allowed.status).json({ error: "Forbidden", message: allowed.message });
       return;
     }
-    const messages = await db.select({
-      id: chatMessagesTable.id,
-      senderId: chatMessagesTable.senderId,
-      receiverId: chatMessagesTable.receiverId,
-      message: chatMessagesTable.message,
-      read: chatMessagesTable.read,
-      createdAt: chatMessagesTable.createdAt,
-    }).from(chatMessagesTable).where(
-      or(
-        and(eq(chatMessagesTable.senderId, myId), eq(chatMessagesTable.receiverId, otherId)),
-        and(eq(chatMessagesTable.senderId, otherId), eq(chatMessagesTable.receiverId, myId)),
+    const messages = await db
+      .select({
+        id: chatMessagesTable.id,
+        senderId: chatMessagesTable.senderId,
+        receiverId: chatMessagesTable.receiverId,
+        message: chatMessagesTable.message,
+        read: chatMessagesTable.read,
+        createdAt: chatMessagesTable.createdAt,
+      })
+      .from(chatMessagesTable)
+      .where(
+        or(
+          and(eq(chatMessagesTable.senderId, myId), eq(chatMessagesTable.receiverId, otherId)),
+          and(eq(chatMessagesTable.senderId, otherId), eq(chatMessagesTable.receiverId, myId)),
+        ),
       )
-    ).orderBy(chatMessagesTable.createdAt).limit(200);
-    await db.update(chatMessagesTable).set({ read: 1 }).where(
-      and(eq(chatMessagesTable.senderId, otherId), eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0))
-    );
+      .orderBy(chatMessagesTable.createdAt)
+      .limit(200);
+    await db
+      .update(chatMessagesTable)
+      .set({ read: 1 })
+      .where(
+        and(
+          eq(chatMessagesTable.senderId, otherId),
+          eq(chatMessagesTable.receiverId, myId),
+          eq(chatMessagesTable.read, 0),
+        ),
+      );
     res.json(messages);
   } catch (err) {
     logger.error({ err, myId, otherId }, "GET /chat failed");
@@ -165,9 +226,14 @@ router.post("/chat/:otherId", authenticate, async (req, res) => {
       res.status(allowed.status).json({ error: "Forbidden", message: allowed.message });
       return;
     }
-    const [msg] = await db.insert(chatMessagesTable).values({
-      senderId: req.user!.userId, receiverId: otherId, message: trimmed,
-    }).returning();
+    const [msg] = await db
+      .insert(chatMessagesTable)
+      .values({
+        senderId: req.user!.userId,
+        receiverId: otherId,
+        message: trimmed,
+      })
+      .returning();
     res.status(201).json(msg);
   } catch (err) {
     logger.error({ err, otherId }, "POST /chat failed");
@@ -203,7 +269,9 @@ router.get("/chat-contacts", authenticate, async (req, res) => {
       .where(and(eq(chatMessagesTable.receiverId, myId), eq(chatMessagesTable.read, 0)))
       .groupBy(chatMessagesTable.senderId);
     const unreadMap: Record<string, number> = {};
-    unread.forEach((u) => { unreadMap[u.senderId] = u.count; });
+    unread.forEach((u) => {
+      unreadMap[u.senderId] = u.count;
+    });
     res.json({
       data: users.map((u) => ({ ...u, unread: unreadMap[u.id] ?? 0 })),
       page,
@@ -222,32 +290,57 @@ router.get("/chat-contacts", authenticate, async (req, res) => {
 
 router.get("/notifications", authenticate, async (req, res) => {
   try {
-    const notifs = await db.select().from(notificationsTable)
+    const notifs = await db
+      .select()
+      .from(notificationsTable)
       .where(eq(notificationsTable.userId, req.user!.userId))
-      .orderBy(desc(notificationsTable.createdAt)).limit(50);
+      .orderBy(desc(notificationsTable.createdAt))
+      .limit(50);
     res.json(notifs);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.post("/notifications/read-all", authenticate, async (req, res) => {
   try {
-    await db.update(notificationsTable).set({ read: 1 })
+    await db
+      .update(notificationsTable)
+      .set({ read: 1 })
       .where(and(eq(notificationsTable.userId, req.user!.userId), eq(notificationsTable.read, 0)));
     res.json({ success: true });
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Admin: send notification to user
 router.post("/notifications/send", authenticate, requireAdmin, async (req, res) => {
-  const schema = z.object({ userId: z.string(), title: z.string(), body: z.string().optional(), type: z.string().optional() });
+  const schema = z.object({
+    userId: z.string().min(1).max(64),
+    title: z.string().min(1).max(200),
+    body: z.string().max(2000).optional(),
+    type: z.string().max(50).optional(),
+  });
   const body = schema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   try {
-    const [n] = await db.insert(notificationsTable).values({
-      userId: body.data.userId, title: body.data.title, body: body.data.body ?? null, type: body.data.type ?? "general",
-    }).returning();
+    const [n] = await db
+      .insert(notificationsTable)
+      .values({
+        userId: body.data.userId,
+        title: body.data.title,
+        body: body.data.body ?? null,
+        type: body.data.type ?? "general",
+      })
+      .returning();
     res.status(201).json(n);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -255,12 +348,11 @@ router.post("/notifications/send", authenticate, requireAdmin, async (req, res) 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get("/meal-plans", authenticate, async (req, res) => {
-  const targetUserId = req.query.userId
-    ? parseUserId(String(req.query.userId), res)
-    : req.user!.userId;
+  const targetUserId = req.query.userId ? parseUserId(String(req.query.userId), res) : req.user!.userId;
   if (!targetUserId) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
-    res.status(403).json({ error: "Forbidden" }); return;
+    res.status(403).json({ error: "Forbidden" });
+    return;
   }
   try {
     const plans = await db
@@ -294,32 +386,58 @@ router.get("/meal-plans", authenticate, async (req, res) => {
 
 router.post("/meal-plans", authenticate, requireAdmin, async (req, res) => {
   const schema = z.object({
-    userId: z.string(), name: z.string(), notes: z.string().optional(),
-    items: z.array(z.object({
-      mealName: z.string(), time: z.string().optional(), calories: z.number().optional(),
-      protein: z.number().optional(), carbs: z.number().optional(), fats: z.number().optional(),
-      description: z.string().optional(),
-    })).optional(),
+    userId: z.string(),
+    name: z.string(),
+    notes: z.string().optional(),
+    items: z
+      .array(
+        z.object({
+          mealName: z.string().min(1).max(200),
+          time: z.string().max(20).optional(),
+          calories: z.number().min(0).max(100_000).optional(),
+          protein: z.number().min(0).max(100_000).optional(),
+          carbs: z.number().min(0).max(100_000).optional(),
+          fats: z.number().min(0).max(100_000).optional(),
+          description: z.string().max(1000).optional(),
+        }),
+      )
+      .max(100)
+      .optional(),
   });
   const body = schema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   try {
-    const [plan] = await db.insert(mealPlansTable).values({
-      userId: body.data.userId, name: body.data.name, notes: body.data.notes ?? null,
-    }).returning();
+    const [plan] = await db
+      .insert(mealPlansTable)
+      .values({
+        userId: body.data.userId,
+        name: body.data.name,
+        notes: body.data.notes ?? null,
+      })
+      .returning();
     if (body.data.items?.length) {
       for (let i = 0; i < body.data.items.length; i++) {
         const item = body.data.items[i];
         await db.insert(mealPlanItemsTable).values({
-          planId: plan.id, mealName: item.mealName, time: item.time ?? null,
-          calories: item.calories ?? null, protein: item.protein ?? null,
-          carbs: item.carbs ?? null, fats: item.fats ?? null,
-          description: item.description ?? null, sortOrder: i,
+          planId: plan.id,
+          mealName: item.mealName,
+          time: item.time ?? null,
+          calories: item.calories ?? null,
+          protein: item.protein ?? null,
+          carbs: item.carbs ?? null,
+          fats: item.fats ?? null,
+          description: item.description ?? null,
+          sortOrder: i,
         });
       }
     }
     res.status(201).json(plan);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.delete("/meal-plans/:id", authenticate, requireAdmin, async (req, res) => {
@@ -378,11 +496,26 @@ router.get("/leaderboard", authenticate, async (req, res) => {
 router.get("/badges", authenticate, async (req, res) => {
   const uid = req.user!.userId;
   try {
-    const [logCount] = await db.select({ c: sql<number>`count(*)::int` }).from(exerciseLogsTable).where(eq(exerciseLogsTable.userId, uid));
-    const [checkinCount] = await db.select({ c: sql<number>`count(*)::int` }).from(checkinsTable).where(eq(checkinsTable.userId, uid));
-    const [uniqueDays] = await db.select({ c: sql<number>`count(DISTINCT date)::int` }).from(exerciseLogsTable).where(eq(exerciseLogsTable.userId, uid));
-    const [maxWeight] = await db.select({ w: sql<number>`COALESCE(MAX(CAST(weight AS NUMERIC)), 0)` }).from(exerciseLogsTable).where(eq(exerciseLogsTable.userId, uid));
-    const [statsCount] = await db.select({ c: sql<number>`count(*)::int` }).from(bodyStatsTable).where(eq(bodyStatsTable.userId, uid));
+    const [logCount] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(exerciseLogsTable)
+      .where(eq(exerciseLogsTable.userId, uid));
+    const [checkinCount] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(checkinsTable)
+      .where(eq(checkinsTable.userId, uid));
+    const [uniqueDays] = await db
+      .select({ c: sql<number>`count(DISTINCT date)::int` })
+      .from(exerciseLogsTable)
+      .where(eq(exerciseLogsTable.userId, uid));
+    const [maxWeight] = await db
+      .select({ w: sql<number>`COALESCE(MAX(CAST(weight AS NUMERIC)), 0)` })
+      .from(exerciseLogsTable)
+      .where(eq(exerciseLogsTable.userId, uid));
+    const [statsCount] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(bodyStatsTable)
+      .where(eq(bodyStatsTable.userId, uid));
 
     const logs = logCount?.c ?? 0;
     const checkins = checkinCount?.c ?? 0;
@@ -405,7 +538,9 @@ router.get("/badges", authenticate, async (req, res) => {
       { id: "track_body", name: "واعي", desc: "سجّل قياسات جسمك", icon: "📊", earned: stats >= 1 },
     ];
     res.json(badges);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -416,12 +551,16 @@ router.get("/coach-notes/:userId", authenticate, async (req, res) => {
   const targetUserId = parseUserId(req.params.userId, res);
   if (!targetUserId) return;
   if (req.user!.role !== "admin" && req.user!.userId !== targetUserId) {
-    res.status(403).json({ error: "Forbidden" }); return;
+    res.status(403).json({ error: "Forbidden" });
+    return;
   }
   try {
-    const notes = await db.select().from(coachNotesTable)
+    const notes = await db
+      .select()
+      .from(coachNotesTable)
       .where(eq(coachNotesTable.userId, targetUserId))
-      .orderBy(desc(coachNotesTable.createdAt)).limit(50);
+      .orderBy(desc(coachNotesTable.createdAt))
+      .limit(50);
     res.json(notes);
   } catch (err) {
     logger.error({ err, targetUserId }, "GET /coach-notes failed");
@@ -432,11 +571,19 @@ router.get("/coach-notes/:userId", authenticate, async (req, res) => {
 router.post("/coach-notes", authenticate, requireAdmin, async (req, res) => {
   const schema = z.object({ userId: z.string().min(1), note: z.string().min(1).max(2000) });
   const body = schema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   try {
-    const [n] = await db.insert(coachNotesTable).values({ userId: body.data.userId, note: body.data.note }).returning();
+    const [n] = await db
+      .insert(coachNotesTable)
+      .values({ userId: body.data.userId, note: body.data.note })
+      .returning();
     res.status(201).json(n);
-  } catch { res.status(500).json({ error: "Internal server error" }); }
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.delete("/coach-notes/:id", authenticate, requireAdmin, async (req, res) => {

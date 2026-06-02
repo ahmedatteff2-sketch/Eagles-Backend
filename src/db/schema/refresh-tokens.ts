@@ -3,7 +3,9 @@ import { usersTable } from "./users.js";
 
 export const refreshTokensTable = pgTable("refresh_tokens", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull().unique(),
   revoked: boolean("revoked").notNull().default(false),
   // Best-effort device/session metadata captured at issuance time. Used by the

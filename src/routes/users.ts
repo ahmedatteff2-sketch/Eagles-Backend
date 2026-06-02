@@ -1,8 +1,16 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { usersTable, memberSubscriptionsTable, subscriptionsTable, checkinsTable, paymentsTable, refreshTokensTable } from "@workspace/db/schema";
-import { eq, ilike, or, count, sum, desc, and, ne } from "drizzle-orm";
+import {
+  usersTable,
+  memberSubscriptionsTable,
+  subscriptionsTable,
+  checkinsTable,
+  paymentsTable,
+  refreshTokensTable,
+  type User,
+} from "@workspace/db/schema";
+import { eq, ilike, or, count, sum, desc, and, ne, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, requireAdminOrTrainer } from "../middlewares/auth.js";
 import { parseUserId, parsePagination } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
@@ -10,6 +18,26 @@ import { normalizePhone } from "../lib/phone.js";
 import { z } from "zod";
 
 const router = Router();
+
+/**
+ * Strip sensitive columns from a user row before returning it to clients.
+ *
+ * `passwordHash` is the bcrypt digest used at login. `totpSecret` is the
+ * base32 shared secret for the user's 2FA authenticator — exposing it lets
+ * anyone with the response enroll the same secret in their own authenticator
+ * and bypass the second factor. Both fields are scrubbed here so callers
+ * can't forget on a per-route basis.
+ *
+ * Add any new sensitive column (e.g. recovery codes, encrypted MFA blobs)
+ * to this function rather than re-implementing the projection inline.
+ */
+type SafeUser = Omit<User, "passwordHash" | "totpSecret">;
+function toSafeUser(user: User): SafeUser {
+  // Discard names are `_`-prefixed so the project's no-unused-vars rule
+  // (which allows /^_/u) skips them; we just want them off the object.
+  const { passwordHash: _ph, totpSecret: _ts, ...safe } = user;
+  return safe;
+}
 
 // Phone fields are normalized to digits-only at parse time so every storage
 // path (create / update / import) lands the same canonical form, matching
@@ -26,10 +54,21 @@ const phoneInput = z
   });
 
 const createUserSchema = z.object({
-  name: z.string().min(2).max(100).transform(s => s.trim()),
+  name: z
+    .string()
+    .min(2)
+    .max(100)
+    .transform((s) => s.trim()),
   phone: phoneInput,
-  membershipNumber: z.string().max(50).optional().transform(s => s?.trim() || null),
-  password: z.string().min(6).max(128),
+  membershipNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => s?.trim() || null),
+  // Minimum 8 to match change-password / reset-password / login policy —
+  // admin-created accounts shouldn't get a weaker password floor than
+  // self-service ones.
+  password: z.string().min(8).max(128),
   role: z.enum(["admin", "trainer", "member"]).default("member"),
   category: z.enum(["normal", "vip", "trial"]).default("normal"),
   // Optional trainer assignment. Empty string is treated as "unassign".
@@ -37,9 +76,18 @@ const createUserSchema = z.object({
 });
 
 const updateUserSchema = z.object({
-  name: z.string().min(2).max(100).transform(s => s.trim()).optional(),
+  name: z
+    .string()
+    .min(2)
+    .max(100)
+    .transform((s) => s.trim())
+    .optional(),
   phone: phoneInput.optional(),
-  membershipNumber: z.string().max(50).optional().transform(s => (s !== undefined ? (s.trim() || null) : undefined)),
+  membershipNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => (s !== undefined ? s.trim() || null : undefined)),
   role: z.enum(["admin", "trainer", "member"]).optional(),
   category: z.enum(["normal", "vip", "trial"]).optional(),
   assignedTrainerId: z.string().min(1).max(64).nullable().optional(),
@@ -51,10 +99,7 @@ const updateUserSchema = z.object({
  * role column is X" — we'd need a trigger or a separate trainers table for
  * that. Cheaper to just check at the API boundary.
  */
-async function ensureTrainerExists(
-  trainerId: string,
-  res: import("express").Response,
-): Promise<boolean> {
+async function ensureTrainerExists(trainerId: string, res: import("express").Response): Promise<boolean> {
   const [t] = await db
     .select({ id: usersTable.id, role: usersTable.role })
     .from(usersTable)
@@ -71,15 +116,20 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
   const { page, limit, offset } = parsePagination(req.query.page, req.query.limit, 100);
   const rawSearch = typeof req.query.search === "string" ? req.query.search.slice(0, 100) : undefined;
   // Escape LIKE special characters to prevent wildcard injection
-  const search = rawSearch?.replace(/[%_\\]/g, c => `\\${c}`);
+  const search = rawSearch?.replace(/[%_\\]/g, (c) => `\\${c}`);
   // Optional trainer filter (admins can pass ?trainerId=... explicitly to
   // see only members assigned to one trainer). Trainers always see their
   // own assigned members regardless of the query param.
-  const trainerFilterRaw = typeof req.query.trainerId === "string" ? req.query.trainerId.slice(0, 64) : undefined;
+  const trainerFilterRaw =
+    typeof req.query.trainerId === "string" ? req.query.trainerId.slice(0, 64) : undefined;
   const isTrainer = req.user!.role === "trainer";
   // Effective trainer filter: trainers see only their own; admins use the
   // optional query param.
   const effectiveTrainerId = isTrainer ? req.user!.userId : trainerFilterRaw;
+  // Optional sort: "renewal" orders members by their most recent subscription
+  // (i.e. last renewal) first, so a member who just renewed surfaces at the
+  // top of the list. Anything else falls back to newest-registered first.
+  const sortByRenewal = req.query.sort === "renewal";
 
   try {
     const baseFilters = [eq(usersTable.role, "member")];
@@ -101,23 +151,27 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       .select()
       .from(usersTable)
       .where(whereClause)
-      .orderBy(desc(usersTable.createdAt))
+      // Sort by last renewal (most recent member_subscription) when requested,
+      // otherwise by signup date. The correlated subquery keeps the SELECT
+      // shape flat (just User columns) so downstream mapping is unchanged.
+      .orderBy(
+        sortByRenewal
+          ? sql`(SELECT MAX(${memberSubscriptionsTable.createdAt}) FROM ${memberSubscriptionsTable} WHERE ${memberSubscriptionsTable.userId} = ${usersTable.id}) DESC NULLS LAST`
+          : desc(usersTable.createdAt),
+      )
       .limit(limit)
       .offset(offset);
-    const [totalRow] = await db
-      .select({ count: count() })
-      .from(usersTable)
-      .where(whereClause);
+    const [totalRow] = await db.select({ count: count() }).from(usersTable).where(whereClause);
 
     // Single JOIN query for subscriptions (avoids N+1)
-    const userIds = users.map(u => u.id);
+    const userIds = users.map((u) => u.id);
     type SubInfo = {
       id: number;
       userId: string;
       subscriptionId: number;
       startDate: string;
       endDate: string;
-      status: "active" | "expired";
+      status: "active" | "expired" | "frozen";
       subscription: { id: number; name: string; duration: number; price: string };
     };
     const subsMap: Record<string, SubInfo> = {};
@@ -154,10 +208,10 @@ router.get("/users", authenticate, requireAdminOrTrainer, async (req, res) => {
       }
     }
 
-    const usersWithSubs = users.map(u => {
-      const { passwordHash: _, ...safe } = u;
-      return { ...safe, currentSubscription: subsMap[u.id] ?? null };
-    });
+    const usersWithSubs = users.map((u) => ({
+      ...toSafeUser(u),
+      currentSubscription: subsMap[u.id] ?? null,
+    }));
 
     res.json({ data: usersWithSubs, total: totalRow?.count ?? 0, page, limit });
   } catch {
@@ -172,13 +226,21 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.phone)).limit(1);
+    const existing = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.phone, body.data.phone))
+      .limit(1);
     if (existing.length > 0) {
       res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
       return;
     }
     if (body.data.membershipNumber) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
+      const existingCode = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.membershipNumber, body.data.membershipNumber))
+        .limit(1);
       if (existingCode.length > 0) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;
@@ -189,18 +251,20 @@ router.post("/users", authenticate, requireAdmin, async (req, res) => {
       if (!ok) return;
     }
     const hashed = await bcrypt.hash(body.data.password, 12);
-    const [user] = await db.insert(usersTable).values({
-      id: crypto.randomUUID(),
-      name: body.data.name,
-      phone: body.data.phone,
-      membershipNumber: body.data.membershipNumber,
-      passwordHash: hashed,
-      role: body.data.role,
-      category: body.data.category ?? "normal",
-      assignedTrainerId: body.data.assignedTrainerId ?? null,
-    }).returning();
-    const { passwordHash: _, ...safe } = user;
-    res.status(201).json(safe);
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        id: crypto.randomUUID(),
+        name: body.data.name,
+        phone: body.data.phone,
+        membershipNumber: body.data.membershipNumber,
+        passwordHash: hashed,
+        role: body.data.role,
+        category: body.data.category ?? "normal",
+        assignedTrainerId: body.data.assignedTrainerId ?? null,
+      })
+      .returning();
+    res.status(201).json(toSafeUser(user));
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء إضافة العضو" });
   }
@@ -257,11 +321,23 @@ router.get("/users/:userId", authenticate, async (req, res) => {
       .orderBy(desc(memberSubscriptionsTable.createdAt))
       .limit(1);
 
-    const recentCheckins = await db.select().from(checkinsTable).where(eq(checkinsTable.userId, userId)).orderBy(desc(checkinsTable.timestamp)).limit(5);
-    const [paySum] = await db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(eq(paymentsTable.userId, userId));
+    const recentCheckins = await db
+      .select()
+      .from(checkinsTable)
+      .where(eq(checkinsTable.userId, userId))
+      .orderBy(desc(checkinsTable.timestamp))
+      .limit(5);
+    const [paySum] = await db
+      .select({ total: sum(paymentsTable.amount) })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.userId, userId));
 
-    const { passwordHash: _, ...safe } = user;
-    res.json({ ...safe, currentSubscription: currentSubscription ?? null, recentCheckins, totalPayments: Number(paySum?.total ?? 0) });
+    res.json({
+      ...toSafeUser(user),
+      currentSubscription: currentSubscription ?? null,
+      recentCheckins,
+      totalPayments: Number(paySum?.total ?? 0),
+    });
   } catch {
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء جلب بيانات العضو" });
   }
@@ -272,10 +348,7 @@ router.get("/users/:userId", authenticate, async (req, res) => {
  * locked out of its own admin panel. Returns true if the operation should
  * proceed.
  */
-async function ensureNotLastAdmin(
-  userId: string,
-  res: import("express").Response,
-): Promise<boolean> {
+async function ensureNotLastAdmin(userId: string, res: import("express").Response): Promise<boolean> {
   const [target] = await db
     .select({ role: usersTable.role })
     .from(usersTable)
@@ -313,14 +386,22 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
       if (!ok) return;
     }
     if (body.data.phone) {
-      const existingPhone = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, body.data.phone)).limit(1);
+      const existingPhone = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.phone, body.data.phone))
+        .limit(1);
       if (existingPhone.length > 0 && existingPhone[0].id !== userId) {
         res.status(409).json({ error: "Conflict", message: "رقم الهاتف مستخدم بالفعل" });
         return;
       }
     }
     if (body.data.membershipNumber) {
-      const existingCode = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.membershipNumber, body.data.membershipNumber)).limit(1);
+      const existingCode = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.membershipNumber, body.data.membershipNumber))
+        .limit(1);
       if (existingCode.length > 0 && existingCode[0].id !== userId) {
         res.status(409).json({ error: "Conflict", message: "الكود التعريفي مستخدم بالفعل" });
         return;
@@ -336,8 +417,7 @@ router.put("/users/:userId", authenticate, requireAdmin, async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const { passwordHash: _, ...safe } = user;
-    res.json(safe);
+    res.json(toSafeUser(user));
   } catch (err) {
     logger.error({ err, userId }, "PUT /users/:userId failed");
     res.status(500).json({ error: "Internal server error", message: "حدث خطأ أثناء التحديث" });
@@ -368,11 +448,13 @@ const resetPasswordSchema = z.object({
 /**
  * List all users with role="trainer". Used by the admin members page to
  * populate the "assign trainer" dropdown. Returns a minimal projection
- * (id + name) since the dropdown doesn't need anything else.
+ * (id + name) since the dropdown doesn't need anything else — phone numbers
+ * were previously exposed here and let any trainer harvest every other
+ * trainer's contact info.
  */
 router.get("/trainers", authenticate, requireAdminOrTrainer, async (_req, res) => {
   const trainers = await db
-    .select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone })
+    .select({ id: usersTable.id, name: usersTable.name })
     .from(usersTable)
     .where(eq(usersTable.role, "trainer"))
     .orderBy(usersTable.name);

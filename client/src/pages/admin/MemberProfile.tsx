@@ -1,146 +1,99 @@
-import { useParams, Link, useLocation } from "wouter";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "wouter";
 import {
-  useGetUser, useGetMemberCurrentSubscription, useGetMemberSubscriptionHistory,
-  useListCheckins, useListBodyStats, useAssignSubscription, useListSubscriptions,
-  useListExerciseLogs,
-  getGetUserQueryKey, getGetMemberCurrentSubscriptionQueryKey,
-  getGetMemberSubscriptionHistoryQueryKey, getListCheckinsQueryKey,
-  getListBodyStatsQueryKey, getListSubscriptionsQueryKey,
+  getGetMemberCurrentSubscriptionQueryKey,
+  getGetMemberSubscriptionHistoryQueryKey,
+  getGetUserQueryKey,
+  getListBodyStatsQueryKey,
+  getListCheckinsQueryKey,
   getListExerciseLogsQueryKey,
+  getListSubscriptionsQueryKey,
+  useAssignSubscription,
+  useGetMemberCurrentSubscription,
+  useGetMemberSubscriptionHistory,
+  useGetUser,
+  useListBodyStats,
+  useListCheckins,
+  useListExerciseLogs,
+  useListSubscriptions,
 } from "@workspace/api-client-react";
-import { customFetch } from "@/api-client/custom-fetch";
 import { useQueryClient } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
-import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+
+import { customFetch } from "@/api-client/custom-fetch";
+import { freezeMemberSubscription, unfreezeMemberSubscription } from "@/api-client/member-subscriptions";
 import { useToast } from "@/hooks/use-toast";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import { escapeHtml } from "@/lib/escape-html";
 import { memberNotesKey } from "@/lib/storage";
 
-const GOLD = "hsl(40 65% 52%)";
-const AVATAR_COLORS = ["hsl(40 65% 48%)","hsl(142 60% 45%)","hsl(220 70% 58%)","hsl(280 60% 55%)","hsl(0 60% 52%)","hsl(30 80% 52%)","hsl(180 60% 45%)"];
+import {
+  assignSchema,
+  avatarColor,
+  emptyMealItem,
+  GOLD,
+  type AssignForm,
+  type MealItem,
+  type MealPlan,
+  type Tab,
+} from "./member-profile/helpers";
+import { exportMemberPdf } from "./member-profile/exportPdf";
+import { downloadQR, printQR } from "./member-profile/qrTools";
+import { OverviewTab } from "./member-profile/OverviewTab";
+import { QRTab } from "./member-profile/QRTab";
+import { TrainingTab } from "./member-profile/TrainingTab";
+import { MealPlansTab } from "./member-profile/MealPlansTab";
+import { ProgressTab } from "./member-profile/ProgressTab";
+import { NotesTab } from "./member-profile/NotesTab";
+import { AssignSubscriptionModal } from "./member-profile/AssignSubscriptionModal";
+import { CreateMealPlanModal } from "./member-profile/CreateMealPlanModal";
+import { ConfirmDeleteMealPlanModal } from "./member-profile/ConfirmDeleteMealPlanModal";
+import { QuickCheckinModal } from "./member-profile/QuickCheckinModal";
+import { AssignTemplateModal } from "./member-profile/AssignTemplateModal";
 
-const MUSCLE_COLORS: Record<string, string> = {
-  "صدر": "#e74c3c", "ظهر": "#3498db", "أكتاف": "#2ecc71",
-  "بايسبس": "#f39c12", "ترايسبس": "#e67e22", "أرجل": "#9b59b6",
-  "بطن": "#1abc9c", "كارديو": "#e91e63", "أخرى": "#95a5a6",
-};
+const TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "نظرة عامة" },
+  { id: "qr", label: "QR الشخصي" },
+  { id: "training", label: "التدريب" },
+  { id: "meals", label: "خطة التغذية" },
+  { id: "progress", label: "التقدم" },
+  { id: "notes", label: "ملاحظات" },
+];
 
-function TemplateCardAdmin({ t, daysCount, exercises, onUnassign }: { t: any; daysCount: number; exercises: any[]; onUnassign: () => void }) {
-  const [day, setDay] = useState(1);
-  const dayExercises = daysCount > 1 ? exercises.filter((ex: any) => ex.dayNumber === day) : exercises;
-
-  return (
-    <div className="bg-card border border-card-border rounded-xl p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <p className="font-semibold text-foreground">{t.name}</p>
-          <p className="text-xs text-muted-foreground">{daysCount} يوم · {exercises.length} تمرين</p>
-        </div>
-        <button onClick={onUnassign}
-          className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
-          إلغاء التعيين
-        </button>
-      </div>
-      {daysCount > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
-          {Array.from({ length: daysCount }).map((_, i) => {
-            const d = i + 1;
-            const count = exercises.filter((ex: any) => ex.dayNumber === d).length;
-            return (
-              <button key={d} onClick={() => setDay(d)}
-                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  day === d ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}>يوم {d} ({count})</button>
-            );
-          })}
-        </div>
-      )}
-      {dayExercises.length > 0 ? (
-        <div className="space-y-1">
-          {dayExercises.map((ex: any, i: number) => {
-            const color = MUSCLE_COLORS[ex.targetMuscle] ?? "#95a5a6";
-            return (
-              <div key={ex.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="text-xs font-bold text-foreground">{i+1}.</span>
-                <span>{ex.exerciseName}</span>
-                <span className="text-xs">({ex.sets}×{ex.reps})</span>
-                <span className="text-xs px-1 py-0.5 rounded" style={{ background: `${color}15`, color }}>{ex.targetMuscle}</span>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground text-center py-2">لا توجد تمارين في يوم {day}</p>
-      )}
-    </div>
-  );
-}
-function avatarColor(name: string): string {
-  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[Math.abs(h)];
-}
-
-const assignSchema = z.object({
-  subscriptionId: z.coerce.number().min(1, "اختر خطة"),
-  startDate: z.string().min(1, "التاريخ مطلوب"),
-  paymentAmount: z.coerce.number().optional(),
-  paymentMethod: z.enum(["cash", "card", "transfer"]).optional(),
-});
-type AssignForm = z.infer<typeof assignSchema>;
-type Tab = "overview" | "qr" | "training" | "meals" | "progress" | "notes";
-
-const inp = "w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary";
-
-interface MealItem {
-  id?: number;
-  mealName: string;
-  time: string | null;
-  calories: number | null;
-  protein: number | null;
-  carbs: number | null;
-  fats: number | null;
-  description: string | null;
-}
-interface MealPlan {
-  id: number;
-  name: string;
-  notes: string | null;
-  items: MealItem[];
-  createdAt?: string;
-}
-
-function emptyMealItem(): MealItem {
-  return { mealName: "", time: null, calories: null, protein: null, carbs: null, fats: null, description: null };
-}
-
-function parseNum(v: string): number | null {
-  if (!v.trim()) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
+/**
+ * Admin "Member Profile" page.
+ *
+ * Holds all the queries, mutations and shared state, then delegates each
+ * tab body and modal to a focused sub-component under `./member-profile/`.
+ * This file is intentionally just orchestration — render logic lives in
+ * the per-tab components so each piece is small enough to read and edit
+ * without scrolling through siblings.
+ */
 export default function AdminMemberProfile() {
   const params = useParams<{ id: string }>();
   const userId = params.id;
+
+  // UI state
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [showAssign, setShowAssign] = useState(false);
-  const [memberTemplates, setMemberTemplates] = useState<any[]>([]);
-  const [allTemplates, setAllTemplates] = useState<any[]>([]);
   const [showAssignTemplate, setShowAssignTemplate] = useState(false);
   const [assignTemplateId, setAssignTemplateId] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [showQuickCheckin, setShowQuickCheckin] = useState(false);
+  const [savingCheckin, setSavingCheckin] = useState(false);
+
+  // Templates assigned to this member + the full template catalogue.
+  const [memberTemplates, setMemberTemplates] = useState<any[]>([]);
+  const [allTemplates, setAllTemplates] = useState<any[]>([]);
+
+  // Per-admin scratchpad notes (persisted to localStorage).
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
+
+  // Coach notes (visible to the member).
   const [coachNotes, setCoachNotes] = useState<any[]>([]);
   const [newCoachNote, setNewCoachNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
 
-  // Meal plans state
+  // Meal plans.
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlansLoading, setMealPlansLoading] = useState(false);
   const [showCreatePlan, setShowCreatePlan] = useState(false);
@@ -151,26 +104,48 @@ export default function AdminMemberProfile() {
   const [confirmDeletePlanId, setConfirmDeletePlanId] = useState<number | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
 
-  // Quick check-in state
-  const [showQuickCheckin, setShowQuickCheckin] = useState(false);
-  const [savingCheckin, setSavingCheckin] = useState(false);
-
   const qrRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: user } = useGetUser(userId, { query: { queryKey: getGetUserQueryKey(userId), enabled: !!userId } });
-  const { data: currentSub } = useGetMemberCurrentSubscription(userId, { query: { queryKey: getGetMemberCurrentSubscriptionQueryKey(userId), enabled: !!userId } });
-  const { data: subHistory } = useGetMemberSubscriptionHistory(userId, { query: { queryKey: getGetMemberSubscriptionHistoryQueryKey(userId), enabled: !!userId } });
-  const { data: checkins } = useListCheckins({ userId }, { query: { queryKey: getListCheckinsQueryKey({ userId }), enabled: !!userId } });
-  const { data: bodyStats } = useListBodyStats({ userId }, { query: { queryKey: getListBodyStatsQueryKey({ userId }), enabled: !!userId } });
-  const { data: subscriptions } = useListSubscriptions({ query: { queryKey: getListSubscriptionsQueryKey() } });
-  const { data: exerciseLogs } = useListExerciseLogs({ userId }, { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } });
+  // ── Queries ──────────────────────────────────────────────────────────
+  const { data: user } = useGetUser(userId, {
+    query: { queryKey: getGetUserQueryKey(userId), enabled: !!userId },
+  });
+  const { data: currentSub } = useGetMemberCurrentSubscription(userId, {
+    query: { queryKey: getGetMemberCurrentSubscriptionQueryKey(userId), enabled: !!userId },
+  });
+  const { data: subHistory } = useGetMemberSubscriptionHistory(userId, {
+    query: { queryKey: getGetMemberSubscriptionHistoryQueryKey(userId), enabled: !!userId },
+  });
+  const { data: checkins } = useListCheckins(
+    { userId },
+    { query: { queryKey: getListCheckinsQueryKey({ userId }), enabled: !!userId } },
+  );
+  const { data: bodyStats } = useListBodyStats(
+    { userId },
+    { query: { queryKey: getListBodyStatsQueryKey({ userId }), enabled: !!userId } },
+  );
+  const { data: subscriptions } = useListSubscriptions({
+    query: { queryKey: getListSubscriptionsQueryKey() },
+  });
+  const { data: exerciseLogs } = useListExerciseLogs(
+    { userId },
+    { query: { queryKey: getListExerciseLogsQueryKey({ userId }), enabled: !!userId } },
+  );
 
   const assignSub = useAssignSubscription();
+  const assignForm = useForm<AssignForm>({
+    resolver: zodResolver(assignSchema),
+    defaultValues: {
+      startDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: "cash",
+    },
+  });
 
-  const assignForm = useForm<AssignForm>({ resolver: zodResolver(assignSchema), defaultValues: { startDate: new Date().toISOString().slice(0,10), paymentMethod: "cash" } });
-
+  // ── Side-effect-heavy fetchers ───────────────────────────────────────
+  // Templates aren't auto-fetched per-user, so we cross-reference all
+  // templates with their assignments to filter to ones owned by this user.
   async function fetchMemberTemplates() {
     if (!userId) return;
     try {
@@ -178,18 +153,21 @@ export default function AdminMemberProfile() {
         customFetch<any[]>(`/api/workout-templates`),
         customFetch<any[]>(`/api/workout-templates`),
       ]);
-      // filter templates assigned to this user
       const assigned: any[] = [];
       for (const t of templates) {
         try {
           const assignments = await customFetch<any[]>(`/api/workout-templates/${t.id}/assignments`);
           const match = assignments.find((a: any) => a.userId === userId);
           if (match) assigned.push({ ...t, assignmentId: match.id });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       setMemberTemplates(assigned);
       setAllTemplates(all);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   useEffect(() => {
@@ -201,12 +179,11 @@ export default function AdminMemberProfile() {
   function fetchCoachNotes() {
     if (!userId) return;
     customFetch<any[]>(`/api/coach-notes/${userId}`)
-      .then(d => setCoachNotes(Array.isArray(d) ? d : []))
+      .then((d) => setCoachNotes(Array.isArray(d) ? d : []))
       .catch(() => {});
   }
   useEffect(() => {
     if (activeTab === "notes") fetchCoachNotes();
-    // `fetchCoachNotes` closes over `userId` so include it directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userId]);
 
@@ -214,12 +191,16 @@ export default function AdminMemberProfile() {
     if (!userId) return;
     setMealPlansLoading(true);
     customFetch<MealPlan[]>(`/api/meal-plans?userId=${encodeURIComponent(userId)}`)
-      .then(d => setMealPlans(Array.isArray(d) ? d : []))
+      .then((d) => setMealPlans(Array.isArray(d) ? d : []))
       .catch(() => setMealPlans([]))
       .finally(() => setMealPlansLoading(false));
   }
-  useEffect(() => { if (activeTab === "meals") fetchMealPlans(); }, [activeTab, userId]);
+  useEffect(() => {
+    if (activeTab === "meals") fetchMealPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userId]);
 
+  // ── Meal plan form helpers ───────────────────────────────────────────
   function resetPlanForm() {
     setPlanName("");
     setPlanNotes("");
@@ -227,20 +208,28 @@ export default function AdminMemberProfile() {
   }
 
   function updateItem(idx: number, patch: Partial<MealItem>) {
-    setPlanItems(items => items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+    setPlanItems((items) => items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
-  function addItem() { setPlanItems(items => [...items, emptyMealItem()]); }
+  function addItem() {
+    setPlanItems((items) => [...items, emptyMealItem()]);
+  }
   function removeItem(idx: number) {
-    setPlanItems(items => (items.length <= 1 ? items : items.filter((_, i) => i !== idx)));
+    setPlanItems((items) => (items.length <= 1 ? items : items.filter((_, i) => i !== idx)));
   }
 
   async function savePlan() {
     if (!userId) return;
-    if (!planName.trim()) { toast({ title: "اسم الخطة مطلوب", variant: "destructive" }); return; }
+    if (!planName.trim()) {
+      toast({ title: "اسم الخطة مطلوب", variant: "destructive" });
+      return;
+    }
     const items = planItems
-      .map(it => ({ ...it, mealName: it.mealName.trim() }))
-      .filter(it => it.mealName.length > 0);
-    if (items.length === 0) { toast({ title: "أضف وجبة واحدة على الأقل", variant: "destructive" }); return; }
+      .map((it) => ({ ...it, mealName: it.mealName.trim() }))
+      .filter((it) => it.mealName.length > 0);
+    if (items.length === 0) {
+      toast({ title: "أضف وجبة واحدة على الأقل", variant: "destructive" });
+      return;
+    }
     setSavingPlan(true);
     try {
       await customFetch("/api/meal-plans", {
@@ -249,7 +238,7 @@ export default function AdminMemberProfile() {
           userId,
           name: planName.trim(),
           notes: planNotes.trim() || undefined,
-          items: items.map(it => ({
+          items: items.map((it) => ({
             mealName: it.mealName,
             time: it.time?.trim() || undefined,
             calories: it.calories ?? undefined,
@@ -275,7 +264,7 @@ export default function AdminMemberProfile() {
       await customFetch(`/api/meal-plans/${id}`, { method: "DELETE" });
       toast({ title: "تم حذف الخطة" });
       setConfirmDeletePlanId(null);
-      setMealPlans(prev => prev.filter(p => p.id !== id));
+      setMealPlans((prev) => prev.filter((p) => p.id !== id));
     } catch {
       toast({ title: "فشل في الحذف", variant: "destructive" });
     }
@@ -285,39 +274,58 @@ export default function AdminMemberProfile() {
     if (!newCoachNote.trim() || !userId) return;
     setSendingNote(true);
     try {
-      await customFetch("/api/coach-notes", { method: "POST", body: JSON.stringify({ userId, note: newCoachNote.trim() }) });
+      await customFetch("/api/coach-notes", {
+        method: "POST",
+        body: JSON.stringify({ userId, note: newCoachNote.trim() }),
+      });
       toast({ title: "تم إرسال الملاحظة" });
       setNewCoachNote("");
       fetchCoachNotes();
-    } catch { toast({ title: "فشل", variant: "destructive" }); }
+    } catch {
+      toast({ title: "فشل", variant: "destructive" });
+    }
     setSendingNote(false);
   }
 
   async function deleteCoachNote(id: number) {
     try {
       await customFetch(`/api/coach-notes/${id}`, { method: "DELETE" });
-      setCoachNotes(prev => prev.filter(n => n.id !== id));
-    } catch {}
+      setCoachNotes((prev) => prev.filter((n) => n.id !== id));
+    } catch {
+      /* ignore */
+    }
   }
 
   async function updateCategory(cat: string) {
     try {
-      await customFetch(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify({ category: cat }) });
+      await customFetch(`/api/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify({ category: cat }),
+      });
       toast({ title: "تم تحديث فئة العضو" });
       queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
-    } catch { toast({ title: "فشل", variant: "destructive" }); }
+    } catch {
+      toast({ title: "فشل", variant: "destructive" });
+    }
   }
 
+  // ── Derived data ─────────────────────────────────────────────────────
   const userData: any = user;
-  const memberName = userData?.name ?? "—";
-  const memberPhone = userData?.phone ?? "—";
+  const memberName: string = userData?.name ?? "—";
+  const memberPhone: string = userData?.phone ?? "—";
+  const membershipNumber: string | null = userData?.membershipNumber ?? null;
   const activeSub: any = (currentSub as any)?.data ?? currentSub;
-  const isActive = activeSub?.endDate ? new Date(activeSub.endDate) >= new Date() : false;
+  const isFrozen = activeSub?.status === "frozen";
+  // "Active" here means the subscription is in good standing — both
+  // active *and* frozen count, since a frozen sub is not expired and the
+  // member's account should still feel valid in the UI.
+  const isActive = activeSub?.endDate ? isFrozen || new Date(activeSub.endDate) >= new Date() : false;
+  const [freezeBusy, setFreezeBusy] = useState(false);
   const historyList: any[] = (subHistory as any)?.data ?? (Array.isArray(subHistory) ? subHistory : []);
-  const checkinList: any[] = Array.isArray(checkins) ? checkins : (checkins as any)?.data ?? [];
-  const statsList: any[] = Array.isArray(bodyStats) ? bodyStats : (bodyStats as any)?.data ?? [];
-  const subList: any[] = Array.isArray(subscriptions) ? subscriptions : (subscriptions as any)?.data ?? [];
-  const logList: any[] = Array.isArray(exerciseLogs) ? exerciseLogs : (exerciseLogs as any)?.data ?? [];
+  const checkinList: any[] = Array.isArray(checkins) ? checkins : ((checkins as any)?.data ?? []);
+  const statsList: any[] = Array.isArray(bodyStats) ? bodyStats : ((bodyStats as any)?.data ?? []);
+  const subList: any[] = Array.isArray(subscriptions) ? subscriptions : ((subscriptions as any)?.data ?? []);
+  const logList: any[] = Array.isArray(exerciseLogs) ? exerciseLogs : ((exerciseLogs as any)?.data ?? []);
 
   const qrValue = JSON.stringify({ userId, name: memberName });
   const color = avatarColor(memberName);
@@ -345,150 +353,77 @@ export default function AdminMemberProfile() {
     }
   }
 
-  // Checkin stats
+  // Check-in roll-ups for the overview KPI cards.
   const now = new Date();
   const thisMonth = checkinList.filter((c: any) => {
-    const d = new Date(c.date ?? "");
+    const d = new Date(c.timestamp ?? "");
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
   const thisWeek = checkinList.filter((c: any) => {
-    const d = new Date(c.date ?? "");
+    const d = new Date(c.timestamp ?? "");
     const diff = (now.getTime() - d.getTime()) / 86400000;
     return diff <= 7;
   }).length;
 
-  // Days left in subscription
   const daysLeft = activeSub?.endDate
     ? Math.ceil((new Date(activeSub.endDate).getTime() - now.getTime()) / 86400000)
     : null;
 
-  // Body stats chart
-  const chartData = [...statsList].reverse().slice(-10).map((s: any) => ({
-    date: new Date(s.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" }),
-    وزن: s.weight ? parseFloat(s.weight) : null,
-  })).filter((d: any) => d.وزن !== null);
+  const chartData = [...statsList]
+    .reverse()
+    .slice(-10)
+    .map((s: any) => ({
+      date: new Date(s.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" }),
+      وزن: s.weight ? parseFloat(s.weight) : null,
+    }))
+    .filter((d: any) => d.وزن !== null);
 
-  const logsByExercise = logList.reduce((acc: any, l: any) => {
+  const logsByExercise = logList.reduce((acc: Record<string, any[]>, l: any) => {
     const k = l.exercise?.name ?? "غير معروف";
     if (!acc[k]) acc[k] = [];
     acc[k].push(l);
     return acc;
   }, {});
-  const recentLogs = [...logList].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
+  const recentLogs = [...logList]
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 10);
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "نظرة عامة" },
-    { id: "qr", label: "QR الشخصي" },
-    { id: "training", label: "التدريب" },
-    { id: "meals", label: "خطة التغذية" },
-    { id: "progress", label: "التقدم" },
-    { id: "notes", label: "ملاحظات" },
-  ];
-
-  function downloadQR() {
-    const svgEl = qrRef.current?.querySelector("svg");
-    if (!svgEl) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = 300; canvas.height = 300;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, 300, 300);
-    const img = new Image();
-    const blob = new Blob([svgEl.outerHTML], { type: "image/svg+xml" });
-    img.onload = () => { ctx.drawImage(img, 0, 0, 300, 300); const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = `qr-${userId}.png`; a.click(); };
-    img.src = URL.createObjectURL(blob);
-  }
-
-  function printQR() {
-    const svgEl = qrRef.current?.querySelector("svg");
-    if (!svgEl) return;
-    // `noopener,noreferrer` so the print window cannot reach back into the
-    // admin app via window.opener.
-    const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) return;
-    // The QR is a trusted, app-generated SVG. All user-controlled values
-    // (memberName, userId) are HTML-escaped to defang admin-supplied XSS.
-    const safeName = escapeHtml(memberName);
-    const safeId = escapeHtml(userId);
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>QR - ${safeName}</title>
-    <style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;direction:rtl;}h2{color:#C9A84C;}p{color:#666;font-size:13px;}@media print{button{display:none}}</style></head>
-    <body><h2>🦅 Eagle Gym</h2><h3>${safeName}</h3><p>رقم العضوية: #${safeId}</p><div style="display:inline-block;padding:16px;background:#fff;border:2px solid #C9A84C;border-radius:12px;margin:16px 0">${svgEl.outerHTML}</div><p>امسح الكود لتسجيل الحضور</p><script>window.onload=()=>window.print()<\/script></body></html>`);
-    win.document.close();
-  }
-
-  function exportPDF() {
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
-    doc.setFillColor(201, 164, 60);
-    doc.rect(0, 0, 210, 18, "F");
-    doc.setTextColor(10,10,10); doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text("Eagle Gym — Member Profile", 105, 12, { align: "center" });
-    doc.setTextColor(180,180,180); doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    doc.text(`Generated: ${new Date().toLocaleDateString("en-GB")}`, 105, 22, { align: "center" });
-
-    autoTable(doc, {
-      startY: 28,
-      head: [["Field", "Value"]],
-      body: [
-        ["Name", memberName], ["Phone", memberPhone], ["Member ID", "#" + userId],
-        ["Current Plan", activeSub?.subscription?.name ?? "None"],
-        ["Status", isActive ? "Active" : activeSub ? "Expired" : "No Subscription"],
-        ["Subscription Start", activeSub?.startDate ? new Date(activeSub.startDate).toLocaleDateString("en-GB") : "—"],
-        ["Subscription End", activeSub?.endDate ? new Date(activeSub.endDate).toLocaleDateString("en-GB") : "—"],
-        ["Days Left", daysLeft !== null ? (daysLeft > 0 ? daysLeft + " days" : "Expired") : "—"],
-        ["Total Checkins", checkinList.length],
-        ["Checkins This Month", thisMonth],
-        ["Checkins This Week", thisWeek],
-        ["Workout Templates", memberTemplates.length],
-      ],
-      styles: { fontSize: 9 }, headStyles: { fillColor: [30,30,30], textColor: [201,164,60] },
-      alternateRowStyles: { fillColor: [20,20,20] }, bodyStyles: { fillColor: [14,14,14], textColor: [200,200,200] }, theme: "plain",
-    });
-
-    if (historyList.length > 0) {
-      const prev = (doc as any).lastAutoTable?.finalY ?? 80;
-      autoTable(doc, {
-        startY: prev + 8,
-        head: [["Plan", "Start", "End", "Amount", "Method"]],
-        body: historyList.map((h: any) => [
-          h.subscription?.name ?? "—",
-          h.startDate ? new Date(h.startDate).toLocaleDateString("en-GB") : "—",
-          h.endDate ? new Date(h.endDate).toLocaleDateString("en-GB") : "—",
-          h.paymentAmount ? h.paymentAmount + " EGP" : "—",
-          h.paymentMethod ?? "—",
-        ]),
-        styles: { fontSize: 8 }, headStyles: { fillColor: [30,30,30], textColor: [201,164,60] },
-        bodyStyles: { fillColor: [14,14,14], textColor: [200,200,200] }, theme: "plain",
-      });
-    }
-
-    const notesText = localStorage.getItem(`member-notes-${userId}`) ?? "";
-    if (notesText) {
-      const prev2 = (doc as any).lastAutoTable?.finalY ?? 140;
-      doc.setTextColor(201,164,60); doc.setFontSize(10); doc.setFont("helvetica", "bold");
-      doc.text("Notes:", 14, prev2 + 10);
-      doc.setTextColor(180,180,180); doc.setFontSize(9); doc.setFont("helvetica", "normal");
-      const lines = doc.splitTextToSize(notesText, 180);
-      doc.text(lines, 14, prev2 + 17);
-    }
-
-    doc.save(`member-${userId}-${memberName.replace(/s+/g, "-")}.pdf`);
-  }
-
+  // ── Action handlers ──────────────────────────────────────────────────
   function onAssign(data: AssignForm) {
     if (!userId) return;
-    assignSub.mutate({ data: { userId, subscriptionId: data.subscriptionId, startDate: data.startDate, paymentAmount: data.paymentAmount, paymentMethod: data.paymentMethod } }, {
-      onSuccess: () => {
-        toast({ title: "✅ تم تعيين الاشتراك" }); setShowAssign(false);
-        queryClient.invalidateQueries({ queryKey: getGetMemberCurrentSubscriptionQueryKey(userId) });
-        queryClient.invalidateQueries({ queryKey: getGetMemberSubscriptionHistoryQueryKey(userId) });
+    assignSub.mutate(
+      {
+        data: {
+          userId,
+          subscriptionId: data.subscriptionId,
+          startDate: data.startDate,
+          paymentAmount: data.paymentAmount,
+          paymentMethod: data.paymentMethod,
+        },
       },
-      onError: () => toast({ title: "فشل في تعيين الاشتراك", variant: "destructive" }),
-    });
+      {
+        onSuccess: () => {
+          toast({ title: "✅ تم تعيين الاشتراك" });
+          setShowAssign(false);
+          queryClient.invalidateQueries({
+            queryKey: getGetMemberCurrentSubscriptionQueryKey(userId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetMemberSubscriptionHistoryQueryKey(userId),
+          });
+        },
+        onError: () => toast({ title: "فشل في تعيين الاشتراك", variant: "destructive" }),
+      },
+    );
   }
 
   async function assignTemplate() {
     if (!assignTemplateId || !userId) return;
     try {
-      await customFetch(`/api/workout-templates/${assignTemplateId}/assign`, { method: "POST", body: JSON.stringify({ userId }) });
+      await customFetch(`/api/workout-templates/${assignTemplateId}/assign`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
       toast({ title: "تم تعيين القالب" });
       setShowAssignTemplate(false);
       setAssignTemplateId("");
@@ -520,20 +455,78 @@ export default function AdminMemberProfile() {
       setShowQuickCheckin(false);
       queryClient.invalidateQueries({ queryKey: getListCheckinsQueryKey({ userId }) });
     } catch (err: any) {
-      const msg = err?.payload?.message ?? err?.response?.data?.message ?? "فشل في تسجيل الحضور";
+      const msg = err?.data?.message ?? err?.payload?.message ?? "فشل في تسجيل الحضور";
       toast({ title: msg, variant: "destructive" });
     } finally {
       setSavingCheckin(false);
     }
   }
 
+  async function handleFreeze() {
+    if (!activeSub?.id) return;
+    setFreezeBusy(true);
+    try {
+      await freezeMemberSubscription(activeSub.id);
+      toast({ title: "❄️ تم تجميد الاشتراك" });
+      queryClient.invalidateQueries({ queryKey: getGetMemberCurrentSubscriptionQueryKey(userId) });
+      queryClient.invalidateQueries({ queryKey: getGetMemberSubscriptionHistoryQueryKey(userId) });
+    } catch (err: any) {
+      toast({
+        title: err?.data?.message ?? "فشل التجميد",
+        variant: "destructive",
+      });
+    } finally {
+      setFreezeBusy(false);
+    }
+  }
+
+  async function handleUnfreeze() {
+    if (!activeSub?.id) return;
+    setFreezeBusy(true);
+    try {
+      const res = await unfreezeMemberSubscription(activeSub.id);
+      toast({ title: `☀️ تم إلغاء التجميد (+${res.addedDays} يوم)` });
+      queryClient.invalidateQueries({ queryKey: getGetMemberCurrentSubscriptionQueryKey(userId) });
+      queryClient.invalidateQueries({ queryKey: getGetMemberSubscriptionHistoryQueryKey(userId) });
+    } catch (err: any) {
+      toast({
+        title: err?.data?.message ?? "فشل إلغاء التجميد",
+        variant: "destructive",
+      });
+    } finally {
+      setFreezeBusy(false);
+    }
+  }
+
+  function handleExportPdf() {
+    exportMemberPdf({
+      userId,
+      memberName,
+      memberPhone,
+      membershipNumber,
+      activeSub,
+      isActive,
+      daysLeft,
+      totalCheckins: checkinList.length,
+      thisMonth,
+      thisWeek,
+      templateCount: memberTemplates.length,
+      history: historyList,
+      notesText: localStorage.getItem(memberNotesKey(userId)) ?? "",
+    });
+  }
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-5" dir="rtl">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Link href="/admin"><span className="hover:text-foreground cursor-pointer">الرئيسية</span></Link>
+        <Link href="/admin">
+          <span className="hover:text-foreground cursor-pointer">الرئيسية</span>
+        </Link>
         <span>/</span>
-        <Link href="/admin/members"><span className="hover:text-foreground cursor-pointer">الأعضاء</span></Link>
+        <Link href="/admin/members">
+          <span className="hover:text-foreground cursor-pointer">الأعضاء</span>
+        </Link>
         <span>/</span>
         <span style={{ color: GOLD }}>{memberName}</span>
       </div>
@@ -543,61 +536,171 @@ export default function AdminMemberProfile() {
         <div className="flex items-center gap-4">
           <Link href="/admin/members">
             <button className="text-muted-foreground hover:text-foreground transition-colors">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><polyline points="15 18 9 12 15 6"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
             </button>
           </Link>
-          {/* Colored avatar with initials */}
-          <div className="w-14 h-14 rounded-full flex items-center justify-center font-black text-xl flex-shrink-0"
-            style={{ background: color + "22", color, border: `2px solid ${color}44`, boxShadow: `0 0 20px ${color}18` }}>
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center font-black text-xl flex-shrink-0"
+            style={{
+              background: color + "22",
+              color,
+              border: `2px solid ${color}44`,
+              boxShadow: `0 0 20px ${color}18`,
+            }}
+          >
             {memberName[0] ?? "?"}
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">{memberName}</h1>
-            <p className="text-muted-foreground text-sm">{memberPhone} • #{userId}</p>
+            <p className="text-muted-foreground text-sm">
+              {memberPhone}
+              {membershipNumber ? <span> • #{membershipNumber}</span> : null}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowQuickCheckin(true)}
+          <button
+            onClick={() => setShowQuickCheckin(true)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all"
-            style={{ background: "hsl(142 60% 45% / 0.15)", color: "hsl(142 60% 60%)", border: "1px solid hsl(142 60% 45% / 0.35)" }}
-            title="تسجيل حضور الآن">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <polyline points="20 6 9 17 4 12"/>
+            style={{
+              background: "hsl(142 60% 45% / 0.15)",
+              color: "hsl(142 60% 60%)",
+              border: "1px solid hsl(142 60% 45% / 0.35)",
+            }}
+            title="تسجيل حضور الآن"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <polyline points="20 6 9 17 4 12" />
             </svg>
             سجّل حضور الآن
           </button>
-          <button onClick={exportPDF}
+          <button
+            onClick={handleExportPdf}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all"
-            style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 65%)", border: "1px solid hsl(0 0% 20%)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            style={{
+              background: "hsl(0 0% 14%)",
+              color: "hsl(0 0% 65%)",
+              border: "1px solid hsl(0 0% 20%)",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             PDF
           </button>
-          <button onClick={() => setShowAssign(true)}
+          <button
+            onClick={() => setShowAssign(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{ background: isActive ? "hsl(0 0% 14%)" : "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: isActive ? "hsl(0 0% 65%)" : "hsl(0 0% 5%)" }}>
+            style={{
+              background: isActive
+                ? "hsl(0 0% 14%)"
+                : "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+              color: isActive ? "hsl(0 0% 65%)" : "hsl(0 0% 5%)",
+            }}
+          >
             {isActive ? "🔄 تجديد الاشتراك" : "✅ تعيين اشتراك"}
           </button>
         </div>
       </div>
 
-      {/* Subscription status bar */}
+      {/* Subscription status bar. Includes a freeze/unfreeze action so
+          admins can pause an active sub (e.g. member is travelling) and
+          resume it later — endDate is automatically extended by the elapsed
+          frozen days on the server. */}
       {activeSub && (
-        <div className="rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-3"
-          style={{ background: isActive ? "hsl(142 60% 50% / 0.08)" : "hsl(0 60% 50% / 0.08)", border: `1px solid ${isActive ? "hsl(142 60% 50% / 0.25)" : "hsl(0 60% 50% / 0.25)"}` }}>
+        <div
+          className="rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-3"
+          style={{
+            background: isFrozen
+              ? "hsl(210 80% 55% / 0.08)"
+              : isActive
+                ? "hsl(142 60% 50% / 0.08)"
+                : "hsl(0 60% 50% / 0.08)",
+            border: `1px solid ${
+              isFrozen
+                ? "hsl(210 80% 55% / 0.25)"
+                : isActive
+                  ? "hsl(142 60% 50% / 0.25)"
+                  : "hsl(0 60% 50% / 0.25)"
+            }`,
+          }}
+        >
           <div className="flex items-center gap-3">
-            <span className="text-lg">{isActive ? "✅" : "⚠️"}</span>
+            <span className="text-lg">{isFrozen ? "❄️" : isActive ? "✅" : "⚠️"}</span>
             <div>
-              <p className="text-sm font-semibold text-foreground">{activeSub.subscription?.name ?? "—"}</p>
+              <p className="text-sm font-semibold text-foreground">
+                {activeSub.subscription?.name ?? "—"}
+                {isFrozen && (
+                  <span className="text-xs font-bold ml-2" style={{ color: "hsl(210 80% 65%)" }}>
+                    · مجمد
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-muted-foreground">
-                {new Date(activeSub.startDate).toLocaleDateString("ar-EG")} ← {new Date(activeSub.endDate).toLocaleDateString("ar-EG")}
+                {new Date(activeSub.startDate).toLocaleDateString("ar-EG")} ←{" "}
+                {new Date(activeSub.endDate).toLocaleDateString("ar-EG")}
+                {activeSub.totalFrozenDays > 0 && (
+                  <span className="ml-2">· إجمالي أيام التجميد: {activeSub.totalFrozenDays}</span>
+                )}
               </p>
             </div>
           </div>
-          <div className="text-left">
-            <p className="text-sm font-bold" style={{ color: isActive ? "hsl(142 60% 60%)" : "hsl(0 60% 60%)" }}>
-              {isActive && daysLeft !== null ? `باقي ${daysLeft} يوم` : "منتهي"}
+          <div className="flex items-center gap-3">
+            {isFrozen ? (
+              <button
+                onClick={handleUnfreeze}
+                disabled={freezeBusy}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+                  color: "hsl(0 0% 5%)",
+                }}
+              >
+                ☀️ إلغاء التجميد
+              </button>
+            ) : (
+              isActive && (
+                <button
+                  onClick={handleFreeze}
+                  disabled={freezeBusy}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                  style={{
+                    background: "hsl(210 80% 55% / 0.15)",
+                    color: "hsl(210 80% 65%)",
+                    border: "1px solid hsl(210 80% 55% / 0.3)",
+                  }}
+                >
+                  ❄️ تجميد
+                </button>
+              )
+            )}
+            <p
+              className="text-sm font-bold"
+              style={{
+                color: isFrozen ? "hsl(210 80% 65%)" : isActive ? "hsl(142 60% 60%)" : "hsl(0 60% 60%)",
+              }}
+            >
+              {isFrozen ? "متوقف" : isActive && daysLeft !== null ? `باقي ${daysLeft} يوم` : "منتهي"}
             </p>
           </div>
         </div>
@@ -605,660 +708,145 @@ export default function AdminMemberProfile() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${activeTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+              activeTab === t.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* ═══ OVERVIEW TAB ═══ */}
       {activeTab === "overview" && (
-        <div className="space-y-4">
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: "إجمالي الحضور", value: checkinList.length, color: GOLD },
-              { label: "حضور الشهر", value: thisMonth, color: "hsl(142 60% 55%)" },
-              { label: "حضور الأسبوع", value: thisWeek, color: "hsl(220 70% 65%)" },
-              { label: "قوالب التمرين", value: memberTemplates.length, color: "hsl(280 60% 60%)" },
-            ].map(s => (
-              <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
-                <p className="text-2xl font-black mb-0.5" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Subscription history */}
-            <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-3">تاريخ الاشتراكات والمدفوعات</h2>
-              {historyList.length === 0 ? (
-                <p className="text-muted-foreground text-sm">لا يوجد سجل اشتراكات</p>
-              ) : (
-                <div className="space-y-2">
-                  {historyList.slice(0, 5).map((h: any) => (
-                    <div key={h.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{h.subscription?.name ?? "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {h.startDate ? new Date(h.startDate).toLocaleDateString("ar-EG") : "—"} → {h.endDate ? new Date(h.endDate).toLocaleDateString("ar-EG") : "—"}
-                        </p>
-                      </div>
-                      <div className="text-left">
-                        {h.paymentAmount && <p className="text-sm font-bold" style={{ color: GOLD }}>{Number(h.paymentAmount).toLocaleString()} ج</p>}
-                        {h.paymentMethod && <p className="text-xs text-muted-foreground">{h.paymentMethod === "cash" ? "نقدي" : h.paymentMethod === "card" ? "بطاقة" : "تحويل"}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Recent checkins */}
-            <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-3">آخر زيارات ({checkinList.length})</h2>
-              {checkinList.length === 0 ? (
-                <p className="text-muted-foreground text-sm">لا يوجد حضور مسجل</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {[...checkinList].sort((a: any, b: any) => new Date(b.date ?? "").getTime() - new Date(a.date ?? "").getTime()).slice(0, 8).map((c: any) => {
-                    const d = new Date(c.date ?? "");
-                    return (
-                      <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
-                        <p className="text-sm text-foreground">{d.toLocaleDateString("ar-EG", { weekday: "short", month: "short", day: "numeric" })}</p>
-                        <p className="text-xs tabular-nums" style={{ color: GOLD }}>{d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <OverviewTab
+          totalCheckins={checkinList.length}
+          thisMonth={thisMonth}
+          thisWeek={thisWeek}
+          templateCount={memberTemplates.length}
+          history={historyList}
+          checkins={checkinList}
+        />
       )}
 
-      {/* ═══ QR TAB ═══ */}
       {activeTab === "qr" && (
-        <div className="flex flex-col items-center gap-6 py-4">
-          <div className="rounded-2xl p-8 flex flex-col items-center gap-5 w-full max-w-sm"
-            style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(40 65% 48% / 0.3)" }}>
-            <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: GOLD }}>🦅 Eagle Gym</p>
-              <h2 className="text-lg font-bold text-foreground">{memberName}</h2>
-              <p className="text-xs text-muted-foreground">رقم العضوية: #{userId}</p>
-            </div>
-            <div ref={qrRef} className="p-4 rounded-xl" style={{ background: "#ffffff" }}>
-              <QRCodeSVG value={qrValue} size={200} level="H" includeMargin={false} />
-            </div>
-            {activeSub ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-                style={isActive ? { background: "hsl(142 60% 50% / 0.15)", color: "hsl(142 60% 60%)", border: "1px solid hsl(142 60% 50% / 0.3)" }
-                  : { background: "hsl(0 60% 50% / 0.15)", color: "hsl(0 60% 60%)", border: "1px solid hsl(0 60% 50% / 0.3)" }}>
-                {isActive ? "✅" : "⚠️"} {activeSub.subscription?.name ?? "—"} — {isActive ? "نشط" : "منتهي"}
-              </span>
-            ) : <span className="text-xs text-muted-foreground">بدون اشتراك</span>}
-            <div className="flex gap-3 w-full">
-              <button onClick={downloadQR} className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-                style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                ⬇ تحميل
-              </button>
-              <button onClick={printQR} className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                style={{ background: "hsl(0 0% 16%)", color: "hsl(0 0% 70%)" }}>
-                🖨 طباعة
-              </button>
-            </div>
-          </div>
-        </div>
+        <QRTab
+          ref={qrRef}
+          memberName={memberName}
+          membershipNumber={membershipNumber}
+          qrValue={qrValue}
+          activeSub={activeSub}
+          isActive={isActive}
+          onDownload={() => downloadQR(qrRef.current, userId)}
+          onPrint={() => printQR(qrRef.current, memberName, userId)}
+        />
       )}
 
-      {/* ═══ TRAINING TAB ═══ */}
-      {activeTab === "training" && (() => {
-        // Group logs by exercise for weight progression
-        const exerciseNames = Object.keys(logsByExercise);
-        const selectedExName = exerciseNames[0] ?? null;
+      {activeTab === "training" && (
+        <TrainingTab
+          memberTemplates={memberTemplates}
+          logsByExercise={logsByExercise}
+          recentLogs={recentLogs}
+          totalLogCount={logList.length}
+          onAssignTemplate={() => setShowAssignTemplate(true)}
+          onUnassignTemplate={unassignTemplate}
+        />
+      )}
 
-        return (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <button onClick={() => setShowAssignTemplate(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
-                style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                + تعيين قالب تمرين
-              </button>
-            </div>
-
-            {/* Assigned templates with day tabs */}
-            {memberTemplates.length === 0 ? <p className="text-muted-foreground text-sm text-center py-10">لا توجد قوالب تمرين معيّنة</p> : (
-              <div className="grid gap-3">
-                {memberTemplates.map((t: any) => {
-                  const daysCount = t.daysCount ?? 1;
-                  const exercises: any[] = t.exercises ?? [];
-                  return (
-                    <TemplateCardAdmin key={t.id} t={t} daysCount={daysCount} exercises={exercises} onUnassign={() => unassignTemplate(t.assignmentId)} />
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ── Exercise Weight Logs ── */}
-            <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-3">سجل أوزان التمارين</h2>
-              {logList.length === 0 ? (
-                <p className="text-muted-foreground text-sm text-center py-6">لا يوجد سجل أوزان بعد</p>
-              ) : (
-                <>
-                  {/* Weight progression chart per exercise */}
-                  {selectedExName && (() => {
-                    const exLogs = logsByExercise[selectedExName] ?? [];
-                    const progressData = [...exLogs]
-                      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                      .reduce((acc: any[], l: any) => {
-                        const dateStr = new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" });
-                        const w = parseFloat(l.weight);
-                        const existing = acc.find((d) => d.date === dateStr);
-                        if (existing) { if (w > existing["أقصى وزن"]) existing["أقصى وزن"] = w; }
-                        else acc.push({ date: dateStr, "أقصى وزن": w });
-                        return acc;
-                      }, []);
-
-                    return progressData.length > 1 ? (
-                      <div className="mb-4">
-                        <p className="text-xs text-muted-foreground mb-2">تطور الأوزان — {selectedExName}</p>
-                        <ResponsiveContainer width="100%" height={160}>
-                          <LineChart data={progressData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 14%)" />
-                            <XAxis dataKey="date" tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 8 }} />
-                            <Line type="monotone" dataKey="أقصى وزن" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {/* Per-exercise summary */}
-                  <div className="space-y-2 mb-4">
-                    {exerciseNames.slice(0, 10).map((name) => {
-                      const eLogs = logsByExercise[name] as any[];
-                      const maxW = Math.max(...eLogs.map((l: any) => parseFloat(l.weight)));
-                      const lastLog = eLogs[0];
-                      return (
-                        <div key={name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{name}</p>
-                            <p className="text-xs text-muted-foreground">{eLogs.length} سجل · أقصى وزن: {maxW} كجم</p>
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-bold" style={{ color: GOLD }}>{parseFloat(lastLog.weight)} كجم</p>
-                            <p className="text-xs text-muted-foreground">آخر تسجيل</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Recent logs table */}
-                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">آخر التسجيلات</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead><tr className="border-b border-border">
-                        <th className="text-right text-muted-foreground font-medium py-2 px-2">التمرين</th>
-                        <th className="text-right text-muted-foreground font-medium py-2 px-2">سيت</th>
-                        <th className="text-right text-muted-foreground font-medium py-2 px-2">تكرار</th>
-                        <th className="text-right text-muted-foreground font-medium py-2 px-2">الوزن</th>
-                        <th className="text-right text-muted-foreground font-medium py-2 px-2">التاريخ</th>
-                      </tr></thead>
-                      <tbody>
-                        {recentLogs.map((l: any) => (
-                          <tr key={l.id} className="border-b border-border last:border-0">
-                            <td className="py-2 px-2 font-medium text-foreground">{l.exercise?.name ?? "—"}</td>
-                            <td className="py-2 px-2 text-muted-foreground">{l.setNumber}</td>
-                            <td className="py-2 px-2 text-muted-foreground">{l.reps}</td>
-                            <td className="py-2 px-2 font-bold" style={{ color: GOLD }}>{parseFloat(l.weight)} كجم</td>
-                            <td className="py-2 px-2 text-muted-foreground">{new Date(l.date).toLocaleDateString("ar-EG", { month: "short", day: "numeric" })}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ═══ MEAL PLANS TAB ═══ */}
       {activeTab === "meals" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">🍽️ خطط التغذية المعيّنة ({mealPlans.length})</h2>
-            <button onClick={() => { resetPlanForm(); setShowCreatePlan(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-              style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-              + خطة تغذية جديدة
-            </button>
-          </div>
-
-          {mealPlansLoading ? (
-            <p className="text-muted-foreground text-sm text-center py-10">جاري التحميل...</p>
-          ) : mealPlans.length === 0 ? (
-            <div className="bg-card border border-card-border rounded-xl p-8 text-center">
-              <div className="text-4xl mb-3">🍽️</div>
-              <p className="text-foreground font-medium mb-1">لا توجد خطط تغذية لهذا العضو</p>
-              <p className="text-muted-foreground text-sm">اضغط على "خطة تغذية جديدة" لإنشاء أول خطة</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {mealPlans.map(p => {
-                const totalCal = p.items.reduce((s, m) => s + (m.calories ?? 0), 0);
-                const totalProtein = p.items.reduce((s, m) => s + (m.protein ?? 0), 0);
-                const totalCarbs = p.items.reduce((s, m) => s + (m.carbs ?? 0), 0);
-                const totalFats = p.items.reduce((s, m) => s + (m.fats ?? 0), 0);
-                const expanded = expandedPlanId === p.id;
-                return (
-                  <div key={p.id} className="bg-card border border-card-border rounded-xl overflow-hidden">
-                    <div className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer"
-                      onClick={() => setExpandedPlanId(expanded ? null : p.id)}>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-foreground">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {p.items.length} وجبة · {totalCal} kcal · {totalProtein}g بروتين
-                          {p.createdAt && ` · ${new Date(p.createdAt).toLocaleDateString("ar-EG")}`}
-                        </p>
-                      </div>
-                      <button onClick={e => { e.stopPropagation(); setConfirmDeletePlanId(p.id); }}
-                        className="text-xs px-3 py-1.5 rounded-lg flex-shrink-0"
-                        style={{ background: "hsl(0 60% 50% / 0.1)", color: "hsl(0 60% 60%)" }}>
-                        حذف
-                      </button>
-                    </div>
-                    {expanded && (
-                      <div className="px-4 pb-4 border-t border-border space-y-3">
-                        {p.notes && (
-                          <div className="rounded-lg px-3 py-2 mt-3" style={{ background: "hsl(40 65% 48% / 0.06)", border: "1px solid hsl(40 65% 48% / 0.12)" }}>
-                            <p className="text-xs" style={{ color: "hsl(40 65% 60%)" }}>📝 {p.notes}</p>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-4 gap-2 mt-3">
-                          {[
-                            { label: "سعرات", value: totalCal, unit: "kcal", color: "#f39c12" },
-                            { label: "بروتين", value: totalProtein, unit: "g", color: "#e74c3c" },
-                            { label: "كارب", value: totalCarbs, unit: "g", color: "#3498db" },
-                            { label: "دهون", value: totalFats, unit: "g", color: "#2ecc71" },
-                          ].map(m => (
-                            <div key={m.label} className="rounded-lg p-2 text-center" style={{ background: "hsl(0 0% 11%)", border: `1px solid ${m.color}20` }}>
-                              <p className="text-base font-black tabular-nums" style={{ color: m.color }}>{m.value}</p>
-                              <p className="text-[10px] text-muted-foreground">{m.unit}</p>
-                              <p className="text-[10px] text-muted-foreground">{m.label}</p>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="space-y-2">
-                          {p.items.map((it, idx) => (
-                            <div key={it.id ?? idx} className="rounded-lg p-3" style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 16%)" }}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0"
-                                    style={{ background: "hsl(40 65% 48% / 0.12)", color: GOLD }}>{idx + 1}</span>
-                                  <p className="text-sm font-semibold text-foreground truncate">{it.mealName}</p>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs">
-                                  {it.time && <span className="text-muted-foreground">🕐 {it.time}</span>}
-                                  {it.calories != null && <span className="font-bold tabular-nums" style={{ color: "#f39c12" }}>{it.calories} kcal</span>}
-                                </div>
-                              </div>
-                              {(it.description || it.protein != null || it.carbs != null || it.fats != null) && (
-                                <div className="mt-2 ms-8 space-y-1">
-                                  {it.description && <p className="text-xs text-muted-foreground">{it.description}</p>}
-                                  <div className="flex gap-3 text-xs">
-                                    {it.protein != null && <span style={{ color: "#e74c3c" }}>بروتين: {it.protein}g</span>}
-                                    {it.carbs != null && <span style={{ color: "#3498db" }}>كارب: {it.carbs}g</span>}
-                                    {it.fats != null && <span style={{ color: "#2ecc71" }}>دهون: {it.fats}g</span>}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <MealPlansTab
+          plans={mealPlans}
+          loading={mealPlansLoading}
+          expandedPlanId={expandedPlanId}
+          onToggleExpand={(id) => setExpandedPlanId(expandedPlanId === id ? null : id)}
+          onCreate={() => {
+            resetPlanForm();
+            setShowCreatePlan(true);
+          }}
+          onConfirmDelete={(id) => setConfirmDeletePlanId(id)}
+        />
       )}
 
-      {/* ═══ PROGRESS TAB ═══ */}
-      {activeTab === "progress" && (
-        <div className="space-y-4">
-          {chartData.length > 0 && (
-            <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-3">تطور الوزن</h2>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 14%)" />
-                  <XAxis dataKey="date" tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "hsl(0 0% 45%)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 18%)", borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="وزن" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {statsList.length > 0 && (
-            <div className="bg-card border border-card-border rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-3">آخر القياسات</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-border">
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">التاريخ</th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">الوزن</th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">الدهون%</th>
-                    <th className="text-right text-muted-foreground font-medium py-2 px-2">ملاحظة</th>
-                  </tr></thead>
-                  <tbody>
-                    {statsList.slice().reverse().slice(0, 8).map((s: any) => (
-                      <tr key={s.id} className="border-b border-border last:border-0">
-                        <td className="py-2 px-2 text-muted-foreground">{new Date(s.date).toLocaleDateString("ar-EG")}</td>
-                        <td className="py-2 px-2 font-medium text-foreground">{s.weight ? parseFloat(s.weight) + " كجم" : "—"}</td>
-                        <td className="py-2 px-2">{s.bodyFat ? parseFloat(s.bodyFat) + "%" : "—"}</td>
-                        <td className="py-2 px-2 text-muted-foreground text-xs">{s.performanceNote ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          {statsList.length === 0 && chartData.length === 0 && (
-            <div className="text-center py-16 text-muted-foreground">
-              <p className="text-4xl mb-3">📊</p>
-              <p className="text-sm">لا توجد قياسات مسجلة بعد</p>
-            </div>
-          )}
-        </div>
-      )}
+      {activeTab === "progress" && <ProgressTab chartData={chartData} stats={statsList} />}
 
-      {/* ═══ NOTES TAB ═══ */}
       {activeTab === "notes" && (
-        <div className="space-y-4 max-w-2xl">
-          <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">ملاحظات خاصة</h2>
-              <button onClick={saveNotes}
-                className="px-4 py-1.5 rounded-lg text-sm font-bold transition-all"
-                style={{ background: notesSaved ? "hsl(142 60% 45%)" : "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                {notesSaved ? "✅ محفوظ" : "💾 حفظ"}
-              </button>
-            </div>
-            <textarea
-              value={notes} onChange={e => setNotes(e.target.value)}
-              rows={12} placeholder={"اكتب ملاحظاتك عن العضو هنا...\nمثال:\n- إصابة في الركبة — تجنب تمارين القرفصاء\n- مستوى متقدم — يحتاج تحدي أكبر\n- يفضل التدريب الصباحي"}
-              className="w-full resize-none text-sm text-foreground placeholder:text-muted-foreground focus:outline-none leading-relaxed bg-transparent" />
-            <p className="text-xs text-muted-foreground mt-3">
-              💡 الملاحظات محفوظة محلياً على هذا الجهاز — مرئية للمسؤول فقط
-            </p>
-          </div>
-          {notes && (
-            <div className="rounded-xl p-4" style={{ background: "hsl(40 65% 48% / 0.06)", border: "1px solid hsl(40 65% 48% / 0.2)" }}>
-              <p className="text-xs font-semibold mb-2" style={{ color: GOLD }}>معاينة</p>
-              <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">{notes}</pre>
-            </div>
-          )}
-
-          {/* Member category */}
-          <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
-            <h2 className="text-sm font-semibold text-foreground mb-3">🏷️ فئة العضو</h2>
-            <div className="flex gap-2">
-              {([["normal", "عادي", "hsl(0 0% 50%)"], ["vip", "VIP", "hsl(40 65% 52%)"], ["trial", "تجريبي", "hsl(220 70% 60%)"]] as const).map(([val, label, color]) => (
-                <button key={val} onClick={() => updateCategory(val)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${userData?.category === val ? "shadow-lg" : "bg-muted text-muted-foreground"}`}
-                  style={userData?.category === val ? { background: color, color: val === "vip" ? "#000" : "#fff" } : {}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Coach notes (visible to member) */}
-          <div className="rounded-xl p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
-            <h2 className="text-sm font-semibold text-foreground mb-3">💬 ملاحظات المدرب <span className="text-xs text-muted-foreground font-normal">(مرئية للعضو)</span></h2>
-            <div className="flex gap-2 mb-3">
-              <input value={newCoachNote} onChange={e => setNewCoachNote(e.target.value)} placeholder="اكتب ملاحظة للعضو..."
-                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                onKeyDown={e => e.key === "Enter" && sendCoachNote()} />
-              <button onClick={sendCoachNote} disabled={sendingNote || !newCoachNote.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}>
-                {sendingNote ? "..." : "إرسال"}
-              </button>
-            </div>
-            {coachNotes.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">لا توجد ملاحظات بعد</p>
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {coachNotes.map((n: any) => (
-                  <div key={n.id} className="flex items-start gap-2 p-2.5 rounded-lg group" style={{ background: "hsl(0 0% 12%)" }}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{n.note}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleDateString("ar-EG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    </div>
-                    <button onClick={() => deleteCoachNote(n.id)} className="text-xs text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">حذف</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <NotesTab
+          notes={notes}
+          notesSaved={notesSaved}
+          onNotesChange={setNotes}
+          onSaveNotes={saveNotes}
+          category={userData?.category}
+          onUpdateCategory={updateCategory}
+          newCoachNote={newCoachNote}
+          onNewCoachNoteChange={setNewCoachNote}
+          onSendCoachNote={sendCoachNote}
+          sendingNote={sendingNote}
+          coachNotes={coachNotes}
+          onDeleteCoachNote={deleteCoachNote}
+        />
       )}
 
-      {/* Assign Subscription Modal */}
       {showAssign && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-lg font-bold text-foreground mb-4">{isActive ? "🔄 تجديد الاشتراك" : "✅ تعيين اشتراك"}</h2>
-            <form onSubmit={assignForm.handleSubmit(onAssign)} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">خطة الاشتراك</label>
-                <select {...assignForm.register("subscriptionId")} className={inp}>
-                  <option value="">اختر خطة</option>
-                  {subList.map((s: any) => <option key={s.id} value={s.id}>{s.name} - {s.price} ج.م</option>)}
-                </select>
-                {assignForm.formState.errors.subscriptionId && <p className="text-destructive text-xs mt-1">{assignForm.formState.errors.subscriptionId.message}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">تاريخ البداية</label>
-                <input {...assignForm.register("startDate")} type="date" className={inp} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">مبلغ الدفع (اختياري)</label>
-                <input {...assignForm.register("paymentAmount")} type="number" className={inp} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">طريقة الدفع</label>
-                <select {...assignForm.register("paymentMethod")} className={inp}>
-                  <option value="cash">نقدي</option>
-                  <option value="card">بطاقة</option>
-                  <option value="transfer">تحويل</option>
-                </select>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={assignSub.isPending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                  {assignSub.isPending ? "جاري التعيين..." : "تعيين"}
-                </button>
-                <button type="button" onClick={() => setShowAssign(false)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
-                  إلغاء
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <AssignSubscriptionModal
+          isActive={isActive}
+          isPending={assignSub.isPending}
+          subscriptions={subList}
+          form={assignForm}
+          onSubmit={onAssign}
+          onClose={() => setShowAssign(false)}
+        />
       )}
 
-      {/* Create Meal Plan Modal */}
       {showCreatePlan && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-2xl shadow-xl my-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-foreground">🍽️ خطة تغذية جديدة</h2>
-              <p className="text-sm text-muted-foreground">{memberName}</p>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">اسم الخطة</label>
-                <input value={planName} onChange={e => setPlanName(e.target.value)}
-                  placeholder="مثال: خطة بناء عضل — أسبوع 1" className={inp} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">ملاحظات (اختياري)</label>
-                <textarea value={planNotes} onChange={e => setPlanNotes(e.target.value)}
-                  rows={2} placeholder="ملاحظات عامة عن الخطة..." className={inp + " resize-none"} />
-              </div>
-
-              <div className="border-t border-border pt-3 mt-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-foreground">الوجبات ({planItems.length})</h3>
-                  <button type="button" onClick={addItem}
-                    className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "hsl(40 65% 48% / 0.12)", color: GOLD }}>
-                    + وجبة
-                  </button>
-                </div>
-
-                <div className="space-y-3 max-h-96 overflow-y-auto pe-1">
-                  {planItems.map((it, idx) => (
-                    <div key={idx} className="rounded-lg p-3 space-y-2" style={{ background: "hsl(0 0% 11%)", border: "1px solid hsl(0 0% 16%)" }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold" style={{ color: GOLD }}>وجبة {idx + 1}</span>
-                        {planItems.length > 1 && (
-                          <button type="button" onClick={() => removeItem(idx)}
-                            className="text-xs text-destructive hover:underline">حذف</button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input value={it.mealName} onChange={e => updateItem(idx, { mealName: e.target.value })}
-                          placeholder="اسم الوجبة *" className={inp} />
-                        <input value={it.time ?? ""} onChange={e => updateItem(idx, { time: e.target.value })}
-                          placeholder="الوقت (مثل 8:00 ص)" className={inp} />
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <input type="number" min={0} step="any" value={it.calories ?? ""}
-                          onChange={e => updateItem(idx, { calories: parseNum(e.target.value) })}
-                          placeholder="سعرات" className={inp} />
-                        <input type="number" min={0} step="any" value={it.protein ?? ""}
-                          onChange={e => updateItem(idx, { protein: parseNum(e.target.value) })}
-                          placeholder="بروتين (g)" className={inp} />
-                        <input type="number" min={0} step="any" value={it.carbs ?? ""}
-                          onChange={e => updateItem(idx, { carbs: parseNum(e.target.value) })}
-                          placeholder="كارب (g)" className={inp} />
-                        <input type="number" min={0} step="any" value={it.fats ?? ""}
-                          onChange={e => updateItem(idx, { fats: parseNum(e.target.value) })}
-                          placeholder="دهون (g)" className={inp} />
-                      </div>
-                      <textarea value={it.description ?? ""} onChange={e => updateItem(idx, { description: e.target.value })}
-                        rows={2} placeholder="وصف الوجبة (اختياري) — مثال: 200g صدور دجاج + 100g أرز" className={inp + " resize-none"} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-3 border-t border-border">
-                <button type="button" onClick={savePlan} disabled={savingPlan}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                  {savingPlan ? "جاري الحفظ..." : "حفظ الخطة"}
-                </button>
-                <button type="button" onClick={() => { setShowCreatePlan(false); resetPlanForm(); }}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CreateMealPlanModal
+          memberName={memberName}
+          planName={planName}
+          planNotes={planNotes}
+          planItems={planItems}
+          saving={savingPlan}
+          onPlanNameChange={setPlanName}
+          onPlanNotesChange={setPlanNotes}
+          onUpdateItem={updateItem}
+          onAddItem={addItem}
+          onRemoveItem={removeItem}
+          onSave={savePlan}
+          onClose={() => {
+            setShowCreatePlan(false);
+            resetPlanForm();
+          }}
+        />
       )}
 
-      {/* Confirm Delete Meal Plan Modal */}
       {confirmDeletePlanId !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-lg font-bold text-foreground mb-2">حذف خطة التغذية؟</h2>
-            <p className="text-sm text-muted-foreground mb-5">سيتم حذف الخطة وكل وجباتها. لا يمكن التراجع.</p>
-            <div className="flex gap-3">
-              <button onClick={() => deletePlan(confirmDeletePlanId)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: "hsl(0 60% 50%)", color: "#fff" }}>
-                حذف نهائي
-              </button>
-              <button onClick={() => setConfirmDeletePlanId(null)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDeleteMealPlanModal
+          onConfirm={() => deletePlan(confirmDeletePlanId)}
+          onClose={() => setConfirmDeletePlanId(null)}
+        />
       )}
 
-      {/* Quick Checkin Modal */}
       {showQuickCheckin && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: "blur(4px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowQuickCheckin(false); }}>
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden p-5" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 16%)" }}>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "hsl(142 60% 45% / 0.15)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" style={{ color: "hsl(142 60% 60%)" }}>
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </div>
-            <h3 className="text-center font-bold mb-2">تسجيل حضور</h3>
-            <p className="text-center text-sm mb-5" style={{ color: "hsl(0 0% 60%)" }}>
-              تسجيل حضور <span style={{ color: GOLD, fontWeight: 600 }}>{memberName}</span> الآن؟
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setShowQuickCheckin(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)" }}>
-                إلغاء
-              </button>
-              <button onClick={quickCheckin} disabled={savingCheckin} className="flex-1 py-2.5 rounded-xl text-sm font-bold"
-                style={{ background: "hsl(142 60% 45%)", color: "#fff", opacity: savingCheckin ? 0.6 : 1 }}>
-                {savingCheckin ? "..." : "تسجيل الآن"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuickCheckinModal
+          memberName={memberName}
+          saving={savingCheckin}
+          onConfirm={quickCheckin}
+          onClose={() => setShowQuickCheckin(false)}
+        />
       )}
 
-      {/* Assign Workout Template Modal */}
       {showAssignTemplate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-lg font-bold text-foreground mb-1">تعيين قالب تمرين</h2>
-            <p className="text-muted-foreground text-sm mb-4">سيتم تعيينه لـ {memberName}</p>
-            <div className="space-y-3">
-              <select value={assignTemplateId} onChange={(e) => setAssignTemplateId(e.target.value)} className={inp}>
-                <option value="">اختر قالب</option>
-                {allTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name} ({t.exercises?.length ?? 0} تمرين)</option>)}
-              </select>
-              <div className="flex gap-3 pt-2">
-                <button onClick={assignTemplate} disabled={!assignTemplateId}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
-                  تعيين
-                </button>
-                <button onClick={() => setShowAssignTemplate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-muted text-foreground">
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AssignTemplateModal
+          memberName={memberName}
+          templates={allTemplates}
+          templateId={assignTemplateId}
+          onChange={setAssignTemplateId}
+          onAssign={assignTemplate}
+          onClose={() => setShowAssignTemplate(false)}
+        />
       )}
     </div>
   );

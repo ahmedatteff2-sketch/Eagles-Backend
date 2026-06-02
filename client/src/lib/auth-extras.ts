@@ -113,9 +113,7 @@ export function listAudit(params: AuditQueryParams): Promise<AuditLogResponse> {
     if (v !== undefined && v !== "" && v !== null) qs.set(k, String(v));
   }
   const suffix = qs.toString();
-  return customFetch<AuditLogResponse>(
-    suffix ? `/api/audit?${suffix}` : "/api/audit",
-  );
+  return customFetch<AuditLogResponse>(suffix ? `/api/audit?${suffix}` : "/api/audit");
 }
 
 export function listTrainers(): Promise<TrainerOption[]> {

@@ -1,6 +1,12 @@
+// Sentry must be initialized before app.ts so its OpenTelemetry-style
+// instrumentation can wrap Express handlers as they're registered.
+import "./lib/sentry.js";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { runMigrations } from "./db/migrate.js";
+import { startRenewalReminderJob, stopRenewalReminderJob } from "./jobs/renewal-reminders.js";
+import { startAbsenceReminderJob, stopAbsenceReminderJob } from "./jobs/absence-reminders.js";
+import { expireOverdueSubscriptions } from "./routes/renewal-reminders.js";
 
 const rawPort = process.env["PORT"];
 
@@ -20,6 +26,23 @@ try {
   logger.error({ err }, "Migration failed — exiting");
   process.exit(1);
 }
+
+// Sweep any subs whose `endDate` has passed while the server was offline.
+// This is a single statement and safe to run on every boot.
+try {
+  const expired = await expireOverdueSubscriptions();
+  if (expired > 0) logger.info({ expired }, "Marked overdue subscriptions as expired on boot");
+} catch (err) {
+  logger.error({ err }, "Boot-time subscription sweep failed (continuing)");
+}
+
+// Hourly tick that surfaces members within 3 days of expiry into the
+// admin Renewals queue. See src/jobs/renewal-reminders.ts for the policy.
+startRenewalReminderJob();
+
+// Hourly tick that surfaces members who haven't checked in for ≥3 days
+// into the admin Absent-Members queue. See src/jobs/absence-reminders.ts.
+startAbsenceReminderJob();
 
 const server = app.listen(port, (err) => {
   if (err) {
@@ -49,6 +72,8 @@ function shutdown(signal: NodeJS.Signals): void {
   // exit cleanly the moment server.close() resolves.
   forceExitTimer.unref();
 
+  stopRenewalReminderJob();
+  stopAbsenceReminderJob();
   server.close((closeErr) => {
     if (closeErr) {
       logger.error({ err: closeErr }, "Error closing HTTP server");

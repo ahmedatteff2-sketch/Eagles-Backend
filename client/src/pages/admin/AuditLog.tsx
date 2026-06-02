@@ -2,7 +2,8 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { listAudit, type AuditLogRow, type AuditQueryParams } from "@/lib/auth-extras";
 
 const GOLD = "hsl(40 65% 52%)";
-const inp = "rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
+const inp =
+  "rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none transition-all";
 const inpSt = { background: "hsl(0 0% 12%)", border: "1px solid hsl(0 0% 22%)" };
 
 const PAGE_SIZE = 50;
@@ -49,30 +50,33 @@ export default function AuditLogPage() {
   // Show/hide a row's payload (raw JSON) — payloads can be huge so they're collapsed by default.
   const [openPayload, setOpenPayload] = useState<Record<number, boolean>>({});
 
-  const load = useCallback(async (currentOffset: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: AuditQueryParams = {
-        limit: PAGE_SIZE,
-        offset: currentOffset,
-      };
-      if (action.trim()) params.action = action.trim();
-      if (actorId.trim()) params.actorId = actorId.trim();
-      if (targetType.trim()) params.targetType = targetType.trim();
-      if (targetId.trim()) params.targetId = targetId.trim();
-      if (from) params.from = new Date(from).toISOString();
-      if (to) params.to = new Date(to).toISOString();
-      const res = await listAudit(params);
-      setRows(res.rows);
-      setTotal(res.total);
-      setOffset(res.offset);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذّر تحميل السجل");
-    } finally {
-      setLoading(false);
-    }
-  }, [action, actorId, targetType, targetId, from, to]);
+  const load = useCallback(
+    async (currentOffset: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params: AuditQueryParams = {
+          limit: PAGE_SIZE,
+          offset: currentOffset,
+        };
+        if (action.trim()) params.action = action.trim();
+        if (actorId.trim()) params.actorId = actorId.trim();
+        if (targetType.trim()) params.targetType = targetType.trim();
+        if (targetId.trim()) params.targetId = targetId.trim();
+        if (from) params.from = new Date(from).toISOString();
+        if (to) params.to = new Date(to).toISOString();
+        const res = await listAudit(params);
+        setRows(res.rows);
+        setTotal(res.total);
+        setOffset(res.offset);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "تعذّر تحميل السجل");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [action, actorId, targetType, targetId, from, to],
+  );
 
   useEffect(() => {
     void load(0);
@@ -109,48 +113,90 @@ export default function AuditLogPage() {
       </div>
 
       {/* Filters */}
-      <div className="rounded-xl p-4 space-y-3" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+      <div
+        className="rounded-xl p-4 space-y-3"
+        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-muted-foreground mb-1">الإجراء (action)</label>
-            <input value={action} onChange={(e) => setAction(e.target.value)} placeholder="مثال: POST /auth/login"
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+              placeholder="مثال: POST /auth/login"
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">المنفّذ (actorId)</label>
-            <input value={actorId} onChange={(e) => setActorId(e.target.value)} placeholder="UUID"
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              value={actorId}
+              onChange={(e) => setActorId(e.target.value)}
+              placeholder="UUID"
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">نوع الهدف (targetType)</label>
-            <input value={targetType} onChange={(e) => setTargetType(e.target.value)} placeholder="user/payment/..."
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              value={targetType}
+              onChange={(e) => setTargetType(e.target.value)}
+              placeholder="user/payment/..."
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">معرف الهدف (targetId)</label>
-            <input value={targetId} onChange={(e) => setTargetId(e.target.value)} placeholder=""
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+              placeholder=""
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">من تاريخ</label>
-            <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)}
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              type="datetime-local"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">إلى تاريخ</label>
-            <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)}
-              className={inp + " w-full"} style={inpSt} />
+            <input
+              type="datetime-local"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className={inp + " w-full"}
+              style={inpSt}
+            />
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={applyFilters} disabled={loading}
+          <button
+            onClick={applyFilters}
+            disabled={loading}
             className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))", color: "hsl(0 0% 5%)" }}>
+            style={{
+              background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 42%))",
+              color: "hsl(0 0% 5%)",
+            }}
+          >
             {loading ? "..." : "تطبيق"}
           </button>
-          <button onClick={resetFilters} disabled={loading}
+          <button
+            onClick={resetFilters}
+            disabled={loading}
             className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
-            style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}>
+            style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}
+          >
             إعادة تعيين
           </button>
           <span className="ml-auto text-xs text-muted-foreground self-center">
@@ -160,14 +206,23 @@ export default function AuditLogPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg px-3 py-2 text-xs"
-          style={{ background: "hsl(0 72% 50% / 0.1)", color: "hsl(0 72% 65%)", border: "1px solid hsl(0 72% 50% / 0.2)" }}>
+        <div
+          className="rounded-lg px-3 py-2 text-xs"
+          style={{
+            background: "hsl(0 72% 50% / 0.1)",
+            color: "hsl(0 72% 65%)",
+            border: "1px solid hsl(0 72% 50% / 0.2)",
+          }}
+        >
           {error}
         </div>
       )}
 
       {/* Table */}
-      <div className="rounded-xl overflow-hidden" style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}>
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ background: "hsl(0 0% 9%)", border: "1px solid hsl(0 0% 15%)" }}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead style={{ background: "hsl(0 0% 7%)" }}>
@@ -201,18 +256,24 @@ export default function AuditLogPage() {
                         {r.actorId ? r.actorId.slice(0, 8) + "…" : "—"}
                       </td>
                       <td className="px-3 py-2">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase"
-                          style={{ background: "hsl(0 0% 14%)", color: r.actorRole ? GOLD : "hsl(0 0% 50%)" }}>
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase"
+                          style={{ background: "hsl(0 0% 14%)", color: r.actorRole ? GOLD : "hsl(0 0% 50%)" }}
+                        >
                           {r.actorRole || "guest"}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-foreground font-mono">{r.action}</td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {r.targetType ? `${r.targetType}${r.targetId ? `:${r.targetId.slice(0, 12)}` : ""}` : "—"}
+                        {r.targetType
+                          ? `${r.targetType}${r.targetId ? `:${r.targetId.slice(0, 12)}` : ""}`
+                          : "—"}
                       </td>
                       <td className="px-3 py-2">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                          style={{ background: sc.bg, color: sc.fg }}>
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                          style={{ background: sc.bg, color: sc.fg }}
+                        >
                           {r.status ?? "—"}
                         </span>
                       </td>
@@ -221,7 +282,8 @@ export default function AuditLogPage() {
                         <button
                           onClick={() => setOpenPayload((m) => ({ ...m, [r.id]: !m[r.id] }))}
                           className="px-2 py-1 rounded text-[10px] font-bold"
-                          style={{ background: "hsl(0 0% 14%)", color: GOLD }}>
+                          style={{ background: "hsl(0 0% 14%)", color: GOLD }}
+                        >
                           {open ? "إخفاء" : "تفاصيل"}
                         </button>
                       </td>
@@ -235,9 +297,15 @@ export default function AuditLogPage() {
                                 <span style={{ color: GOLD }}>UA:</span> {r.userAgent}
                               </p>
                             )}
-                            <pre className="text-[11px] font-mono whitespace-pre-wrap break-all rounded p-2"
-                              style={{ background: "hsl(0 0% 4%)", color: "hsl(0 0% 75%)", border: "1px solid hsl(0 0% 12%)" }}>
-{JSON.stringify(r.payload ?? {}, null, 2)}
+                            <pre
+                              className="text-[11px] font-mono whitespace-pre-wrap break-all rounded p-2"
+                              style={{
+                                background: "hsl(0 0% 4%)",
+                                color: "hsl(0 0% 75%)",
+                                border: "1px solid hsl(0 0% 12%)",
+                              }}
+                            >
+                              {JSON.stringify(r.payload ?? {}, null, 2)}
                             </pre>
                           </div>
                         </td>
@@ -257,15 +325,19 @@ export default function AuditLogPage() {
           onClick={() => void load(Math.max(0, offset - PAGE_SIZE))}
           disabled={!canPrev || loading}
           className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
-          style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}>
+          style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}
+        >
           → السابق
         </button>
-        <span className="text-xs text-muted-foreground">صفحة {page} / {totalPages}</span>
+        <span className="text-xs text-muted-foreground">
+          صفحة {page} / {totalPages}
+        </span>
         <button
           onClick={() => void load(offset + PAGE_SIZE)}
           disabled={!canNext || loading}
           className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
-          style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}>
+          style={{ background: "hsl(0 0% 14%)", color: "hsl(0 0% 70%)", border: "1px solid hsl(0 0% 22%)" }}
+        >
           التالي ←
         </button>
       </div>

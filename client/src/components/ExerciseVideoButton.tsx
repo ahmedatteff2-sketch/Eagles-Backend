@@ -12,9 +12,7 @@ export function getEmbedInfo(rawUrl: string): EmbedInfo {
   const url = rawUrl.trim();
   // YouTube — supports watch?v=, youtu.be/, /embed/, /shorts/, with optional
   // query params or trailing slashes.
-  const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([\w-]{11})/i,
-  );
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([\w-]{11})/i);
   if (ytMatch) {
     const videoId = ytMatch[1];
     return {
@@ -25,9 +23,7 @@ export function getEmbedInfo(rawUrl: string): EmbedInfo {
     };
   }
   // Vimeo — vimeo.com/{id} or player.vimeo.com/video/{id}
-  const vmMatch = url.match(
-    /(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d+)/i,
-  );
+  const vmMatch = url.match(/(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d+)/i);
   if (vmMatch) {
     const videoId = vmMatch[1];
     return {
@@ -53,22 +49,22 @@ function PlayIcon({ className = "w-3 h-3" }: { className?: string }) {
 
 function CloseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+    >
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 
-function ExerciseVideoModal({
-  url,
-  title,
-  onClose,
-}: {
-  url: string;
-  title?: string;
-  onClose: () => void;
-}) {
+function ExerciseVideoModal({ url, title, onClose }: { url: string; title?: string; onClose: () => void }) {
   const info = getEmbedInfo(url);
 
   useEffect(() => {
@@ -102,7 +98,9 @@ function ExerciseVideoModal({
         >
           <div className="min-w-0">
             <p className="text-sm font-bold text-foreground truncate">{title ?? "فيديو التمرين"}</p>
-            <p className="text-xs text-muted-foreground truncate">{info.kind === "external" ? "مصدر خارجي" : info.kind === "direct" ? "ملف فيديو" : info.kind}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {info.kind === "external" ? "مصدر خارجي" : info.kind === "direct" ? "ملف فيديو" : info.kind}
+            </p>
           </div>
           <button
             onClick={onClose}

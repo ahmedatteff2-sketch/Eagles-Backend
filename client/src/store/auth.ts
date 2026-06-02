@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { UserProfile } from '@workspace/api-client-react';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { UserProfile } from "@workspace/api-client-react";
 
 /**
  * Auth state.
@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
-      name: 'gym-auth-storage',
+      name: "gym-auth-storage",
       version: 1,
       // v0 stored { accessToken, refreshToken, user }. v1 drops refreshToken
       // — anyone upgrading from v0 has their stale token wiped on first load
@@ -48,6 +48,6 @@ export const useAuthStore = create<AuthState>()(
       // Only persist the access token + user profile. Never write the
       // refresh token to localStorage — that's the whole point.
       partialize: (state) => ({ accessToken: state.accessToken, user: state.user }),
-    }
-  )
+    },
+  ),
 );

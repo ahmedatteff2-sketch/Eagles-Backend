@@ -6,13 +6,63 @@ import {
   workoutTemplateExercisesTable,
   memberWorkoutAssignmentsTable,
 } from "@workspace/db/schema";
-import { eq, desc, asc, inArray } from "drizzle-orm";
+import { eq, desc, asc, inArray, isNull, or } from "drizzle-orm";
+import type { Response } from "express";
 import { authenticate, requireAdmin } from "../middlewares/auth.js";
 import { parseId, parseUserId } from "../lib/params.js";
 import { logger } from "../lib/logger.js";
 import { z } from "zod";
 
 const router = Router();
+
+/**
+ * Resolve a template and check the current user can mutate it. Admins can
+ * mutate anything. Non-admins can only mutate templates they own
+ * (`created_by_user_id === their userId`). Returns the template row on
+ * success; on failure, writes the response (404/403) and returns null so
+ * callers can early-return without ceremony.
+ */
+async function loadTemplateForWrite(
+  templateId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<typeof workoutTemplatesTable.$inferSelect | null> {
+  const [tpl] = await db
+    .select()
+    .from(workoutTemplatesTable)
+    .where(eq(workoutTemplatesTable.id, templateId))
+    .limit(1);
+  if (!tpl) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  if (role !== "admin" && tpl.createdByUserId !== userId) {
+    res.status(403).json({ error: "Forbidden", message: "غير مسموح بتعديل هذا القالب" });
+    return null;
+  }
+  return tpl;
+}
+
+async function loadTemplateExerciseForWrite(
+  exerciseRowId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<typeof workoutTemplateExercisesTable.$inferSelect | null> {
+  const [ex] = await db
+    .select()
+    .from(workoutTemplateExercisesTable)
+    .where(eq(workoutTemplateExercisesTable.id, exerciseRowId))
+    .limit(1);
+  if (!ex) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  const tpl = await loadTemplateForWrite(ex.templateId, userId, role, res);
+  if (!tpl) return null;
+  return ex;
+}
 
 // Mirror the table's row type so partial updates stay type-safe — using
 // `any` here historically swallowed typos like `daysCount` vs `daysCount` and
@@ -51,31 +101,131 @@ const assignSchema = z.object({
 // EXERCISES  (library)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-router.get("/exercises", authenticate, async (_req, res) => {
-  const rows = await db.select().from(exercisesTable).orderBy(desc(exercisesTable.createdAt));
+// GET /api/exercises
+//   - admin: returns the global library only (createdByUserId IS NULL) so the
+//     admin Exercises page stays uncluttered by members' personal entries.
+//   - member: returns the global library PLUS exercises the member created
+//     themselves. This is the picker on /member/my-workouts.
+router.get("/exercises", authenticate, async (req, res) => {
+  const isAdmin = req.user!.role === "admin";
+  const userId = req.user!.userId;
+  const rows = await db
+    .select()
+    .from(exercisesTable)
+    .where(
+      isAdmin
+        ? isNull(exercisesTable.createdByUserId)
+        : or(isNull(exercisesTable.createdByUserId), eq(exercisesTable.createdByUserId, userId)),
+    )
+    .orderBy(desc(exercisesTable.createdAt));
   res.json(rows);
 });
 
-router.post("/exercises", authenticate, requireAdmin, async (req, res) => {
+// POST /api/exercises
+//   - admin: creates a global library entry (createdByUserId stays NULL).
+//   - member: creates a personal exercise stamped with their userId. They can
+//     then immediately add it to their own workout template. This is the path
+//     a member uses to add a custom exercise the admin hasn't catalogued.
+router.post("/exercises", authenticate, async (req, res) => {
   const body = exerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(exercisesTable).values({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle }).returning();
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const isAdmin = req.user!.role === "admin";
+  const ownerId = isAdmin ? null : req.user!.userId;
+  const [row] = await db
+    .insert(exercisesTable)
+    .values({
+      name: body.data.name,
+      videoUrl: body.data.videoUrl ?? null,
+      targetMuscle: body.data.targetMuscle,
+      createdByUserId: ownerId,
+    })
+    .returning();
   res.status(201).json(row);
 });
 
-router.put("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
+// Resolve an exercise row and authorize the current user to mutate it. Admins
+// can edit the global library; members can only edit exercises they created.
+async function loadExerciseForWrite(
+  exerciseId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<typeof exercisesTable.$inferSelect | null> {
+  const [row] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, exerciseId)).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  const isAdmin = role === "admin";
+  // Members can never touch a global (NULL-owner) exercise. Admins can.
+  if (!isAdmin && row.createdByUserId !== userId) {
+    res.status(403).json({ error: "Forbidden", message: "غير مسموح بتعديل هذا التمرين" });
+    return null;
+  }
+  return row;
+}
+
+/**
+ * Authorize that the current user may *reference* `exerciseId` from a workout
+ * template. Unlike `loadExerciseForWrite`, this allows referencing the global
+ * library (createdByUserId IS NULL) — members must be able to add catalogued
+ * exercises to their own templates. Members may additionally reference
+ * exercises they created themselves; admins may reference anything.
+ *
+ * Without this gate a member could attach another member's *private* exercise
+ * id to their own template and read its name/video/target-muscle back via
+ * GET /api/my-workouts — a broken object-level authorization (IDOR) leak that
+ * is also enumerable across the whole exercises table. Writes the response
+ * (404/403) and returns false on failure.
+ */
+async function ensureExerciseUsable(
+  exerciseId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ createdByUserId: exercisesTable.createdByUserId })
+    .from(exercisesTable)
+    .where(eq(exercisesTable.id, exerciseId))
+    .limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found", message: "التمرين غير موجود" });
+    return false;
+  }
+  if (role !== "admin" && row.createdByUserId !== null && row.createdByUserId !== userId) {
+    res.status(403).json({ error: "Forbidden", message: "غير مسموح باستخدام هذا التمرين" });
+    return false;
+  }
+  return true;
+}
+
+router.put("/exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = exerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.update(exercisesTable).set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle }).where(eq(exercisesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const existing = await loadExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!existing) return;
+  const [row] = await db
+    .update(exercisesTable)
+    .set({ name: body.data.name, videoUrl: body.data.videoUrl ?? null, targetMuscle: body.data.targetMuscle })
+    .where(eq(exercisesTable.id, id))
+    .returning();
   res.json(row);
 });
 
-router.delete("/exercises/:id", authenticate, requireAdmin, async (req, res) => {
+router.delete("/exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
+  const existing = await loadExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!existing) return;
   await db.delete(exercisesTable).where(eq(exercisesTable.id, id));
   res.json({ success: true });
 });
@@ -86,9 +236,13 @@ router.delete("/exercises/:id", authenticate, requireAdmin, async (req, res) => 
 
 router.get("/workout-templates", authenticate, async (_req, res) => {
   try {
+    // Admin library only — personal templates owned by members live under
+    // GET /api/my-workouts and never show up here. Avoids the admin Templates
+    // page silently filling with everyone's personal workouts.
     const templates = await db
       .select()
       .from(workoutTemplatesTable)
+      .where(isNull(workoutTemplatesTable.createdByUserId))
       .orderBy(desc(workoutTemplatesTable.createdAt));
 
     if (templates.length === 0) {
@@ -153,43 +307,102 @@ router.get("/workout-templates", authenticate, async (_req, res) => {
   }
 });
 
-router.post("/workout-templates", authenticate, requireAdmin, async (req, res) => {
+router.post("/workout-templates", authenticate, async (req, res) => {
   const body = templateSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.insert(workoutTemplatesTable).values({ name: body.data.name, daysCount: body.data.daysCount ?? 1, daysPerWeek: body.data.daysPerWeek ?? 4, dayNames: body.data.dayNames ?? null, notes: body.data.notes ?? null }).returning();
-  res.status(201).json({ ...row, exercises: [], assignedCount: 0 });
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  // Admins create global templates (createdByUserId = NULL); anyone else
+  // creates a personal template owned by themselves. Members also get an
+  // auto-assignment so the template shows up immediately under
+  // GET /api/my-workouts without a separate "assign to self" step.
+  const isAdmin = req.user!.role === "admin";
+  const ownerId = isAdmin ? null : req.user!.userId;
+  const [row] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      name: body.data.name,
+      daysCount: body.data.daysCount ?? 1,
+      daysPerWeek: body.data.daysPerWeek ?? 4,
+      dayNames: body.data.dayNames ?? null,
+      notes: body.data.notes ?? null,
+      createdByUserId: ownerId,
+    })
+    .returning();
+  if (ownerId) {
+    // Self-assignment is best-effort — the row already shows up via
+    // `createdByUserId` in /api/my-workouts, but keeping a matching row in
+    // memberWorkoutAssignments preserves the existing client shape and means
+    // future "is this template assigned to me?" checks keep working.
+    await db
+      .insert(memberWorkoutAssignmentsTable)
+      .values({ templateId: row.id, userId: ownerId })
+      .catch((err) => {
+        logger.warn({ err, templateId: row.id, ownerId }, "self-assign after template create failed");
+      });
+  }
+  res.status(201).json({ ...row, exercises: [], assignedCount: ownerId ? 1 : 0, isOwn: !!ownerId });
 });
 
-router.put("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
+router.put("/workout-templates/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = templateSchema.partial().safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const tpl = await loadTemplateForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!tpl) return;
   const updates: WorkoutTemplateUpdate = {};
   if (body.data.name) updates.name = body.data.name;
   if (body.data.daysCount) updates.daysCount = body.data.daysCount;
   if (body.data.daysPerWeek) updates.daysPerWeek = body.data.daysPerWeek;
   if (body.data.dayNames !== undefined) updates.dayNames = body.data.dayNames;
   if (body.data.notes !== undefined) updates.notes = body.data.notes;
-  const [row] = await db.update(workoutTemplatesTable).set(updates).where(eq(workoutTemplatesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  const [row] = await db
+    .update(workoutTemplatesTable)
+    .set(updates)
+    .where(eq(workoutTemplatesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(row);
 });
 
-router.delete("/workout-templates/:id", authenticate, requireAdmin, async (req, res) => {
+router.delete("/workout-templates/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
+  const tpl = await loadTemplateForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!tpl) return;
   await db.delete(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id));
   res.json({ success: true });
 });
 
 // ── Template exercises ──────────────────────────────────────────────────────
 
-router.post("/workout-templates/:templateId/exercises", authenticate, requireAdmin, async (req, res) => {
+router.post("/workout-templates/:templateId/exercises", authenticate, async (req, res) => {
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
   const body = templateExerciseSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const tpl = await loadTemplateForWrite(templateId, req.user!.userId, req.user!.role, res);
+  if (!tpl) return;
+
+  // Authorize the referenced exercise before linking it (IDOR guard).
+  const exerciseOk = await ensureExerciseUsable(
+    body.data.exerciseId,
+    req.user!.userId,
+    req.user!.role,
+    res,
+  );
+  if (!exerciseOk) return;
 
   const maxOrder = await db
     .select({ sortOrder: workoutTemplateExercisesTable.sortOrder })
@@ -198,33 +411,61 @@ router.post("/workout-templates/:templateId/exercises", authenticate, requireAdm
     .orderBy(desc(workoutTemplateExercisesTable.sortOrder))
     .limit(1);
 
-  const [row] = await db.insert(workoutTemplateExercisesTable).values({
-    templateId,
-    exerciseId: body.data.exerciseId,
-    sets: body.data.sets,
-    reps: body.data.reps,
-    dayNumber: body.data.dayNumber ?? 1,
-    sortOrder: body.data.sortOrder ?? ((maxOrder[0]?.sortOrder ?? -1) + 1),
-    notes: body.data.notes ?? null,
-    restSeconds: body.data.restSeconds ?? 90,
-  }).returning();
+  const [row] = await db
+    .insert(workoutTemplateExercisesTable)
+    .values({
+      templateId,
+      exerciseId: body.data.exerciseId,
+      sets: body.data.sets,
+      reps: body.data.reps,
+      dayNumber: body.data.dayNumber ?? 1,
+      sortOrder: body.data.sortOrder ?? (maxOrder[0]?.sortOrder ?? -1) + 1,
+      notes: body.data.notes ?? null,
+      restSeconds: body.data.restSeconds ?? 90,
+    })
+    .returning();
 
   res.status(201).json(row);
 });
 
-router.put("/workout-template-exercises/:id", authenticate, requireAdmin, async (req, res) => {
+router.put("/workout-template-exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
   const body = templateExerciseSchema.partial().safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
-  const [row] = await db.update(workoutTemplateExercisesTable).set(body.data).where(eq(workoutTemplateExercisesTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
+  const ex = await loadTemplateExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!ex) return;
+  // If the update re-points to a different exercise, authorize the new id too
+  // so a member can't swap in another member's private exercise (IDOR guard).
+  if (body.data.exerciseId !== undefined) {
+    const exerciseOk = await ensureExerciseUsable(
+      body.data.exerciseId,
+      req.user!.userId,
+      req.user!.role,
+      res,
+    );
+    if (!exerciseOk) return;
+  }
+  const [row] = await db
+    .update(workoutTemplateExercisesTable)
+    .set(body.data)
+    .where(eq(workoutTemplateExercisesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(row);
 });
 
-router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, async (req, res) => {
+router.delete("/workout-template-exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
+  const ex = await loadTemplateExerciseForWrite(id, req.user!.userId, req.user!.role, res);
+  if (!ex) return;
   await db.delete(workoutTemplateExercisesTable).where(eq(workoutTemplateExercisesTable.id, id));
   res.json({ success: true });
 });
@@ -234,18 +475,34 @@ router.delete("/workout-template-exercises/:id", authenticate, requireAdmin, asy
 router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
-  const [orig] = await db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.id, id)).limit(1);
-  if (!orig) { res.status(404).json({ error: "Not found" }); return; }
+  const [orig] = await db
+    .select()
+    .from(workoutTemplatesTable)
+    .where(eq(workoutTemplatesTable.id, id))
+    .limit(1);
+  if (!orig) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
 
-  const [newTemplate] = await db.insert(workoutTemplatesTable).values({
-    name: orig.name + " (نسخة)",
-    daysCount: orig.daysCount,
-    daysPerWeek: orig.daysPerWeek,
-    dayNames: orig.dayNames,
-    notes: orig.notes,
-  }).returning();
+  const [newTemplate] = await db
+    .insert(workoutTemplatesTable)
+    .values({
+      name: orig.name + " (نسخة)",
+      daysCount: orig.daysCount,
+      daysPerWeek: orig.daysPerWeek,
+      dayNames: orig.dayNames,
+      notes: orig.notes,
+      // Preserve ownership: duplicating a global template stays global, and
+      // duplicating a personal template keeps it owned by the same member
+      // instead of silently promoting it into the public library.
+      createdByUserId: orig.createdByUserId,
+    })
+    .returning();
 
-  const origExercises = await db.select().from(workoutTemplateExercisesTable)
+  const origExercises = await db
+    .select()
+    .from(workoutTemplateExercisesTable)
     .where(eq(workoutTemplateExercisesTable.templateId, id))
     .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
@@ -270,7 +527,10 @@ router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, asyn
 router.get("/workout-templates/:templateId/assignments", authenticate, requireAdmin, async (req, res) => {
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
-  const rows = await db.select().from(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.templateId, templateId));
+  const rows = await db
+    .select()
+    .from(memberWorkoutAssignmentsTable)
+    .where(eq(memberWorkoutAssignmentsTable.templateId, templateId));
   res.json(rows);
 });
 
@@ -278,7 +538,10 @@ router.post("/workout-templates/:templateId/assign", authenticate, requireAdmin,
   const templateId = parseId(req.params.templateId, res, "معرّف القالب");
   if (templateId === null) return;
   const body = assignSchema.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Validation error" }); return; }
+  if (!body.success) {
+    res.status(400).json({ error: "Validation error" });
+    return;
+  }
   const userId = parseUserId(body.data.userId, res);
   if (userId === null) return;
   const [row] = await db.insert(memberWorkoutAssignmentsTable).values({ templateId, userId }).returning();
@@ -297,21 +560,36 @@ router.delete("/workout-assignments/:id", authenticate, requireAdmin, async (req
 router.get("/my-workouts", authenticate, async (req, res) => {
   const userId = req.user!.userId;
   try {
-    const assignments = await db
-      .select()
-      .from(memberWorkoutAssignmentsTable)
-      .where(eq(memberWorkoutAssignmentsTable.userId, userId));
+    // Two sources show up here:
+    //   1. Templates the admin assigned to this user (memberWorkoutAssignments)
+    //   2. Personal templates this user owns (createdByUserId = userId)
+    // We union the two sets of template IDs, then load each template's
+    // exercises in a single query. Assignment timestamps are stitched back in
+    // for templates from source 1; personal templates use the template's own
+    // createdAt as the "assignedAt" so the shape stays the same on the wire.
+    const [assignments, ownedTemplates] = await Promise.all([
+      db.select().from(memberWorkoutAssignmentsTable).where(eq(memberWorkoutAssignmentsTable.userId, userId)),
+      db.select().from(workoutTemplatesTable).where(eq(workoutTemplatesTable.createdByUserId, userId)),
+    ]);
 
-    if (assignments.length === 0) {
+    const assignedIds = new Set(assignments.map((a) => a.templateId));
+    const ownedIds = new Set(ownedTemplates.map((t) => t.id));
+    const allTemplateIds = Array.from(new Set([...assignedIds, ...ownedIds]));
+
+    if (allTemplateIds.length === 0) {
       res.json([]);
       return;
     }
 
-    const templateIds = assignments.map((a) => a.templateId);
-    const templates = await db
-      .select()
-      .from(workoutTemplatesTable)
-      .where(inArray(workoutTemplatesTable.id, templateIds));
+    // Fetch missing template rows (assigned templates not in the owned set).
+    const missingIds = Array.from(assignedIds).filter((id) => !ownedIds.has(id));
+    const assignedTemplates =
+      missingIds.length > 0
+        ? await db.select().from(workoutTemplatesTable).where(inArray(workoutTemplatesTable.id, missingIds))
+        : [];
+    const templatesById = new Map<number, typeof workoutTemplatesTable.$inferSelect>();
+    for (const t of ownedTemplates) templatesById.set(t.id, t);
+    for (const t of assignedTemplates) templatesById.set(t.id, t);
 
     const allExercises = await db
       .select({
@@ -330,7 +608,7 @@ router.get("/my-workouts", authenticate, async (req, res) => {
       })
       .from(workoutTemplateExercisesTable)
       .innerJoin(exercisesTable, eq(workoutTemplateExercisesTable.exerciseId, exercisesTable.id))
-      .where(inArray(workoutTemplateExercisesTable.templateId, templateIds))
+      .where(inArray(workoutTemplateExercisesTable.templateId, allTemplateIds))
       .orderBy(asc(workoutTemplateExercisesTable.dayNumber), asc(workoutTemplateExercisesTable.sortOrder));
 
     const exercisesByTemplate = new Map<number, typeof allExercises>();
@@ -339,16 +617,21 @@ router.get("/my-workouts", authenticate, async (req, res) => {
       arr.push(ex);
       exercisesByTemplate.set(ex.templateId, arr);
     }
-    const templatesById = new Map(templates.map((t) => [t.id, t]));
 
-    const result = assignments
-      .map((a) => {
-        const template = templatesById.get(a.templateId);
+    const assignedAtByTemplate = new Map(assignments.map((a) => [a.templateId, a.assignedAt]));
+
+    const result = allTemplateIds
+      .map((id) => {
+        const template = templatesById.get(id);
         if (!template) return null;
+        const isOwned = ownedIds.has(id);
         return {
           ...template,
-          assignedAt: a.assignedAt,
-          exercises: exercisesByTemplate.get(a.templateId) ?? [],
+          // Surface ownership so the UI can decide whether to show
+          // edit/delete controls without re-querying.
+          isOwn: isOwned,
+          assignedAt: assignedAtByTemplate.get(id) ?? template.createdAt,
+          exercises: exercisesByTemplate.get(id) ?? [],
         };
       })
       .filter(Boolean);

@@ -8,11 +8,14 @@ export interface AuthPayload {
   role: Role;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthPayload;
-    }
+// Augment Express's Request with a typed `user` field populated by
+// `authenticate()`. We extend `express-serve-static-core` (the package that
+// actually declares the Request interface) instead of `namespace Express`
+// so eslint's `no-namespace` rule doesn't trip — the namespace form is the
+// same trick, just expressed through the deprecated TS namespace syntax.
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: AuthPayload;
   }
 }
 
@@ -72,3 +75,13 @@ export function requireRole(...roles: Role[]) {
  * of trainer permissions in this app).
  */
 export const requireAdminOrTrainer = requireRole("admin", "trainer");
+
+/**
+ * Strict trainer-only gate. Used by `/api/trainer/*` endpoints whose
+ * authorization rules ("can only see members assigned to me") would be
+ * meaningless for an admin — admins already have admin endpoints.
+ *
+ * If product later wants admins to be able to "view as trainer", we'll
+ * add a separate impersonation flow rather than loosening this gate.
+ */
+export const requireTrainer = requireRole("trainer");

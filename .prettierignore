@@ -1,0 +1,13 @@
+node_modules
+dist
+public/assets
+client/dist
+client/node_modules
+client/android
+coverage
+*.min.js
+*.min.css
+package-lock.json
+client/package-lock.json
+drizzle
+artifacts

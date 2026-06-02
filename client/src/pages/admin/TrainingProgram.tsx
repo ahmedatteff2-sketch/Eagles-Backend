@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
-  useGetTrainingProgram, useCreateTrainingWeek, useListExercises,
-  useCreateExercise, useUpdateExercise, useDeleteExercise, useGetUser,
-  getGetTrainingProgramQueryKey, getListExercisesQueryKey, getGetUserQueryKey,
+  useGetTrainingProgram,
+  useCreateTrainingWeek,
+  useListExercises,
+  useCreateExercise,
+  useUpdateExercise,
+  useDeleteExercise,
+  useGetUser,
+  getGetTrainingProgramQueryKey,
+  getListExercisesQueryKey,
+  getGetUserQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -91,9 +98,9 @@ const EXERCISE_LIBRARY: Record<string, { name: string; sets: number; repsMin: nu
 };
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
-  "مبتدئ": { bg: "bg-green-500/15", text: "text-green-400" },
-  "متوسط": { bg: "bg-yellow-500/15", text: "text-yellow-400" },
-  "متقدم": { bg: "bg-red-500/15", text: "text-red-400" },
+  مبتدئ: { bg: "bg-green-500/15", text: "text-green-400" },
+  متوسط: { bg: "bg-yellow-500/15", text: "text-yellow-400" },
+  متقدم: { bg: "bg-red-500/15", text: "text-red-400" },
 };
 
 const GOAL_ICONS: Record<string, string> = {
@@ -128,17 +135,20 @@ function TemplatePicker({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
         className="bg-card border border-card-border rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
           <div>
             <h2 className="text-lg font-bold text-foreground">القوالب الجاهزة</h2>
-            <p className="text-muted-foreground text-sm mt-0.5">اختر برنامجاً ويتعبأ تلقائياً بكل الأسابيع والتمارين</p>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              اختر برنامجاً ويتعبأ تلقائياً بكل الأسابيع والتمارين
+            </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -148,7 +158,7 @@ function TemplatePicker({
           {templates === null ? (
             <div className="text-center py-8 text-muted-foreground">جاري التحميل...</div>
           ) : (
-            templates.map(t => {
+            templates.map((t) => {
               const isSelected = selected === t.id;
               const isExpanded = expanded === t.id;
               const levelColor = LEVEL_COLORS[t.level] ?? LEVEL_COLORS["مبتدئ"];
@@ -158,9 +168,7 @@ function TemplatePicker({
                 <div
                   key={t.id}
                   className={`border rounded-xl overflow-hidden transition-all cursor-pointer ${
-                    isSelected
-                      ? "border-primary bg-primary/5"
-                      : "border-card-border hover:border-primary/40"
+                    isSelected ? "border-primary bg-primary/5" : "border-card-border hover:border-primary/40"
                   }`}
                   onClick={() => setSelected(t.id)}
                 >
@@ -171,7 +179,9 @@ function TemplatePicker({
                         <div>
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <h3 className="font-bold text-foreground text-sm">{t.name}</h3>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${levelColor.bg} ${levelColor.text}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${levelColor.bg} ${levelColor.text}`}
+                            >
                               {t.level}
                             </span>
                           </div>
@@ -186,13 +196,22 @@ function TemplatePicker({
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {isSelected && (
                           <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-3 h-3 text-primary-foreground">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                              className="w-3 h-3 text-primary-foreground"
+                            >
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
                           </div>
                         )}
                         <button
-                          onClick={e => { e.stopPropagation(); setExpanded(isExpanded ? null : t.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpanded(isExpanded ? null : t.id);
+                          }}
                           className="text-xs text-primary hover:underline"
                         >
                           {isExpanded ? "إخفاء" : "التفاصيل"}
@@ -241,7 +260,10 @@ function TemplatePicker({
               "اختر قالباً أولاً"
             )}
           </button>
-          <button onClick={onClose} className="px-6 py-3 rounded-xl text-sm font-semibold bg-muted text-foreground hover:bg-muted/80">
+          <button
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl text-sm font-semibold bg-muted text-foreground hover:bg-muted/80"
+          >
             إلغاء
           </button>
         </div>
@@ -263,14 +285,16 @@ function ExerciseLibrary({
   const [search, setSearch] = useState("");
 
   const filtered = search.trim()
-    ? Object.values(EXERCISE_LIBRARY).flat().filter(e => e.name.includes(search))
-    : EXERCISE_LIBRARY[activeGroup] ?? [];
+    ? Object.values(EXERCISE_LIBRARY)
+        .flat()
+        .filter((e) => e.name.includes(search))
+    : (EXERCISE_LIBRARY[activeGroup] ?? []);
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
         className="bg-card border border-card-border rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
           <div>
@@ -279,7 +303,8 @@ function ExerciseLibrary({
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -288,7 +313,7 @@ function ExerciseLibrary({
         <div className="px-4 pt-3 pb-1 flex-shrink-0">
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="ابحث عن تمرين..."
             className="w-full bg-input border border-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -297,7 +322,7 @@ function ExerciseLibrary({
         {/* Muscle group tabs */}
         {!search && (
           <div className="flex gap-1.5 px-4 py-2 overflow-x-auto flex-shrink-0">
-            {Object.keys(EXERCISE_LIBRARY).map(group => (
+            {Object.keys(EXERCISE_LIBRARY).map((group) => (
               <button
                 key={group}
                 onClick={() => setActiveGroup(group)}
@@ -318,19 +343,31 @@ function ExerciseLibrary({
           {filtered.map((ex, i) => (
             <button
               key={i}
-              onClick={() => { onSelect(ex); onClose(); }}
+              onClick={() => {
+                onSelect(ex);
+                onClose();
+              }}
               className="w-full flex items-center justify-between p-3.5 rounded-xl border border-card-border hover:border-primary/40 hover:bg-primary/5 transition-all text-right group"
             >
               <div>
-                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{ex.name}</p>
+                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                  {ex.name}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {ex.sets} مجموعات · {ex.repsMin}–{ex.repsMax} تكرار
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                    className="w-3.5 h-3.5"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </div>
               </div>
@@ -348,12 +385,32 @@ function ExerciseLibrary({
 // ─── Exercise Card ─────────────────────────────────────────────────────────────
 
 const MUSCLE_COLORS: Record<string, string> = {
-  "بنش": "#e74c3c", "صدر": "#e74c3c", "تشست": "#e74c3c", "بوش": "#e74c3c",
-  "سكوات": "#3498db", "أرجل": "#3498db", "ليج": "#3498db", "لانجز": "#3498db", "كالف": "#3498db",
-  "ديدليفت": "#9b59b6", "ظهر": "#9b59b6", "رو": "#9b59b6", "لات": "#9b59b6", "بول": "#9b59b6",
-  "شولدر": "#2ecc71", "كتف": "#2ecc71", "ريز": "#2ecc71", "بريس": "#2ecc71",
-  "بايسبس": "#f39c12", "كيرل": "#f39c12", "ترايسبس": "#e67e22", "سكول": "#e67e22", "ديبس": "#e67e22",
-  "بلانك": "#1abc9c", "كرنشز": "#1abc9c", "كور": "#1abc9c",
+  بنش: "#e74c3c",
+  صدر: "#e74c3c",
+  تشست: "#e74c3c",
+  بوش: "#e74c3c",
+  سكوات: "#3498db",
+  أرجل: "#3498db",
+  ليج: "#3498db",
+  لانجز: "#3498db",
+  كالف: "#3498db",
+  ديدليفت: "#9b59b6",
+  ظهر: "#9b59b6",
+  رو: "#9b59b6",
+  لات: "#9b59b6",
+  بول: "#9b59b6",
+  شولدر: "#2ecc71",
+  كتف: "#2ecc71",
+  ريز: "#2ecc71",
+  بريس: "#2ecc71",
+  بايسبس: "#f39c12",
+  كيرل: "#f39c12",
+  ترايسبس: "#e67e22",
+  سكول: "#e67e22",
+  ديبس: "#e67e22",
+  بلانك: "#1abc9c",
+  كرنشز: "#1abc9c",
+  كور: "#1abc9c",
 };
 
 function getExerciseColor(name: string) {
@@ -364,9 +421,13 @@ function getExerciseColor(name: string) {
 }
 
 function ExerciseCard({
-  ex, index, onEdit, onDelete,
+  ex,
+  index,
+  onEdit,
+  onDelete,
 }: {
-  ex: any; index: number;
+  ex: any;
+  index: number;
   onEdit: (ex: any) => void;
   onDelete: (id: number) => void;
 }) {
@@ -387,7 +448,10 @@ function ExerciseCard({
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-foreground text-sm">{ex.name}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              <span className="px-2 py-0.5 rounded-md text-xs font-medium" style={{ background: `${color}15`, color }}>
+              <span
+                className="px-2 py-0.5 rounded-md text-xs font-medium"
+                style={{ background: `${color}15`, color }}
+              >
                 {ex.setsRequired} مجموعات
               </span>
               <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground">
@@ -400,11 +464,15 @@ function ExerciseCard({
             <button
               onClick={() => onEdit(ex)}
               className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
-            >تعديل</button>
+            >
+              تعديل
+            </button>
             <button
               onClick={() => onDelete(ex.id)}
               className="text-xs text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors"
-            >حذف</button>
+            >
+              حذف
+            </button>
           </div>
         </div>
       </div>
@@ -428,7 +496,13 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
   const updateEx = useUpdateExercise();
   const deleteEx = useDeleteExercise();
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ExForm>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<ExForm>({
     resolver: zodResolver(exSchema),
     defaultValues: { setsRequired: 3, repsMin: 8, repsMax: 12 },
   });
@@ -458,7 +532,7 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
           queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
         },
         onError: () => toast({ title: "خطأ في الإضافة", variant: "destructive" }),
-      }
+      },
     );
   }
 
@@ -466,33 +540,42 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
     const payload = { ...data, videoUrl: data.videoUrl || undefined };
     const isEdit = !!editing;
     const mutation = isEdit
-      ? updateEx.mutate({ exerciseId: editing.id, data: payload }, {
-          onSuccess: () => {
-            toast({ title: "تم تحديث التمرين" });
-            queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
-            setShowForm(false);
+      ? updateEx.mutate(
+          { exerciseId: editing.id, data: payload },
+          {
+            onSuccess: () => {
+              toast({ title: "تم تحديث التمرين" });
+              queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
+              setShowForm(false);
+            },
+            onError: () => toast({ title: "خطأ", variant: "destructive" }),
           },
-          onError: () => toast({ title: "خطأ", variant: "destructive" }),
-        })
-      : createEx.mutate({ weekId, data: payload }, {
-          onSuccess: () => {
-            toast({ title: "تم إضافة التمرين" });
-            queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
-            setShowForm(false);
+        )
+      : createEx.mutate(
+          { weekId, data: payload },
+          {
+            onSuccess: () => {
+              toast({ title: "تم إضافة التمرين" });
+              queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
+              setShowForm(false);
+            },
+            onError: () => toast({ title: "خطأ", variant: "destructive" }),
           },
-          onError: () => toast({ title: "خطأ", variant: "destructive" }),
-        });
+        );
     void mutation;
   }
 
   function handleDelete(exId: number) {
     if (!confirm("حذف التمرين؟")) return;
-    deleteEx.mutate({ exerciseId: exId }, {
-      onSuccess: () => {
-        toast({ title: "تم الحذف" });
-        queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
+    deleteEx.mutate(
+      { exerciseId: exId },
+      {
+        onSuccess: () => {
+          toast({ title: "تم الحذف" });
+          queryClient.invalidateQueries({ queryKey: getListExercisesQueryKey(weekId) });
+        },
       },
-    });
+    );
   }
 
   const exList = Array.isArray(exercises) ? exercises : [];
@@ -510,7 +593,13 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
             onClick={() => setShowLibrary(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="w-3.5 h-3.5"
+            >
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
@@ -521,8 +610,15 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors"
             style={{ background: "hsl(40 65% 48%)", color: "#000" }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              className="w-3.5 h-3.5"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             إضافة يدوي
           </button>
@@ -569,10 +665,22 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-card-border rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-foreground">{editing ? "تعديل التمرين" : "إضافة تمرين"}</h2>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              <h2 className="text-lg font-bold text-foreground">
+                {editing ? "تعديل التمرين" : "إضافة تمرين"}
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  className="w-5 h-5"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
@@ -587,14 +695,18 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
                 {errors.name && <p className="text-destructive text-xs mt-1">{errors.name.message}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">رابط فيديو (اختياري)</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  رابط فيديو (اختياري)
+                </label>
                 <input
                   {...register("videoUrl")}
                   type="url"
                   placeholder="https://youtube.com/watch?v=..."
                   className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                {errors.videoUrl && <p className="text-destructive text-xs mt-1">{errors.videoUrl.message}</p>}
+                {errors.videoUrl && (
+                  <p className="text-destructive text-xs mt-1">{errors.videoUrl.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -626,7 +738,9 @@ function ExerciseList({ weekId, weekNumber }: { weekId: number; weekNumber: numb
                   type="button"
                   onClick={() => setShowForm(false)}
                   className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2.5 rounded-xl text-sm font-semibold"
-                >إلغاء</button>
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
           </div>
@@ -680,14 +794,17 @@ export default function AdminTrainingProgram() {
     const weeks = prog?.weeks ?? [];
     if (weeks.length >= 12) return;
     const nextWeek = weeks.length + 1;
-    createWeek.mutate({ programId, data: { weekNumber: nextWeek } }, {
-      onSuccess: () => {
-        toast({ title: `تم إضافة الأسبوع ${nextWeek}` });
-        queryClient.invalidateQueries({ queryKey: getGetTrainingProgramQueryKey(programId) });
-        setActiveWeekIndex(nextWeek - 1);
+    createWeek.mutate(
+      { programId, data: { weekNumber: nextWeek } },
+      {
+        onSuccess: () => {
+          toast({ title: `تم إضافة الأسبوع ${nextWeek}` });
+          queryClient.invalidateQueries({ queryKey: getGetTrainingProgramQueryKey(programId) });
+          setActiveWeekIndex(nextWeek - 1);
+        },
+        onError: () => toast({ title: "خطأ في إضافة الأسبوع", variant: "destructive" }),
       },
-      onError: () => toast({ title: "خطأ في إضافة الأسبوع", variant: "destructive" }),
-    });
+    );
   }
 
   if (isLoading) {
@@ -733,7 +850,10 @@ export default function AdminTrainingProgram() {
             <div className="flex items-center gap-2 mt-1">
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, hsl(40 65% 30%), hsl(40 65% 22%))", color: "hsl(40 65% 65%)" }}
+                style={{
+                  background: "linear-gradient(135deg, hsl(40 65% 30%), hsl(40 65% 22%))",
+                  color: "hsl(40 65% 65%)",
+                }}
               >
                 {memberName[0]}
               </div>
@@ -743,16 +863,22 @@ export default function AdminTrainingProgram() {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="flex gap-2 text-xs">
-            <span className="px-2 py-1 rounded-lg bg-primary/10 text-primary font-medium">{weeks.length} أسابيع</span>
-            <span className="px-2 py-1 rounded-lg bg-muted text-muted-foreground">{totalExercises} تمرين</span>
+            <span className="px-2 py-1 rounded-lg bg-primary/10 text-primary font-medium">
+              {weeks.length} أسابيع
+            </span>
+            <span className="px-2 py-1 rounded-lg bg-muted text-muted-foreground">
+              {totalExercises} تمرين
+            </span>
           </div>
           <button
             onClick={() => setShowTemplatePicker(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-              <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
             قوالب جاهزة
           </button>
@@ -774,8 +900,10 @@ export default function AdminTrainingProgram() {
               style={{ background: "hsl(40 65% 48%)", color: "#000" }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
               </svg>
               اختر قالب جاهز
             </button>
@@ -785,7 +913,8 @@ export default function AdminTrainingProgram() {
               className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               إضافة أسبوع يدوياً
             </button>
@@ -827,7 +956,8 @@ export default function AdminTrainingProgram() {
               className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all disabled:opacity-50"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               أسبوع جديد
             </button>

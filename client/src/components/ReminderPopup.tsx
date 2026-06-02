@@ -13,19 +13,24 @@ export function ReminderPopup() {
   useEffect(() => {
     if (!accessToken) return;
 
-    getActiveReminders().then(data => {
-      setReminders(data);
-    }).catch(console.error);
+    getActiveReminders()
+      .then((data) => {
+        setReminders(data);
+      })
+      .catch(console.error);
   }, [accessToken]);
 
   useEffect(() => {
     if (reminders.length === 0) return;
 
     // Pick a random reminder every interval
-    const intervals = reminders.map(reminder => {
-      return setInterval(() => {
-        setCurrentReminder(prev => prev ? prev : reminder);
-      }, reminder.intervalMinutes * 60 * 1000);
+    const intervals = reminders.map((reminder) => {
+      return setInterval(
+        () => {
+          setCurrentReminder((prev) => (prev ? prev : reminder));
+        },
+        reminder.intervalMinutes * 60 * 1000,
+      );
     });
 
     return () => {
@@ -51,7 +56,9 @@ export function ReminderPopup() {
         backdropFilter: "blur(12px)",
         animation: isClosing ? "fadeOut 0.3s ease-out" : "fadeIn 0.3s ease-out",
       }}
-      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
     >
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -71,34 +78,54 @@ export function ReminderPopup() {
         }}
       >
         {/* Glow effect */}
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-40 rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(ellipse, hsl(40 65% 48% / 0.2) 0%, transparent 70%)", filter: "blur(30px)", animation: "pulse-glow 3s ease-in-out infinite" }} />
-        
+        <div
+          className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-40 rounded-full pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse, hsl(40 65% 48% / 0.2) 0%, transparent 70%)",
+            filter: "blur(30px)",
+            animation: "pulse-glow 3s ease-in-out infinite",
+          }}
+        />
+
         {/* Top gold line */}
-        <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 55%), transparent)" }} />
+        <div
+          className="absolute inset-x-0 top-0 h-0.5"
+          style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 55%), transparent)" }}
+        />
 
         {/* Content */}
         <div className="relative p-8 text-center" dir="rtl">
           {/* Decorative icon */}
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+          <div
+            className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
             style={{
               background: "linear-gradient(135deg, hsl(40 65% 48% / 0.2), hsl(40 65% 48% / 0.05))",
               border: "1px solid hsl(40 65% 48% / 0.2)",
-              boxShadow: "0 0 30px hsl(40 65% 48% / 0.1)"
-            }}>
+              boxShadow: "0 0 30px hsl(40 65% 48% / 0.1)",
+            }}
+          >
             <span className="text-3xl">🤲</span>
           </div>
 
           {/* Title */}
-          <h2 className="text-sm font-bold tracking-widest uppercase mb-4" style={{ color: GOLD, letterSpacing: "0.15em" }}>
+          <h2
+            className="text-sm font-bold tracking-widest uppercase mb-4"
+            style={{ color: GOLD, letterSpacing: "0.15em" }}
+          >
             تذكير بذكر الله
           </h2>
 
           {/* Divider */}
-          <div className="w-12 h-px mx-auto mb-5" style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 48% / 0.5), transparent)" }} />
+          <div
+            className="w-12 h-px mx-auto mb-5"
+            style={{ background: "linear-gradient(90deg, transparent, hsl(40 65% 48% / 0.5), transparent)" }}
+          />
 
           {/* Dhikr text */}
-          <p className="text-xl font-bold leading-[2] mb-6" style={{ color: "hsl(0 0% 92%)", fontFamily: "'Amiri', 'Traditional Arabic', serif" }}>
+          <p
+            className="text-xl font-bold leading-[2] mb-6"
+            style={{ color: "hsl(0 0% 92%)", fontFamily: "'Amiri', 'Traditional Arabic', serif" }}
+          >
             {currentReminder.content}
           </p>
 
@@ -109,10 +136,13 @@ export function ReminderPopup() {
             style={{
               background: "linear-gradient(135deg, hsl(40 65% 52%), hsl(40 65% 40%))",
               color: "hsl(0 0% 5%)",
-              boxShadow: "0 4px 24px hsl(40 65% 48% / 0.35)"
+              boxShadow: "0 4px 24px hsl(40 65% 48% / 0.35)",
             }}
           >
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "linear-gradient(135deg, hsl(40 65% 58%), hsl(40 65% 46%))" }} />
+            <div
+              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: "linear-gradient(135deg, hsl(40 65% 58%), hsl(40 65% 46%))" }}
+            />
             <span className="relative">جزاك الله خيراً ✨</span>
           </button>
 

@@ -11,6 +11,10 @@ export const remindersTable = pgTable("reminders", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertReminderSchema = createInsertSchema(remindersTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertReminderSchema = createInsertSchema(remindersTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertReminder = z.infer<typeof insertReminderSchema>;
 export type Reminder = typeof remindersTable.$inferSelect;

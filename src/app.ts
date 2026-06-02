@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import * as Sentry from "@sentry/node";
 import { pinoHttp } from "pino-http";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
@@ -55,7 +56,10 @@ function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
   if (process.env.NODE_ENV !== "production") {
     const devRaw = process.env.CORS_ORIGIN_DEV;
     if (devRaw) {
-      const list = devRaw.split(",").map((o) => o.trim()).filter(Boolean);
+      const list = devRaw
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
       if (list.length === 0) return true;
       return list.length === 1 ? list[0] : list;
     }
@@ -74,7 +78,10 @@ function parseCorsOrigin(): cors.CorsOptions["origin"] | null {
     );
     return null;
   }
-  const allowList = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  const allowList = raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
   if (allowList.length === 0) {
     logger.warn("CORS_ORIGIN is empty after parsing — running in same-origin only mode");
     return null;
@@ -135,7 +142,10 @@ const loginPerPhoneLimiter = rateLimit({
   max: isDev ? 50 : 8,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many login attempts", message: "تم تجاوز الحد المسموح به لهذا الرقم. حاول بعد 15 دقيقة" },
+  message: {
+    error: "Too many login attempts",
+    message: "تم تجاوز الحد المسموح به لهذا الرقم. حاول بعد 15 دقيقة",
+  },
   keyGenerator: (req) => {
     const raw = (req.body as { phone?: unknown } | undefined)?.phone;
     if (typeof raw === "string" && raw.length > 0 && raw.length <= 32) {
@@ -147,13 +157,12 @@ const loginPerPhoneLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-// Parses Set-Cookie headers from incoming requests so /auth/refresh and
-// /auth/logout can read the `eg_refresh` httpOnly cookie. We deliberately
-// do NOT pass a secret here — the refresh-token cookie is opaque (a JWT
-// that's verified by /lib/jwt.ts), and the audit log doesn't sign cookies,
-// so nothing benefits from cookie-parser's signed-cookie mode.
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+// Parses the Cookie header on incoming requests so /auth/refresh and
+// /auth/logout can read the `eg_refresh` httpOnly cookie. No secret is
+// passed — the refresh cookie is an opaque JWT verified by lib/jwt.ts, so
+// cookie-parser's signed-cookie mode would add nothing.
 app.use(cookieParser());
 
 app.use(
@@ -182,7 +191,7 @@ app.use("/api/auth/2fa/setup", authLimiter);
 app.use("/api/auth/2fa/enable", authLimiter);
 app.use("/api/auth/2fa/disable", authLimiter);
 app.use("/api/users/:id/reset-password", authLimiter);
-app.use("/api/imports", authLimiter);
+app.use("/api/imports", authLimiter, express.json({ limit: "3mb" }));
 // Audit middleware records every state-changing API request for compliance
 // review. Mounted under /api so the SPA / static asset paths above don't
 // generate audit churn.
@@ -203,6 +212,14 @@ if (process.env.NODE_ENV === "production") {
   const frontendPath = path.resolve(__dirname, "..", "public");
 
   if (existsSync(frontendPath)) {
+    // The site root is the public marketing landing page (its own static
+    // build under /landing/). Redirect at the server so the entry point never
+    // depends on the SPA's client-side routing or a stale service worker. Sent
+    // with no-store so browsers/CDNs don't cache the redirect itself.
+    app.get("/", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.redirect(302, "/landing/");
+    });
     // Cache JS/CSS/images for 7 days (they have hashed filenames)
     app.use(express.static(frontendPath, { maxAge: "7d", immutable: true }));
     // Never cache index.html — always serve fresh
@@ -219,6 +236,10 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  // Forward to Sentry first so the breadcrumb trail captured up to this
+  // point is correlated with the exception. Sentry is a no-op when DSN
+  // is unset, so this is safe in dev/test.
+  Sentry.captureException(err);
   logger.error({ err }, "Unhandled error");
   const isProd = process.env.NODE_ENV === "production";
   res.status(500).json({
