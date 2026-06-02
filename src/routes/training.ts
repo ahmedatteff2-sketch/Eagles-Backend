@@ -168,6 +168,41 @@ async function loadExerciseForWrite(
   return row;
 }
 
+/**
+ * Authorize that the current user may *reference* `exerciseId` from a workout
+ * template. Unlike `loadExerciseForWrite`, this allows referencing the global
+ * library (createdByUserId IS NULL) — members must be able to add catalogued
+ * exercises to their own templates. Members may additionally reference
+ * exercises they created themselves; admins may reference anything.
+ *
+ * Without this gate a member could attach another member's *private* exercise
+ * id to their own template and read its name/video/target-muscle back via
+ * GET /api/my-workouts — a broken object-level authorization (IDOR) leak that
+ * is also enumerable across the whole exercises table. Writes the response
+ * (404/403) and returns false on failure.
+ */
+async function ensureExerciseUsable(
+  exerciseId: number,
+  userId: string,
+  role: string,
+  res: Response,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ createdByUserId: exercisesTable.createdByUserId })
+    .from(exercisesTable)
+    .where(eq(exercisesTable.id, exerciseId))
+    .limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found", message: "التمرين غير موجود" });
+    return false;
+  }
+  if (role !== "admin" && row.createdByUserId !== null && row.createdByUserId !== userId) {
+    res.status(403).json({ error: "Forbidden", message: "غير مسموح باستخدام هذا التمرين" });
+    return false;
+  }
+  return true;
+}
+
 router.put("/exercises/:id", authenticate, async (req, res) => {
   const id = parseId(req.params.id, res);
   if (id === null) return;
@@ -360,6 +395,15 @@ router.post("/workout-templates/:templateId/exercises", authenticate, async (req
   const tpl = await loadTemplateForWrite(templateId, req.user!.userId, req.user!.role, res);
   if (!tpl) return;
 
+  // Authorize the referenced exercise before linking it (IDOR guard).
+  const exerciseOk = await ensureExerciseUsable(
+    body.data.exerciseId,
+    req.user!.userId,
+    req.user!.role,
+    res,
+  );
+  if (!exerciseOk) return;
+
   const maxOrder = await db
     .select({ sortOrder: workoutTemplateExercisesTable.sortOrder })
     .from(workoutTemplateExercisesTable)
@@ -394,6 +438,17 @@ router.put("/workout-template-exercises/:id", authenticate, async (req, res) => 
   }
   const ex = await loadTemplateExerciseForWrite(id, req.user!.userId, req.user!.role, res);
   if (!ex) return;
+  // If the update re-points to a different exercise, authorize the new id too
+  // so a member can't swap in another member's private exercise (IDOR guard).
+  if (body.data.exerciseId !== undefined) {
+    const exerciseOk = await ensureExerciseUsable(
+      body.data.exerciseId,
+      req.user!.userId,
+      req.user!.role,
+      res,
+    );
+    if (!exerciseOk) return;
+  }
   const [row] = await db
     .update(workoutTemplateExercisesTable)
     .set(body.data)
@@ -438,6 +493,10 @@ router.post("/workout-templates/:id/duplicate", authenticate, requireAdmin, asyn
       daysPerWeek: orig.daysPerWeek,
       dayNames: orig.dayNames,
       notes: orig.notes,
+      // Preserve ownership: duplicating a global template stays global, and
+      // duplicating a personal template keeps it owned by the same member
+      // instead of silently promoting it into the public library.
+      createdByUserId: orig.createdByUserId,
     })
     .returning();
 
