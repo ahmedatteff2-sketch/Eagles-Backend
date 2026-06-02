@@ -71,7 +71,10 @@ type FormData = z.infer<typeof schema>;
 
 interface LoginResponse {
   accessToken: string;
-  refreshToken: string;
+  // The backend now sets the refresh token as an httpOnly cookie. This field
+  // may still be present in the JSON for backward compatibility but it's
+  // ignored — the cookie is the source of truth.
+  refreshToken?: string;
   user: { role: "admin" | "member" | "trainer"; [k: string]: unknown };
 }
 
@@ -102,7 +105,10 @@ export default function LoginPage() {
   });
 
   function completeLogin(r: LoginResponse) {
-    setAuth(r.accessToken, r.refreshToken, r.user as never);
+    // Pass `null` for the refresh token: it lives in the httpOnly cookie now,
+    // not in the auth store. Anything still in `r.refreshToken` (returned for
+    // backward compat) is intentionally discarded so it never hits storage.
+    setAuth(r.accessToken, null, r.user as never);
     let next: string | null = null;
     try {
       next = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_AFTER_LOGIN);

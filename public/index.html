@@ -4,14 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <!--
-      Content Security Policy. Kept reasonably tight while still allowing the
-      Google Fonts CSS + font files used by this app and inline styles emitted
-      by Tailwind/shadcn. `data:` is allowed for `img-src` so progress-photo
-      previews render. We do NOT allow `'unsafe-eval'`, no remote scripts, and
-      no `object-src`. Tighten further (move fonts to self) before going public
-      to a hostile network.
+      Content Security Policy is enforced by the backend via Helmet
+      (see src/app.ts). The HTTP header always wins over a <meta>
+      equivalent and is the single source of truth so we don't drift.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" />
     <title>Eagle Gym — نظام الإدارة</title>
     <meta name="description" content="نظام إدارة صالة Eagle Gym الرياضية" />
     <meta name="theme-color" content="#c9a43c" />
@@ -25,10 +21,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-BdImjAZ4.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DEQXNQUn.css">
-  </head>
+    <script type="module" crossorigin src="/assets/index-BVN9rIJr.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-D03AthiG.js">
+    <link rel="modulepreload" crossorigin href="/assets/tanstack-U-H99_oO.js">
+    <link rel="modulepreload" crossorigin href="/assets/pdf-CKNiooRx.js">
+    <link rel="modulepreload" crossorigin href="/assets/radix-ayiYVWdl.js">
+    <link rel="modulepreload" crossorigin href="/assets/i18n-D0X4800N.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-CZOBiqHL.js">
+    <link rel="modulepreload" crossorigin href="/assets/icons-DOOn5uDb.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Bc3NmM0U.css">
+  <script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>

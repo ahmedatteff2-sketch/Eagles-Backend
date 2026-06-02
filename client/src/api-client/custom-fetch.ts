@@ -368,7 +368,13 @@ async function customFetchWithRetry<T>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // `credentials: "include"` makes the browser send the httpOnly refresh
+  // cookie on /api/auth/* requests (and any other same-origin call). The
+  // backend's CORS config is an allow-list (never reflective), so this is
+  // safe — the browser still blocks the cookie on cross-origin responses
+  // unless the server explicitly opts in.
+  // Caller can override via `options.credentials`.
+  const response = await fetch(input, { credentials: "include", ...init, method, headers });
 
   if (response.status === 401 && allowRefresh && !callerProvidedAuth) {
     const refreshed = _authRefreshHandler ? await _authRefreshHandler() : null;

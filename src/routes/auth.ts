@@ -6,7 +6,7 @@
  * If you find yourself adding `db.select(...)` here, that's a code-smell:
  * push it into the service or the repository instead.
  */
-import { Router, type Request } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { authenticate } from "../middlewares/auth.js";
 import { recordAuditEvent } from "../middlewares/audit.js";
@@ -18,6 +18,56 @@ import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const router = Router();
+
+// ── Refresh-token cookie ─────────────────────────────────────────────────────
+//
+// The refresh token is delivered as an httpOnly cookie scoped to /api/auth, so
+// the browser only sends it on the refresh/logout endpoints — every other API
+// call authenticates with the `Authorization: Bearer <accessToken>` header.
+// httpOnly keeps it out of JavaScript's reach (XSS-resistant); the narrow path
+// limits its blast radius on the wire.
+const REFRESH_COOKIE_NAME = "eg_refresh";
+const REFRESH_COOKIE_PATH = "/api/auth";
+const REFRESH_TTL_DAYS = (() => {
+  const raw = Number(process.env.JWT_REFRESH_TTL_DAYS);
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 30;
+})();
+
+function setRefreshCookie(res: Response, token: string): void {
+  res.cookie(REFRESH_COOKIE_NAME, token, {
+    httpOnly: true,
+    // Production is always HTTPS (Render); dev runs over http://localhost so we
+    // can't require Secure there or the browser drops the cookie silently.
+    secure: process.env.NODE_ENV === "production",
+    // Lax suits first-party flows (frontend served by this backend, Capacitor
+    // WebView loading the server URL). We avoid SameSite=None on purpose — it
+    // would force Secure everywhere and widen the CSRF surface on /api/auth.
+    sameSite: "lax",
+    path: REFRESH_COOKIE_PATH,
+    maxAge: REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearRefreshCookie(res: Response): void {
+  // Attributes (path / sameSite / secure) MUST match setRefreshCookie, or the
+  // browser won't replace/remove the original cookie.
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: REFRESH_COOKIE_PATH,
+  });
+}
+
+function readRefreshTokenFromRequest(req: Request): string | null {
+  // Prefer the cookie (new clients); fall back to the request body so legacy
+  // localStorage clients keep working until their token rotates or expires.
+  const fromCookie = (req.cookies as Record<string, unknown> | undefined)?.[REFRESH_COOKIE_NAME];
+  if (typeof fromCookie === "string" && fromCookie.length > 0) return fromCookie;
+  const fromBody = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+  if (typeof fromBody === "string" && fromBody.length > 0) return fromBody;
+  return null;
+}
 
 const loginSchema = z.object({
   phone: z
@@ -35,10 +85,6 @@ const loginSchema = z.object({
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: z.string().min(8).max(128),
-});
-
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1).max(2000),
 });
 
 const updatePhoneSchema = z.object({
@@ -117,6 +163,9 @@ router.post("/auth/login", async (req, res) => {
         actorIdOverride: outcome.userId,
         payload: { role: outcome.role },
       });
+      // Deliver the refresh token as an httpOnly cookie. It's also returned in
+      // the body for one release so legacy clients keep working.
+      setRefreshCookie(res, outcome.tokens.refreshToken);
       res.json({
         accessToken: outcome.tokens.accessToken,
         refreshToken: outcome.tokens.refreshToken,
@@ -197,6 +246,7 @@ router.post("/auth/2fa/verify", async (req, res) => {
         actorIdOverride: outcome.userId,
         payload: { role: outcome.role },
       });
+      setRefreshCookie(res, outcome.tokens.refreshToken);
       res.json({
         accessToken: outcome.tokens.accessToken,
         refreshToken: outcome.tokens.refreshToken,
@@ -224,14 +274,19 @@ router.post("/auth/2fa/verify", async (req, res) => {
 });
 
 router.post("/auth/refresh", async (req, res) => {
-  const body = refreshSchema.safeParse(req.body);
-  if (!body.success) {
+  // Read the refresh token from the httpOnly cookie first, falling back to the
+  // request body for legacy clients that still post it.
+  const refreshToken = readRefreshTokenFromRequest(req);
+  if (!refreshToken) {
     res.status(401).json({ error: "Unauthorized", message: "Refresh token required" });
     return;
   }
-  const outcome = await authService.rotateRefreshToken(body.data.refreshToken, sessionContextFromReq(req));
+  const outcome = await authService.rotateRefreshToken(refreshToken, sessionContextFromReq(req));
   switch (outcome.type) {
     case "ok":
+      // Rotate the cookie to the freshly-minted refresh token. The body still
+      // carries it for one release so legacy clients keep working.
+      setRefreshCookie(res, outcome.tokens.refreshToken);
       res.json({
         accessToken: outcome.tokens.accessToken,
         refreshToken: outcome.tokens.refreshToken,
@@ -243,18 +298,25 @@ router.post("/auth/refresh", async (req, res) => {
         status: 401,
         actorIdOverride: outcome.userId,
       });
+      // Clear the cookie so a compromised/rotated token isn't resent on every
+      // page load.
+      clearRefreshCookie(res);
       res.status(401).json({ error: "Unauthorized", message: "Token expired or invalid" });
       return;
     case "expired":
     case "invalid":
+      clearRefreshCookie(res);
       res.status(401).json({ error: "Unauthorized", message: "Token expired or invalid" });
       return;
   }
 });
 
 router.post("/auth/logout", async (req, res) => {
-  const body = refreshSchema.safeParse(req.body);
-  await authService.logout(body.success ? body.data.refreshToken : null);
+  // The token rides in the cookie now; still accept a body token for legacy
+  // clients. Revoke it server-side, then clear the cookie either way.
+  const refreshToken = readRefreshTokenFromRequest(req);
+  await authService.logout(refreshToken);
+  clearRefreshCookie(res);
   res.json({ success: true, message: "Logged out" });
 });
 

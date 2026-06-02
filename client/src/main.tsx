@@ -57,29 +57,30 @@ function decodeExp(token: string): number | null {
 
 interface PersistedAuthState {
   accessToken: string;
-  refreshToken: string;
 }
 
-function getStoredState(): PersistedAuthState | null {
+function getStoredAccessToken(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
     if (!raw) return null;
     const state = (JSON.parse(raw) as { state?: Partial<PersistedAuthState> })?.state;
-    if (!state?.accessToken || !state?.refreshToken) return null;
-    return { accessToken: state.accessToken, refreshToken: state.refreshToken };
+    if (!state?.accessToken) return null;
+    return state.accessToken;
   } catch {
     return null;
   }
 }
 
-function updateStoredTokens(accessToken: string, refreshToken: string): void {
+function updateStoredAccessToken(accessToken: string): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
     if (!raw) return;
     const obj = JSON.parse(raw) as { state?: Record<string, unknown> };
     if (obj?.state) {
       obj.state.accessToken = accessToken;
-      obj.state.refreshToken = refreshToken;
+      // Refresh token now lives in an httpOnly cookie. Drop any stale value
+      // left over from the localStorage era so it doesn't sit on disk.
+      delete obj.state.refreshToken;
       localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(obj));
     }
   } catch {
@@ -108,18 +109,20 @@ function clearAndRedirect(): void {
 let isRefreshing = false;
 let pendingRefresh: Promise<string | null> | null = null;
 
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+async function refreshAccessToken(): Promise<string | null> {
   try {
     const base = apiUrl ? apiUrl.replace(/\/+$/, "") : "";
+    // The refresh token now lives in an httpOnly cookie that the browser
+    // sends automatically when `credentials: "include"` is set. No body /
+    // Authorization header is needed — the server reads the cookie.
     const res = await fetch(`${base}/api/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as Partial<PersistedAuthState>;
-    if (data?.accessToken && data?.refreshToken) {
-      updateStoredTokens(data.accessToken, data.refreshToken);
+    const data = (await res.json()) as Partial<{ accessToken: string }>;
+    if (data?.accessToken) {
+      updateStoredAccessToken(data.accessToken);
       return data.accessToken;
     }
     return null;
@@ -129,11 +132,12 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 }
 
 function startRefresh(): Promise<string | null> {
-  const state = getStoredState();
-  if (!state) return Promise.resolve(null);
+  // Without a stored access token there's no session to refresh — bail out
+  // so we don't ping the server unnecessarily on the login page.
+  if (!getStoredAccessToken()) return Promise.resolve(null);
   if (isRefreshing && pendingRefresh) return pendingRefresh;
   isRefreshing = true;
-  pendingRefresh = refreshAccessToken(state.refreshToken).finally(() => {
+  pendingRefresh = refreshAccessToken().finally(() => {
     isRefreshing = false;
     pendingRefresh = null;
   });
@@ -143,10 +147,9 @@ function startRefresh(): Promise<string | null> {
 // ─── Auth wiring on the API client ──────────────────────────────────────────
 
 setAuthTokenGetter(async () => {
-  const state = getStoredState();
-  if (!state) return null;
+  const accessToken = getStoredAccessToken();
+  if (!accessToken) return null;
 
-  const { accessToken } = state;
   const exp = decodeExp(accessToken);
 
   // Use existing token if it's still good for >60s.

@@ -736,7 +736,7 @@ const mobileBottomTabs = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user, clearAuth, refreshToken } = useAuthStore();
+  const { user, clearAuth } = useAuthStore();
   const queryClient = useQueryClient();
   const logout = useLogout();
   const [collapsed, setCollapsed] = useState(false);
@@ -783,8 +783,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, []);
 
   function handleLogout() {
+    // Refresh token now travels in the httpOnly `eg_refresh` cookie, sent
+    // automatically by customFetch (credentials: include). The body is empty —
+    // the server reads the cookie and revokes it.
     logout.mutate(
-      { data: { refreshToken: refreshToken ?? "" } },
+      { data: { refreshToken: "" } },
       {
         onSettled: () => {
           clearAuth();

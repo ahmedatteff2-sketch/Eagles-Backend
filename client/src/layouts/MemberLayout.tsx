@@ -371,7 +371,7 @@ const navItems = [
 
 export default function MemberLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user, clearAuth, refreshToken } = useAuthStore();
+  const { user, clearAuth } = useAuthStore();
   const queryClient = useQueryClient();
   const logout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -382,8 +382,12 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
   const pullRef = usePullRefresh(onPullRefresh);
 
   function handleLogout() {
+    // The refresh token now rides in the httpOnly `eg_refresh` cookie that
+    // customFetch attaches automatically (credentials: include). The body is
+    // kept (the generated `useLogout` typing still requires it) but empty —
+    // the server falls back to the cookie.
     logout.mutate(
-      { data: { refreshToken: refreshToken ?? "" } },
+      { data: { refreshToken: "" } },
       {
         onSettled: () => {
           clearAuth();
