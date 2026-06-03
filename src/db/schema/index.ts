@@ -14,3 +14,4 @@ export * from "./renewal-reminders.js";
 export * from "./absence-reminders.js";
 export * from "./trainer-notes.js";
 export * from "./landing-content.js";
+export * from "./nutrition.js";

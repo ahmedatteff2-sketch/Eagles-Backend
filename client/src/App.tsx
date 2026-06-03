@@ -49,6 +49,7 @@ const MemberProgressPhotos = lazy(() => import("@/pages/member/ProgressPhotos"))
 const MemberLeaderboard = lazy(() => import("@/pages/member/Leaderboard"));
 const MemberNotifications = lazy(() => import("@/pages/member/Notifications"));
 const MemberMealPlan = lazy(() => import("@/pages/member/MealPlan"));
+const MemberNutrition = lazy(() => import("@/pages/member/Nutrition"));
 const MemberBadges = lazy(() => import("@/pages/member/Badges"));
 const MemberPersonalRecords = lazy(() => import("@/pages/member/PersonalRecords"));
 const MemberCalendar = lazy(() => import("@/pages/member/Calendar"));
@@ -421,6 +422,11 @@ export default function App() {
         <Route path="/member/meals">
           <MemberRoute>
             <MemberMealPlan />
+          </MemberRoute>
+        </Route>
+        <Route path="/member/nutrition">
+          <MemberRoute>
+            <MemberNutrition />
           </MemberRoute>
         </Route>
         <Route path="/member/badges">
