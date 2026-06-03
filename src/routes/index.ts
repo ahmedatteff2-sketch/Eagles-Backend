@@ -19,6 +19,7 @@ import renewalRemindersRouter from "./renewal-reminders.js";
 import absenceRemindersRouter from "./absence-reminders.js";
 import trainerRouter from "./trainer.js";
 import landingContentRouter from "./landing-content.js";
+import nutritionRouter from "./nutrition.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(renewalRemindersRouter);
 router.use(absenceRemindersRouter);
 router.use(trainerRouter);
 router.use(landingContentRouter);
+router.use(nutritionRouter);
 
 export default router;

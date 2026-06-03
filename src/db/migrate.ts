@@ -888,6 +888,105 @@ export async function runMigrations(): Promise<void> {
       [JSON.stringify(DEFAULT_LANDING_CONTENT)],
     );
 
+    // ── Flexible-diet: foods catalog + food_logs ──────────────────────────
+    const { rows: hasFoods } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'foods'`,
+    );
+    if (hasFoods.length === 0) {
+      logger.info("Creating foods table");
+      await client.query(
+        `CREATE TABLE foods (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          category TEXT,
+          calories_per_100g NUMERIC(7,2) NOT NULL,
+          protein_per_100g NUMERIC(6,2) NOT NULL,
+          carbs_per_100g NUMERIC(6,2) NOT NULL,
+          fats_per_100g NUMERIC(6,2) NOT NULL
+        )`,
+      );
+    }
+    const { rows: hasFoodLogs } = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'food_logs'`,
+    );
+    if (hasFoodLogs.length === 0) {
+      logger.info("Creating food_logs table");
+      await client.query(
+        `CREATE TABLE food_logs (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          date DATE NOT NULL,
+          food_name TEXT NOT NULL,
+          grams NUMERIC(7,1) NOT NULL,
+          calories NUMERIC(7,1) NOT NULL,
+          protein NUMERIC(6,1) NOT NULL,
+          carbs NUMERIC(6,1) NOT NULL,
+          fats NUMERIC(6,1) NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT now()
+        )`,
+      );
+      await client.query(`CREATE INDEX IF NOT EXISTS food_logs_user_date ON food_logs(user_id, date)`);
+    }
+    // Seed the catalog once with per-100g macros for common Egyptian + general
+    // foods. Only runs when the table is empty so operators can edit/extend it.
+    const { rows: foodSeeded } = await client.query(`SELECT 1 FROM foods LIMIT 1`);
+    if (foodSeeded.length === 0) {
+      logger.info("Seeding foods catalog");
+      await client.query(`
+        INSERT INTO foods (name, category, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g) VALUES
+        ('صدر فراخ مشوي','بروتين',165,31,0,3.6),
+        ('فراخ بانيه','بروتين',290,18,14,18),
+        ('لحمة بقري مفرومة','بروتين',250,26,0,15),
+        ('لحمة بتلو قليلة الدهن','بروتين',172,28,0,6),
+        ('كبدة بقري','بروتين',175,27,4,5),
+        ('تونة مصفّاة','بروتين',116,26,0,1),
+        ('سمك بلطي مشوي','بروتين',128,26,0,2.7),
+        ('جمبري','بروتين',99,24,0.2,0.3),
+        ('بيضة كاملة','بروتين',155,13,1.1,11),
+        ('بياض بيض','بروتين',52,11,0.7,0.2),
+        ('سجق','بروتين',300,15,3,25),
+        ('لانشون','بروتين',250,13,6,20),
+        ('أرز أبيض مطبوخ','نشويات',130,2.7,28,0.3),
+        ('أرز بسمتي مطبوخ','نشويات',130,2.7,28,0.3),
+        ('مكرونة مطبوخة','نشويات',131,5,25,1.1),
+        ('عيش بلدي','نشويات',275,9,55,1.5),
+        ('عيش فينو / توست','نشويات',265,9,49,3.2),
+        ('بطاطس مسلوقة','نشويات',87,1.9,20,0.1),
+        ('بطاطس محمّرة','نشويات',312,3.4,41,15),
+        ('بطاطا','نشويات',86,1.6,20,0.1),
+        ('شوفان جاف','نشويات',389,16.9,66,6.9),
+        ('كورن فليكس','نشويات',357,7,84,0.4),
+        ('فول مدمس','بقوليات',110,8,16,1.5),
+        ('طعمية','بقوليات',330,13,32,18),
+        ('عدس مطبوخ','بقوليات',116,9,20,0.4),
+        ('حمص مسلوق','بقوليات',164,9,27,2.6),
+        ('فاصوليا بيضاء مطبوخة','بقوليات',139,9,25,0.5),
+        ('لبن كامل الدسم','ألبان',61,3.2,4.8,3.3),
+        ('لبن خالي الدسم','ألبان',35,3.4,5,0.1),
+        ('زبادي','ألبان',61,3.5,4.7,3.3),
+        ('زبادي يوناني','ألبان',97,9,3.6,5),
+        ('جبنة قريش','ألبان',98,11,3.4,4.3),
+        ('جبنة بيضاء فيتا','ألبان',264,14,4,21),
+        ('جبنة رومي','ألبان',360,25,2,28),
+        ('جبنة موزاريلا','ألبان',280,28,3,17),
+        ('موز','فاكهة',89,1.1,23,0.3),
+        ('تفاح','فاكهة',52,0.3,14,0.2),
+        ('برتقال','فاكهة',47,0.9,12,0.1),
+        ('بلح','فاكهة',282,2.5,75,0.4),
+        ('عنب','فاكهة',69,0.7,18,0.2),
+        ('مانجو','فاكهة',60,0.8,15,0.4),
+        ('زيت زيتون','دهون',884,0,0,100),
+        ('زبدة','دهون',717,0.9,0.1,81),
+        ('لوز','مكسرات',579,21,22,50),
+        ('عين جمل','مكسرات',654,15,14,65),
+        ('زبدة فول سوداني','دهون',588,25,20,50),
+        ('طحينة','دهون',595,17,21,53),
+        ('سلطة خضراء','خضار',20,1.2,4,0.2),
+        ('خيار','خضار',15,0.7,3.6,0.1),
+        ('طماطم','خضار',18,0.9,3.9,0.2)
+      `);
+    }
+
     // ── Seed default admin ─────────────────────────────────────────────────
     const { rows } = await client.query(`SELECT id FROM "User" WHERE phone = $1 LIMIT 1`, ["01025754947"]);
     if (rows.length === 0) {
